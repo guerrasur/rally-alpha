@@ -1013,3 +1013,6 @@
     opacity:0;
     animation:sceneLineIn .8s ease forwards;
   }
+
+  /* Entrada instantánea de pantalla (campaña: la partida aparece de golpe) */
+  .screen.is-instant{ transition:none; }

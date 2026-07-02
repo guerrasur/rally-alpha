@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.65';
+const VERSION = 'v0.2.66';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -89,7 +89,7 @@ function tourneySkillFor(i){
 const CAMPAIGN_SAVE_KEY = 'rally_campaign_v1';
 const CAMPAIGN_SCRIPT = [
   // Nodo 0: arranca como una partida rápida normal. Sin nada raro… por ahora.
-  { id:'intro-match', type:'match', opp:{ name:'Cachito', hp:100, skill:0.35 } },
+  { id:'intro-match', type:'match', opp:{ name:'Tarata', hp:11, skill:0.35 } },
   // ← próximos nodos de la campaña van acá (escenas, partidas con mecánicas
   //    nuevas, giros de historia). Ejemplo:
   // { id:'s1', type:'scene', lines:['Cachito te mira fijo.', 'Algo cambió.'] },
@@ -179,9 +179,12 @@ Campaign.handlers = {
     Tourney.active=false;
     App.oppName = (node.opp && node.opp.name) || '???';
     applyOppCosmetic();
-    // Directo a la partida, SIN el overlay de instrucciones ("Cómo se juega"):
-    // la campaña arranca de golpe, como una partida ya empezada.
+    // Directo a la partida, SIN el overlay de instrucciones ("Cómo se juega")
+    // y SIN fade-in de pantalla: aparece repentinamente, ya empezada.
+    const sg = $('screen-game');
+    sg.classList.add('is-instant');
     updateHud(); show('game'); startGame();
+    setTimeout(()=>sg.classList.remove('is-instant'), 400);
   },
   scene(node){
     playScene(node.lines || [], ()=>Campaign.advance());
