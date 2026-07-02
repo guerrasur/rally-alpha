@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.62</title>
+<title>Rally — duelo en tablero · v0.2.63</title>
 <link rel="stylesheet" href="style.css" />
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.62</div>
+  <div class="version-tag" id="version-tag">v0.2.63</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -116,6 +116,7 @@
     </div>
     <div class="actions">
       <button class="btn btn--primary" id="btn-quick">Partida rápida</button>
+      <button class="btn btn--outline" id="btn-campaign">Campaña</button>
       <button class="btn btn--ghost" id="btn-tournament">🏆 o entrar al torneo</button>
       <button class="btn btn--ghost" id="btn-offline-back" style="margin-top:4px; opacity:.75;">Volver</button>
     </div>
@@ -310,6 +311,7 @@
     </div>
     <div class="actions">
       <button class="btn btn--primary" id="btn-tourney-next" style="display:none;">Siguiente rival ▸</button>
+      <button class="btn btn--primary" id="btn-camp-next" style="display:none;">Continuar ▸</button>
       <button class="btn btn--primary" id="btn-again">Revancha</button>
       <button class="btn btn--primary" id="btn-to-room" style="display:none;">Volver a la sala</button>
       <button class="btn btn--ghost" id="btn-home">Volver al menú</button>
@@ -353,6 +355,24 @@
     </div>
     <button class="btn btn--primary" id="bracket-go">Combatir ▸</button>
   </section>
+
+  <!-- Campaña: pantalla genérica de escenas de texto (líneas que van apareciendo) -->
+  <section class="screen screen--scene" id="screen-scene">
+    <div class="scene-text" id="scene-text"></div>
+    <button class="btn btn--ghost scene-continue" id="scene-continue" hidden>Continuar ▸</button>
+  </section>
+
+  <!-- Campaña: menú de confirmación de inicio (fondo plano, se desvanece al confirmar) -->
+  <div class="camp-overlay" id="camp-overlay" hidden>
+    <div class="camp-box" id="camp-box">
+      <span class="camp-eyebrow">Campaña</span>
+      <h2 class="camp-title" id="camp-title">¿Comenzar campaña?</h2>
+      <div class="camp-actions">
+        <button class="btn btn--primary" id="camp-yes">Comenzar</button>
+        <button class="btn btn--ghost" id="camp-no">Volver</button>
+      </div>
+    </div>
+  </div>
 
   <section class="screen screen--lab" id="screen-lab">
     <div class="lab-head">

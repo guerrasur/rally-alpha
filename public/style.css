@@ -925,3 +925,90 @@
   @media (prefers-reduced-motion: reduce){
     *{ animation-duration:.01ms !important; transition-duration:.05ms !important; }
   }
+
+  /* ==== Campaña ==== */
+
+  /* Menú de confirmación de inicio: fondo PLANO opaco (--paper) que cubre todo.
+     Al confirmar, .camp-box se desvanece en 3s y queda solo el fondo plano. */
+  .camp-overlay{
+    position:absolute;
+    inset:0;
+    z-index:300;
+    background:var(--paper);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:28px;
+  }
+  .camp-box{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:22px;
+    text-align:center;
+    max-width:320px;
+    width:100%;
+    opacity:1;
+    transition:opacity 3s ease;
+  }
+  .camp-box.is-fading{
+    opacity:0;
+    pointer-events:none;
+  }
+  .camp-eyebrow{
+    font-family:var(--font-body);
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .camp-title{
+    font-family:var(--font-display);
+    font-size:24px;
+    font-weight:600;
+    line-height:1.35;
+    color:var(--ink);
+  }
+  .camp-title b{ color:var(--accent); }
+  .camp-actions{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    width:100%;
+  }
+
+  /* Escenas de texto de la campaña: líneas que aparecen de a una sobre fondo plano */
+  .screen--scene{
+    justify-content:center;
+    align-items:center;
+    gap:30px;
+    padding:36px;
+    background:var(--paper);
+  }
+  .scene-text{
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+    max-width:340px;
+    width:100%;
+  }
+  .scene-line{
+    font-family:var(--font-display);
+    font-size:18px;
+    line-height:1.5;
+    color:var(--ink);
+    text-align:center;
+    opacity:0;
+    animation:sceneLineIn 1.2s ease forwards;
+  }
+  @keyframes sceneLineIn{
+    from{ opacity:0; transform:translateY(8px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .scene-continue{
+    max-width:220px;
+    width:100%;
+    opacity:0;
+    animation:sceneLineIn .8s ease forwards;
+  }

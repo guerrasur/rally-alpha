@@ -1,6 +1,16 @@
 # Rally — Session State & Learnings
 
-**Last updated:** v0.2.62 — this session ran entirely in VS Code + Claude Code extension (no chat/Design merge involved), working directly on the 3 split files in `public/`. No re-split needed. See "v0.2.61 → v0.2.62" section below for what changed.
+**Last updated:** v0.2.63 — remote session (Claude Code on the web). Added the **offline Campaign system** foundation. See "v0.2.62 → v0.2.63" below.
+
+### v0.2.62 → v0.2.63 (this session)
+- **NUEVO — Sistema de Campaña offline (bases):**
+  - `CAMPAIGN_SCRIPT` (game.js, arriba de todo): cinta de nodos que se recorre en orden. Tipos hoy: `match` (partida vs CPU con `opp:{name,hp,skill,accent,emoji,dmgMult}` y `youHp` opcional) y `scene` (escena de texto sobre fondo plano, líneas que aparecen de a una vía `playScene()`). Extensible: registrar `Campaign.handlers.nuevoTipo = (node)=>{...; Campaign.advance();}` para animaciones/juegos internos futuros. Nodo 0 actual: partida vs Cachito idéntica a una partida rápida (a propósito — el CONCEPTO de la campaña es que parece normal y de a poco aparecen mecánicas/historia inesperadas; el usuario la irá escribiendo agregando nodos).
+  - **Caché de progreso:** localStorage `rally_campaign_v1` → `{v,node,name,flags,history,startedAt,updatedAt}`. Se guarda al ganar cada nodo (`Campaign.completeCurrent()`, ANTES de la pantalla de resultado, así cerrar la app no pierde avance). `Campaign.setFlag/getFlag` para decisiones de historia futuras.
+  - **UI:** botón `btn-campaign` en screen-offline — dice "Campaña" o "▶ Continuar campaña" si hay save (`updateCampaignBtn()`). Primera vez: overlay `camp-overlay` (fondo plano opaco --paper) "¿Comenzar campaña como (nombre)?"; al confirmar, `.camp-box.is-fading` desvanece el menú en 3s (transition opacity) dejando el fondo plano, y a los 3.6s arranca de golpe la partida del nodo 0. Con progreso: retoma directo en el nodo guardado, sin confirmar.
+  - **Integración:** rama `Campaign.active` en `endGame` (ganar → "Continuar ▸" `btn-camp-next`; perder/empate → "Reintentar" mismo nodo), en `startGame` (hp de ambos), `applyOppCosmetic` (accent/nombre del nodo), `cpuDmgMult` (dmgMult del nodo), y nuevo `currentCpuSkill()` (campaña > torneo > 0.35) que reemplazó las 2 lecturas de skill duplicadas. `btn-leave`/`btn-home` llaman `Campaign.exitToMenu()` (sale del modo, el save queda). Fin de la cinta → escena "Continuará…" y NO borra el save (al agregar nodos, continúa desde ahí).
+  - Nuevas pantallas en index.html: `screen-scene` (+`scene-text`/`scene-continue`) y `camp-overlay`; estilos al final de style.css (`.camp-*`, `.scene-*`).
+  - Validado con `new Function(...)` + smoke test Node con DOM stub (flujo completo: confirmar → fade → partida → ganar → caché → continuar → "Continuará…" → resume).
+ — this session ran entirely in VS Code + Claude Code extension (no chat/Design merge involved), working directly on the 3 split files in `public/`. No re-split needed. See "v0.2.61 → v0.2.62" section below for what changed.
 **Working files (this session/tool):** `public/index.html` + `public/style.css` + `public/game.js` (repo root: `Rally - historico/Rally-alpha-0-2-61/`).
 **Language:** All interaction with user (Lucio) in Argentine Spanish. Keep responding in Spanish.
 

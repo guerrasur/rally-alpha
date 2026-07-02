@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.62';
+const VERSION = 'v0.2.63';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -68,6 +68,150 @@ function tourneySkillFor(i){
   const n = TOURNEY_ROSTER.length;
   const t = n>1 ? i/(n-1) : 1;
   return Math.pow(t, 1.6); // curva que arranca suave y sube fuerte al final
+}
+
+// ---- Modo Campaña offline ----
+// Historia guiada por "nodos". CAMPAIGN_SCRIPT es la cinta de la campaña: se
+// recorre en orden y el progreso (índice de nodo + flags de historia) se
+// cachea en localStorage, así el jugador siempre retoma exactamente donde iba
+// ("Continuar campaña"). La campaña se irá escribiendo de a poco: para sumar
+// contenido alcanza con agregar nodos al final de CAMPAIGN_SCRIPT.
+//
+// Tipos de nodo soportados hoy (extensible vía Campaign.handlers):
+//   { id, type:'match', opp:{ name, hp, skill, accent, emoji, dmgMult }, youHp? }
+//       → una partida en el tablero contra ese rival. Se ve como una partida
+//         normal; opp permite ir torciendo las reglas sin que se note.
+//   { id, type:'scene', lines:['…','…'] }
+//       → escena de texto sobre fondo plano, las líneas aparecen de a una.
+// Para futuras mecánicas (animaciones, juegos internos, etc.) se registra un
+// handler nuevo: Campaign.handlers.miTipo = (node)=>{ …; Campaign.advance(); }
+// El handler es dueño de la pantalla y llama Campaign.advance() al terminar.
+const CAMPAIGN_SAVE_KEY = 'rally_campaign_v1';
+const CAMPAIGN_SCRIPT = [
+  // Nodo 0: arranca como una partida rápida normal. Sin nada raro… por ahora.
+  { id:'intro-match', type:'match', opp:{ name:'Cachito', hp:100, skill:0.35 } },
+  // ← próximos nodos de la campaña van acá (escenas, partidas con mecánicas
+  //    nuevas, giros de historia). Ejemplo:
+  // { id:'s1', type:'scene', lines:['Cachito te mira fijo.', 'Algo cambió.'] },
+];
+
+const Campaign = {
+  active:false,   // true mientras el jugador está DENTRO de la campaña
+  node:0,         // índice del nodo actual en CAMPAIGN_SCRIPT
+  data:null,      // save: { v, node, name, flags, history, startedAt, updatedAt }
+
+  load(){
+    try{ const raw = localStorage.getItem(CAMPAIGN_SAVE_KEY); this.data = raw ? JSON.parse(raw) : null; }
+    catch(e){ this.data = null; }
+    return this.data;
+  },
+  save(){
+    if(!this.data) return;
+    this.data.updatedAt = Date.now();
+    try{ localStorage.setItem(CAMPAIGN_SAVE_KEY, JSON.stringify(this.data)); }catch(e){}
+  },
+  clear(){ this.data=null; try{ localStorage.removeItem(CAMPAIGN_SAVE_KEY); }catch(e){} },
+  hasProgress(){ if(this.data===null) this.load(); return !!this.data; },
+
+  // Flags de historia: para que futuros nodos guarden decisiones/estado
+  // (ej: Campaign.setFlag('vioLaEscenaX', true)) y persistan en el save.
+  setFlag(k,v){ if(this.data){ this.data.flags[k]=v; this.save(); } },
+  getFlag(k){ return this.data ? this.data.flags[k] : undefined; },
+
+  begin(){   // campaña nueva desde cero
+    this.data = { v:1, node:0, name:App.playerName, flags:{}, history:[], startedAt:Date.now(), updatedAt:Date.now() };
+    this.save();
+    this.enter(0);
+  },
+  resume(){  // retoma automáticamente donde iba (cacheado en localStorage)
+    this.load();
+    if(!this.data){ this.begin(); return; }
+    if(this.data.name) App.playerName = this.data.name;
+    this.enter(this.data.node || 0);
+  },
+  enter(i){  // ejecuta el nodo i
+    this.active = true;
+    this.node = i;
+    const node = CAMPAIGN_SCRIPT[i];
+    if(!node){ this.toBeContinued(); return; }
+    const h = this.handlers[node.type];
+    if(h) h(node); else this.advance();   // tipo desconocido: no trabar la cinta
+  },
+  // Marca el nodo actual como completado y CACHEA el progreso (se llama apenas
+  // se gana/termina el nodo, antes de cualquier pantalla intermedia, para que
+  // cerrar la app no pierda el avance).
+  completeCurrent(){
+    const done = CAMPAIGN_SCRIPT[this.node];
+    this.node++;
+    if(this.data){
+      this.data.history.push(done ? (done.id || this.node-1) : this.node-1);
+      this.data.node = this.node;
+      this.save();
+    }
+  },
+  advance(){ this.completeCurrent(); this.enter(this.node); },
+  exitToMenu(){ this.active=false; },   // el progreso queda cacheado
+
+  cur(){ return CAMPAIGN_SCRIPT[this.node] || null; },
+  matchOpt(k){
+    const n = this.cur();
+    return (n && n.type==='match' && n.opp) ? n.opp[k] : undefined;
+  },
+
+  // No hay más nodos escritos todavía: cierre suave. NO borra el save — cuando
+  // se agreguen nodos nuevos, "Continuar campaña" sigue desde este punto.
+  toBeContinued(){
+    this.active=false;
+    playScene(['Continuará…'], ()=>show('home'));
+  },
+};
+
+// Handlers por tipo de nodo. Cada uno es dueño del flujo de su pantalla y
+// termina llamando a Campaign.advance() (el de match avanza desde endGame).
+Campaign.handlers = {
+  match(node){
+    App.online=false;
+    Tourney.active=false;
+    App.oppName = (node.opp && node.opp.name) || '???';
+    applyOppCosmetic();
+    beginGame();
+  },
+  scene(node){
+    playScene(node.lines || [], ()=>Campaign.advance());
+  },
+};
+
+// Skill de la CPU según contexto (campaña > torneo > práctica 0.35)
+function currentCpuSkill(){
+  if(Campaign.active){
+    const s = Campaign.matchOpt('skill');
+    if(s != null) return s;
+  }
+  return Tourney.active ? tourneySkillFor(Tourney.index) : 0.35;
+}
+
+// Reproductor genérico de escenas de texto (fondo plano, líneas de a una).
+// Base para las futuras escenas de historia de la campaña.
+let _sceneTimers = [];
+function playScene(lines, onDone){
+  show('scene');
+  const box = $('scene-text'); box.innerHTML='';
+  const btn = $('scene-continue'); btn.hidden = true;
+  _sceneTimers.forEach(clearTimeout); _sceneTimers = [];
+  const list = (lines && lines.length) ? lines : [' '];
+  list.forEach((ln,i)=>{
+    _sceneTimers.push(setTimeout(()=>{
+      const p = document.createElement('p');
+      p.className='scene-line';
+      p.textContent = ln;
+      box.appendChild(p);
+      if(i === list.length-1) btn.hidden = false;
+    }, 500 + i*1500));
+  });
+  btn.onclick = ()=>{
+    _sceneTimers.forEach(clearTimeout); _sceneTimers = [];
+    if(onDone) onDone();
+  };
 }
 
 const $ = id => document.getElementById(id);
@@ -648,9 +792,11 @@ function startGame(){
   Chat.unmount();   // sin chat en offline/local
   applyOppCosmetic();
   buildBoard(); const n=CFG.boardSize;
-  const oppHp = Tourney.active ? tourneyHpFor(Tourney.index) : CFG.maxHp;
+  const oppHp = Campaign.active ? (Campaign.matchOpt('hp') || CFG.maxHp)
+              : Tourney.active  ? tourneyHpFor(Tourney.index) : CFG.maxHp;
   // En torneo, el jugador conserva la vida entre rondas (salvo al empezar/reintentar)
-  const youHp = (Tourney.active && Tourney._carryHp!=null) ? Tourney._carryHp : CFG.maxHp;
+  const youHp = Campaign.active ? ((Campaign.cur() && Campaign.cur().youHp) || CFG.maxHp)
+              : (Tourney.active && Tourney._carryHp!=null) ? Tourney._carryHp : CFG.maxHp;
   G.you = {x:n-1,y:n-1,hp:youHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   G.opp = {x:0,y:0,hp:oppHp,maxHp:oppHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
   G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0;
@@ -801,7 +947,7 @@ function cpuDecideMove(){
   }
 
   // Skill 0→1 (0.35 fijo en práctica). Más skill = menos ruido y mejor planeo.
-  const skill = Tourney.active ? tourneySkillFor(Tourney.index) : 0.35;
+  const skill = currentCpuSkill();
   const noise = 3.0 * (1 - skill) + 0.15;
 
   // ¿Está "encerrada"? = casi todas las casillas a las que puede ir son trampas.
@@ -1183,7 +1329,7 @@ function renderIndicator(){
 
 // La CPU apunta al verde con precisión proporcional a su skill
 function scheduleCpuStop(){
-  const skill = Tourney.active ? tourneySkillFor(Tourney.index) : 0.35;
+  const skill = currentCpuSkill();
   const half = CFG.duelCycleDuration / 2;
 
   // Rasgo de Julián (luck): cada 5 duelos, 50% de chance de clavar el PERFECTO.
@@ -1309,6 +1455,10 @@ function computeDuelDamages(){
 }
 // Multiplicador de daño del rival CPU según su rasgo (Alex pega más fuerte)
 function cpuDmgMult(){
+  if(Campaign.active){
+    const m = Campaign.matchOpt('dmgMult');
+    if(m != null) return m;    // la campaña puede torcer el daño del rival
+  }
   return currentTrait()==='hardHit' ? 1.75 : 1;   // 1.75x (entre 1.5 y 2)
 }
 
@@ -1830,6 +1980,7 @@ function endGame(){
   const nextBtn=$('btn-tourney-next'), againBtn=$('btn-again');
   nextBtn.style.display='none'; againBtn.style.display='block';
   const roomBtn=$('btn-to-room'); roomBtn.style.display='none';
+  const campBtn=$('btn-camp-next'); campBtn.style.display='none';
   const rt=$('result-title'); rt.classList.remove('is-win','is-lose');
 
   // --- Torneo online x4: el resultado va al bracket, no a la pantalla clásica ---
@@ -1873,6 +2024,26 @@ function endGame(){
     } else {
       // Quedan rondas: continuar la serie automáticamente (mismo flujo de revancha)
       setupNextRound();
+    }
+    show('result');
+    return;
+  }
+
+  // --- Fin de partida en CAMPAÑA (offline): se ve como un final normal, pero
+  //     al ganar se cachea el progreso y "Continuar ▸" avanza al próximo nodo.
+  if(Campaign.active){
+    $('result-eyebrow').textContent='Final';
+    $('result-score').innerHTML=`<b>${youHp}</b> HP vs <b>${oppHp}</b> HP`;
+    if(youWon){
+      $('result-title').textContent='Ganaste';
+      rt.classList.add('is-win');
+      Campaign.completeCurrent();      // cachea el avance YA (aunque cierre la app)
+      againBtn.style.display='none';
+      campBtn.style.display='block';
+    } else {
+      $('result-title').textContent = (youHp===oppHp) ? 'Empate' : 'Perdiste';
+      if(youHp<oppHp) rt.classList.add('is-lose');
+      againBtn.textContent='Reintentar';   // vuelve a jugar el mismo nodo
     }
     show('result');
     return;
@@ -2737,6 +2908,13 @@ function beginGame(){
 // Aplica el color cosmético del rival actual (o lo limpia fuera del torneo)
 function applyOppCosmetic(){
   const root=document.documentElement;
+  if(Campaign.active && Campaign.cur() && Campaign.cur().type==='match'){
+    const o = Campaign.cur().opp || {};
+    if(o.accent) root.style.setProperty('--opp-accent', o.accent);
+    else root.style.removeProperty('--opp-accent');
+    App.oppName = o.name || '???';
+    return;
+  }
   if(Tourney.active){
     const r=TOURNEY_ROSTER[Tourney.index];
     root.style.setProperty('--opp-accent', r.accent);
@@ -2869,7 +3047,34 @@ $('btn-ot-start').addEventListener('click', ()=>OT.start());
 $('btn-ot-room').addEventListener('click', ()=>OT.backToLobby());
 $('btn-ot-exit').addEventListener('click', ()=>OT.leaveTournament());
 $('btn-spec-back').addEventListener('click', ()=>{ OT.stopSpec(); show('othub'); OT.renderHub(); });
-$('btn-offline').addEventListener('click', ()=>{ readName(); show('offline'); });
+$('btn-offline').addEventListener('click', ()=>{ readName(); updateCampaignBtn(); show('offline'); });
+
+// ---- Campaña: botón de entrada + menú de confirmación ----
+// Si hay progreso cacheado, el botón pasa a "Continuar campaña" y al tocarlo
+// retoma automáticamente en el nodo guardado (sin volver a confirmar).
+function updateCampaignBtn(){
+  Campaign.load();
+  $('btn-campaign').textContent = Campaign.hasProgress() ? '▶ Continuar campaña' : 'Campaña';
+}
+$('btn-campaign').addEventListener('click', ()=>{
+  readName(); exitSpecialMode(); App.online=false; Tourney.active=false;
+  if(Campaign.hasProgress()){ Campaign.resume(); return; }
+  // Primera vez: menú de confirmación con el nombre del jugador
+  $('camp-title').innerHTML = `¿Comenzar campaña como <b>${escapeHtml(App.playerName)}</b>?`;
+  $('camp-box').classList.remove('is-fading');
+  $('camp-overlay').hidden = false;
+});
+$('camp-no').addEventListener('click', ()=>{ $('camp-overlay').hidden = true; });
+$('camp-yes').addEventListener('click', ()=>{
+  // Desvanecer el menú en 3 segundos dejando solo el fondo plano…
+  $('camp-box').classList.add('is-fading');
+  setTimeout(()=>{
+    // …y de pronto, arranca la partida (nodo 0: como una partida rápida normal)
+    $('camp-overlay').hidden = true;
+    Campaign.begin();
+  }, 3600);   // 3s de fade + pausa breve en fondo plano
+});
+$('btn-camp-next').addEventListener('click', ()=>{ Campaign.enter(Campaign.node); });
 $('btn-offline-back').addEventListener('click', ()=>{ show('home'); });
 $('btn-quick').addEventListener('click', ()=>{ readName(); Tourney.active=false; applyOppCosmetic(); App.online=false; App.oppName='Cachito'; beginGame(); });
 $('btn-demo-start').addEventListener('click', ()=>{ Tourney.active=false; applyOppCosmetic(); App.online=false; App.oppName='Cachito'; beginGame(); });
@@ -2909,10 +3114,10 @@ $('btn-join-go').addEventListener('click', async ()=>{
 $('btn-lobby-back').addEventListener('click', ()=>{ if(OT.active){ OT.leaveTournament(); return; } Net.leave(); show('home'); });
 $('btn-join-back').addEventListener('click', ()=>show('home'));
 $('code-in').addEventListener('input', e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
-$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
 $('btn-mute').addEventListener('click', ()=>{ App.muted=!App.muted; $('btn-mute').textContent=App.muted?'♪ off':'♪ on'; });
 $('btn-again').addEventListener('click', ()=>{ show('game'); startGame(); });
-$('btn-home').addEventListener('click', ()=>{ Chat.unmount(); Tourney.active=false; applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-home').addEventListener('click', ()=>{ Chat.unmount(); Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
 
 // Chat en vivo (solo online): abrir/cerrar panel y enviar mensajes.
 $('chat-toggle').addEventListener('click', ()=> Chat.toggle());
