@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.66';
+const VERSION = 'v0.2.70';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -646,17 +646,20 @@ function renderBoard(){
       const youHere = (G.you.x === x && G.you.y === y);
       const oppHere = (G.opp.x === x && G.opp.y === y);
       const shielded = G.justDueled;   // tregua post-duelo: burbuja visible
+      const bothHere = youHere && oppHere;
+      if(bothHere) div.classList.add('is-both-here');
       if(youHere){
         const m=document.createElement('div'); m.className='player-marker is-you';
         if(shielded) m.classList.add('has-shield');
         if(G.skinYou){ m.classList.add('has-skin'); m.textContent=G.skinYou; }
+        if(bothHere) m.classList.add('is-clash');
         div.appendChild(m);
       }
       if(oppHere){
         const m=document.createElement('div'); m.className='player-marker is-opp';
         if(shielded) m.classList.add('has-shield');
         if(G.skinOpp){ m.classList.add('has-skin'); m.textContent=G.skinOpp; }
-        if(youHere){ div.classList.add('is-both-here'); m.style.transform='translate(20%,-20%) scale(.75)'; }
+        if(bothHere) m.classList.add('is-clash');
         div.appendChild(m);
       }
       if(reachable.some(p=>p.x===x && p.y===y)){
@@ -1314,9 +1317,20 @@ function updateIndicator(dt){
 
 function updateDuelPassLabel(){
   const el=$('duel-pass');
-  // La línea del perfecto solo tiene sentido en el 1er pase (ahí aplica el súper golpe).
+  // La línea del perfecto solo tiene sentido en el 1er pase (ahí aplica el súper
+  // golpe): brilla dorada mientras está activa y se apaga al terminar la ida.
   const mark=$('speedo-center-mark');
-  if(mark) mark.style.display = (G.duel.pass===1) ? '' : 'none';
+  if(mark){
+    if(G.duel.pass===1){
+      mark.style.display='';
+      mark.classList.add('is-live');
+      mark.classList.remove('is-gone');
+    } else if(mark.classList.contains('is-live')){
+      mark.classList.remove('is-live');
+      mark.classList.add('is-gone');
+      setTimeout(()=>{ mark.classList.remove('is-gone'); mark.style.display='none'; }, 500);
+    }
+  }
   if(G.duel.pass>CFG.duelMaxPasses){
     el.textContent='último pase';
     el.classList.add('is-danger');
@@ -3023,6 +3037,7 @@ async function startCreateRoom(){
   $('lobby-created').style.display='flex'; $('lobby-join').style.display='none'; show('lobby');
   $('mode-select').style.display='flex'; $('btn-share').style.display='block';
   $('ot-box').style.display='none'; setModeUI(App.matchMode==='bo5'?'mode-bo5':'mode-single');
+  updateWallsToggle();
   const goBtn = $('btn-online-start'); if(goBtn) goBtn.style.display='none';
   $('wait-text').textContent='Esperando rival…';
   $('code-out').textContent='····';
@@ -3042,16 +3057,33 @@ function setModeUI(id){
 }
 $('mode-single').addEventListener('click', ()=>{
   if(OT.active){ if(!OT.disableTourney()) return; }
-  App.matchMode='single'; setModeUI('mode-single');
+  App.matchMode='single'; setModeUI('mode-single'); updateWallsToggle();
 });
 $('mode-bo5').addEventListener('click', ()=>{
   if(OT.active){ if(!OT.disableTourney()) return; }
-  App.matchMode='bo5'; setModeUI('mode-bo5');
+  App.matchMode='bo5'; setModeUI('mode-bo5'); updateWallsToggle();
 });
 $('mode-t4').addEventListener('click', async ()=>{
   if(OT.active) return;
   const ok=await OT.enableTourney();
-  if(ok) setModeUI('mode-t4');
+  if(ok){
+    setModeUI('mode-t4');
+    // El Modo Paredes no está disponible en torneo online: apagarlo y ocultar el toggle.
+    if(App.wallsMode) exitSpecialMode();
+    updateWallsToggle();
+  }
+});
+// Toggle 🧱 Modo Paredes del lobby (solo host, no disponible en torneo online).
+function updateWallsToggle(){
+  const t=$('walls-toggle'); if(!t) return;
+  t.style.display = OT.active ? 'none' : 'flex';
+  t.classList.toggle('is-on', App.wallsMode);
+  $('walls-state').textContent = App.wallsMode ? 'on' : 'off';
+}
+$('walls-toggle').addEventListener('click', ()=>{
+  if(OT.active){ toast('El Modo Paredes no está disponible en el torneo online.'); return; }
+  if(App.wallsMode) exitSpecialMode(); else enterWallsMode();
+  updateWallsToggle();
 });
 $('btn-ot-start').addEventListener('click', ()=>OT.start());
 $('btn-ot-room').addEventListener('click', ()=>OT.backToLobby());
@@ -3259,27 +3291,17 @@ function openLab(){ buildLab(); show('lab'); }
     taps++; clearTimeout(tapT); tapT=setTimeout(()=>taps=0,1200);
     if(taps>=5){ taps=0; openLab(); }
   });
-  // Acceso oculto al menú experimental: 7 toques en el logo "Rally" (o ?beta=1)
-  if(params.get('beta')==='1') setTimeout(()=>show('experimental'), 400);
-  let bt=0, btT;
-  const logo=$('brand-logo');
-  if(logo) logo.addEventListener('click',()=>{
-    bt++; clearTimeout(btT); btT=setTimeout(()=>bt=0,1200);
-    if(bt>=7){ bt=0; show('experimental'); }
-  });
 })();
 
-// Modo Paredes: entra al modo y arranca una partida rápida offline contra la CPU.
+// Modo Paredes (menú offline): entra al modo y arranca una partida rápida vs CPU.
+// Online se activa con el toggle 🧱 del lobby; el host genera el tablero con
+// paredes y lo sincroniza (prefijo "W" en el board).
 $('btn-walls').addEventListener('click', ()=>{
   readName(); Tourney.active=false; applyOppCosmetic();
   App.online=false; App.oppName='Cachito';
   enterWallsMode();
   beginGame();
 });
-$('btn-exp-back').addEventListener('click', ()=>{ exitSpecialMode(); show('home'); });
-// Sala online con paredes: activa el modo y abre el flujo normal de crear sala.
-// El host generará el tablero con paredes y lo sincroniza (prefijo "W" en el board).
-$('btn-walls-online').addEventListener('click', ()=>{ enterWallsMode(); startCreateRoom(); });
 
 $('lab-back').addEventListener('click',()=>{ show(G.running ? 'game' : 'home'); });
 $('lab-spawn-ring').addEventListener('click',()=>{

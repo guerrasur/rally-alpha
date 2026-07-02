@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.66</title>
+<title>Rally — duelo en tablero · v0.2.70</title>
 <link rel="stylesheet" href="style.css" />
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.66</div>
+  <div class="version-tag" id="version-tag">v0.2.70</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -68,7 +68,8 @@
     <div class="actions">
       <button class="btn btn--primary" id="btn-create">Crear sala</button>
       <button class="btn btn--outline" id="btn-join">Unirme con código</button>
-      <button class="btn btn--ghost" id="btn-offline">o jugar sin conexión</button>
+      <div class="actions-divider"><span>sin conexión</span></div>
+      <button class="btn btn--ink" id="btn-offline">Jugar solo</button>
     </div>
 
     <p class="home-foot" id="home-foot"></p>
@@ -97,7 +98,7 @@
 
       <h3>Detalles</h3>
       <p>Ganar un duelo nunca te mata a vos mismo, y las trampas tampoco: solo <b>perder</b> un duelo puede dejarte sin vida. Si los dos caen en la misma casilla con un ítem, un sorteo parejo decide quién se lo queda.</p>
-      <p>En el <b>Modo Paredes</b> (experimental), el mapa es más grande y hay paredes que cortan el paso recto. Podés bordearlas en diagonal, pero no cruzar una esquina cerrada.</p>
+      <p>En el <b>Modo Paredes</b> (beta), el mapa es más grande y hay paredes que cortan el paso recto. Podés bordearlas en diagonal, pero no cruzar una esquina cerrada. Lo encontrás en el menú offline, o con el toggle 🧱 al crear una sala online (no disponible en torneo x4).</p>
 
       <div class="info-ver" id="info-ver"></div>
 
@@ -115,26 +116,11 @@
       <p class="brand__tag">Jugá sin conexión contra la máquina.</p>
     </div>
     <div class="actions">
-      <button class="btn btn--primary" id="btn-quick">Partida rápida</button>
-      <button class="btn btn--outline" id="btn-campaign">Campaña</button>
-      <button class="btn btn--ghost" id="btn-tournament">🏆 o entrar al torneo</button>
+      <button class="btn btn--primary" id="btn-campaign">Campaña</button>
+      <button class="btn btn--outline" id="btn-quick">Partida rápida</button>
+      <button class="btn btn--outline" id="btn-tournament">🏆 Torneo</button>
+      <button class="btn btn--outline" id="btn-walls">🧱 Paredes <span class="beta-tag">beta</span></button>
       <button class="btn btn--ghost" id="btn-offline-back" style="margin-top:4px; opacity:.75;">Volver</button>
-    </div>
-  </section>
-
-  <section class="screen screen--home" id="screen-experimental">
-    <div class="brand">
-      <div class="brand__mark">
-        <span class="brand__dot"></span>
-        <span class="brand__kicker">experimental</span>
-      </div>
-      <h1 class="brand__name">Modos beta</h1>
-      <p class="brand__tag">Modos en prueba. Pueden cambiar o tener errores.</p>
-    </div>
-    <div class="actions">
-      <button class="btn btn--primary" id="btn-walls">🧱 Modo Paredes</button>
-      <button class="btn btn--ghost" id="btn-walls-online">🧱 o crear sala online con paredes</button>
-      <button class="btn btn--ghost" id="btn-exp-back" style="margin-top:4px; opacity:.75;">Volver</button>
     </div>
   </section>
 
@@ -146,12 +132,22 @@
         <p class="lobby-hint">Tu rival lo ingresa en "Unirme con código" y empiezan.</p>
         <button class="btn btn--outline" id="btn-share" style="max-width:260px;">🔗 Compartir invitación</button>
         <div class="mode-select" id="mode-select">
-          <span class="mode-select__label">Modo</span>
+          <span class="mode-select__label">Modo de juego</span>
           <div class="mode-select__opts">
-            <button class="mode-opt is-on" id="mode-single" data-mode="single">Partida única</button>
-            <button class="mode-opt" id="mode-bo5" data-mode="bo5">Mejor de 5</button>
-            <button class="mode-opt" id="mode-t4" data-mode="t4">Torneo x4</button>
+            <button class="mode-opt is-on" id="mode-single" data-mode="single">
+              <span class="mode-opt__name">Partida única</span>
+              <span class="mode-opt__desc">Un duelo y listo.</span>
+            </button>
+            <button class="mode-opt" id="mode-bo5" data-mode="bo5">
+              <span class="mode-opt__name">Mejor de 5</span>
+              <span class="mode-opt__desc">Serie: gana el primero en llegar a 3.</span>
+            </button>
+            <button class="mode-opt" id="mode-t4" data-mode="t4">
+              <span class="mode-opt__name">🏆 Torneo x4</span>
+              <span class="mode-opt__desc">Hasta 4 jugadores, llaves eliminatorias.</span>
+            </button>
           </div>
+          <button class="walls-toggle" id="walls-toggle">🧱 Modo Paredes <span class="beta-tag">beta</span><span class="walls-toggle__state" id="walls-state">off</span></button>
         </div>
         <div id="ot-box" style="display:none;">
           <div id="ot-list"></div>

@@ -1,11 +1,36 @@
 # Rally — Session State & Learnings
 
-**Last updated:** v0.2.66 — remote session (Claude Code on the web, repo GitHub `guerrasur/rally-alpha`). Sistema de **Campaña offline** agregado y mergeado a `main`. Deploy automático a Firebase Hosting vía GitHub Actions agregado (falta que el usuario cargue el secret — ver sección DEPLOY).
+**Last updated:** v0.2.70 — remote session (Claude Code on the web, rama `claude/game-design-menu-review-jv8jrz` mergeada a `main`). Rediseño de menús + fixes de lobby + clash en casilla + perfecto dorado. Deploy automático a Firebase Hosting vía GitHub Actions (falta que el usuario cargue el secret — ver sección DEPLOY).
 
 ⚠️ **Workflow de esta sesión remota (distinto a VS Code y a chat):** se trabaja sobre los 3 archivos split en `public/` dentro del repo git, con commits/push a una rama `claude/...` y PR a `main`. Para que el usuario teste (sin nada instalado), se le entrega un **HTML único fusionado** generado con python (style.css + game.js inline en index.html) vía SendUserFile — es solo una copia de prueba, la fuente de verdad es el repo.
 
 ### Incidente PR #1 (2026-07-02) — leer si el historial de main se ve raro
 Al mergear el PR #1: (a) el merge en `main` tomó solo v0.2.63, NO los commits v0.2.64–66 que ya estaban pusheados en la rama; (b) apareció en `main` un commit "Revert…" con la cuenta del usuario que **no revertía nada** (solo agregaba un `.git-revert-marker`). El usuario confirmó que no fue él a propósito. Resolución: rama reconstruida desde `origin/main` + cherry-pick de v0.2.64–66 + borrado del marker, re-mergeado. LECCIÓN: después de mergear, verificar `git log origin/main` y diff contra la rama — no asumir que el merge tomó todo.
+
+### v0.2.66 → v0.2.70 (sesión remota 2026-07-02, "rediseño de menús")
+Todo validado con `new Function(...)` + screenshots reales en Chromium/Playwright (viewport 390px). Usuario pidió: revisar diseño manteniendo simpleza, hacer visible el torneo online, mover Paredes fuera del menú escondido, 2 bugfixes de lobby, y rediseñar el encuentro en misma casilla.
+
+**v0.2.67 — jerarquía de menús:**
+- Home: offline promovido de link subrayado a botón sólido `btn--ink` **"Jugar solo"**, con divisor `.actions-divider` ("sin conexión") entre online y offline.
+- Menú offline: **Campaña ahora es el botón primary** (es el modo insignia); Partida rápida outline; **Torneo sube de ghost a outline**.
+- Polish: `.screen` entra con translateY(8px)→0 además del fade (respeta `.is-instant` y reduced-motion). Estados `:hover` para los 4 tipos de botón bajo `@media(hover:hover)`.
+
+**v0.2.68 — torneo online visible + Paredes accesible:**
+- Lobby: selector de modo rediseñado de pastillas 12px a **filas verticales full-width** con `.mode-opt__name` + `.mode-opt__desc` (Partida única / Mejor de 5 / 🏆 Torneo x4). Mismos ids/handlers, solo presentación.
+- **Nuevo toggle `#walls-toggle` "🧱 Modo Paredes (beta)" en el lobby** (solo host): enciende/apaga `enterWallsMode()`/`exitSpecialMode()` antes de que arranque la partida. Funciona con partida única y bo5. **NO disponible en torneo x4:** al elegir mode-t4 se apaga y oculta (`updateWallsToggle()` lo esconde si `OT.active`); si OT activo y se toca, toast avisando. `updateWallsToggle()` se llama en startCreateRoom y en los 3 handlers de modo.
+- Menú offline: nuevo botón **"🧱 Paredes (beta)"** (id `btn-walls`, mismo handler de antes: partida rápida con paredes vs Cachito). `.beta-tag` = chip uppercase chiquito.
+- **ELIMINADA la pantalla `screen-experimental`** y sus accesos ocultos (`?beta=1`, 7 taps en `brand-logo`) y el botón `btn-walls-online` (reemplazado por el toggle). El texto de info explica dónde está Paredes ahora.
+- La serialización online de paredes (prefijo "W" en board) NO cambió — guest sigue deserializando igual. Falta test online real con 2 dispositivos.
+
+**v0.2.69 — bugfixes de lobby (reportados por el usuario con screenshots del teléfono):**
+- **Fix "Salir" cortado con torneo x4:** `.screen--lobby` centraba con flex sin scroll; con la lista + botón de torneo el contenido desbordaba. Ahora `justify-content:flex-start; overflow-y:auto` + `#lobby-created,#lobby-join{margin:auto 0; flex-shrink:0}` (centrado cuando entra, scroll cuando no). LECCIÓN: contenedor flex centrado + contenido variable = usar margin:auto en hijos, no justify-content:center.
+- **Fix bordes recortados del modo seleccionado:** el ring `box-shadow: 0 0 0 1px` (hacia afuera) se recortaba en el teléfono. Ahora `box-shadow: inset 0 0 0 1px var(--accent)` — hacia adentro, nunca se corta.
+- **Rediseño misma casilla:** antes la ficha rival se encimaba con transform inline. Ahora clases `.is-clash` en ambos markers (renderBoard) + CSS: fichas en diagonal sin taparse, y `.cell.is-both-here::before` = marco accent que late (`clashPulse` 1.1s).
+
+**v0.2.70 — feedback del usuario:**
+- Clash orientado como las posiciones iniciales: **vos abajo-derecha, rival arriba-izquierda** (translate(20%,20%) / translate(-20%,-20%)).
+- **PERFECTO dorado en el duelo:** `.speedo-center-mark.is-live` = línea 3px dorada (gradiente #F7DC7E→#D4AF37) con glow que late (`perfectShine` .9s), activa solo en pase 1. Al pasar a pase 2, `updateDuelPassLabel` la cambia a `.is-gone` (fade .45s) y luego display:none — se VE cómo se apaga la ventana del súper golpe. Cubre offline y online (ambos llaman updateDuelPassLabel). El glow queda contenido dentro de la barra (overflow:hidden del track); el usuario quedó en avisar si lo quiere más notorio (sería sacar el glow fuera de la barra).
+- NOTA workflow: screenshots de verificación tomados con playwright-core (npm i en scratchpad) + Chromium preinstalado `/opt/pw-browsers/chromium`; entregas al usuario = HTML único fusionado con python + SendUserFile.
 
 ### v0.2.65 → v0.2.66
 - **Partida de campaña aparece repentinamente, sin fade-in:** nueva clase `.screen.is-instant{transition:none}` que `Campaign.handlers.match` pone en `#screen-game` antes de `show('game')` y saca a los 400ms (para no matar transiciones futuras de esa pantalla).
