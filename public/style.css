@@ -930,6 +930,7 @@
 
   /* Menú de confirmación de inicio: fondo PLANO opaco (--paper) que cubre todo.
      Al confirmar, .camp-box se desvanece en 3s y queda solo el fondo plano. */
+  .camp-overlay[hidden]{ display:none; }  /* sin esto, el display:flex le gana al atributo hidden */
   .camp-overlay{
     position:absolute;
     inset:0;
@@ -1012,3 +1013,6 @@
     opacity:0;
     animation:sceneLineIn .8s ease forwards;
   }
+
+  /* Entrada instantánea de pantalla (campaña: la partida aparece de golpe) */
+  .screen.is-instant{ transition:none; }
