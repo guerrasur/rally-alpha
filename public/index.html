@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.72</title>
+<title>Rally — duelo en tablero · v0.2.73</title>
 <link rel="stylesheet" href="style.css" />
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.72</div>
+  <div class="version-tag" id="version-tag">v0.2.73</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -281,7 +281,20 @@
       <div class="duel-result" id="duel-result" style="display:none;">
         <div class="duel-result__title" id="duel-result-title">—</div>
         <div class="duel-result__sub" id="duel-result-sub"></div>
-        <div class="duel-result__hits" id="duel-hits"></div>
+        <div class="duel-result__cols">
+          <div class="duel-rescol">
+            <span class="duel-rescol__name" id="rescol-name-you">Vos</span>
+            <span class="duel-rescol__dmg" id="rescol-dmg-you">0</span>
+            <div class="hp-bar duel-rescol__bar"><div class="hp-fill" id="rescol-fill-you"></div></div>
+            <span class="duel-rescol__hpnum" id="rescol-hp-you"></span>
+          </div>
+          <div class="duel-rescol">
+            <span class="duel-rescol__name" id="rescol-name-opp">Rival</span>
+            <span class="duel-rescol__dmg" id="rescol-dmg-opp">0</span>
+            <div class="hp-bar duel-rescol__bar"><div class="hp-fill" id="rescol-fill-opp"></div></div>
+            <span class="duel-rescol__hpnum" id="rescol-hp-opp"></span>
+          </div>
+        </div>
       </div>
 
     </div>
