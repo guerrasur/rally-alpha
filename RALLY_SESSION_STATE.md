@@ -1,6 +1,11 @@
 # Rally — Session State & Learnings
 
-**Last updated:** v0.2.66 — remote session
+**Last updated:** v0.2.66 — remote session (Claude Code on the web, repo GitHub `guerrasur/rally-alpha`). Sistema de **Campaña offline** agregado y mergeado a `main`. Deploy automático a Firebase Hosting vía GitHub Actions agregado (falta que el usuario cargue el secret — ver sección DEPLOY).
+
+⚠️ **Workflow de esta sesión remota (distinto a VS Code y a chat):** se trabaja sobre los 3 archivos split en `public/` dentro del repo git, con commits/push a una rama `claude/...` y PR a `main`. Para que el usuario teste (sin nada instalado), se le entrega un **HTML único fusionado** generado con python (style.css + game.js inline en index.html) vía SendUserFile — es solo una copia de prueba, la fuente de verdad es el repo.
+
+### Incidente PR #1 (2026-07-02) — leer si el historial de main se ve raro
+Al mergear el PR #1: (a) el merge en `main` tomó solo v0.2.63, NO los commits v0.2.64–66 que ya estaban pusheados en la rama; (b) apareció en `main` un commit "Revert…" con la cuenta del usuario que **no revertía nada** (solo agregaba un `.git-revert-marker`). El usuario confirmó que no fue él a propósito. Resolución: rama reconstruida desde `origin/main` + cherry-pick de v0.2.64–66 + borrado del marker, re-mergeado. LECCIÓN: después de mergear, verificar `git log origin/main` y diff contra la rama — no asumir que el merge tomó todo.
 
 ### v0.2.65 → v0.2.66
 - **Partida de campaña aparece repentinamente, sin fade-in:** nueva clase `.screen.is-instant{transition:none}` que `Campaign.handlers.match` pone en `#screen-game` antes de `show('game')` y saca a los 400ms (para no matar transiciones futuras de esa pantalla).
@@ -8,7 +13,7 @@
 
 ### v0.2.64 → v0.2.65 (feedback del usuario probando)
 - **`Campaign.hasProgress()` ahora exige ≥1 nodo completado** (node>0 o history no vacía). Antes, con solo haber confirmado el inicio (save en node 0 sin ganar nada) el botón ya decía "Continuar campaña" y salteaba el menú de confirmación con el desvanecimiento. Ahora ese menú se repite hasta ganar el primer nodo.
-- **La campaña NO muestra el overlay de instrucciones "Cómo se juega"**: `Campaign.handlers.match` va directo a `show('game'); startGame()` en vez de `beginGame()` (pedido explícito: la primera partida de campaña tiene que arrancar de golpe). `beginGame._seen` queda intacto, así la primera partida rápida normal sí muestra el howto. (Claude Code on the web). Added the **offline Campaign system** foundation. See "v0.2.62 → v0.2.63" below.
+- **La campaña NO muestra el overlay de instrucciones "Cómo se juega"**: `Campaign.handlers.match` va directo a `show('game'); startGame()` en vez de `beginGame()` (pedido explícito: la primera partida de campaña tiene que arrancar de golpe). `beginGame._seen` queda intacto, así la primera partida rápida normal sí muestra el howto.
 
 ### v0.2.63 → v0.2.64 (bugfix, reportado por el usuario probando en navegador)
 - **Fix — overlay de campaña visible de entrada y tapando la partida tras el fade:** `.camp-overlay{display:flex}` le ganaba al atributo `hidden` del HTML (la regla UA `[hidden]{display:none}` pierde contra cualquier regla de autor con display). Síntomas: el juego arrancaba mostrando el menú de campaña en vez del home, y tras el fade de 3s el overlay opaco nunca se ocultaba (la partida corría abajo, invisible). Fix: `.camp-overlay[hidden]{display:none;}`. LECCIÓN: si un contenedor con `hidden` tiene `display:` en CSS, siempre agregar la regla `[hidden]` explícita (el smoke test con DOM stub no lo detecta — es un bug de CSS, no de JS).
@@ -21,8 +26,10 @@
   - **Integración:** rama `Campaign.active` en `endGame` (ganar → "Continuar ▸" `btn-camp-next`; perder/empate → "Reintentar" mismo nodo), en `startGame` (hp de ambos), `applyOppCosmetic` (accent/nombre del nodo), `cpuDmgMult` (dmgMult del nodo), y nuevo `currentCpuSkill()` (campaña > torneo > 0.35) que reemplazó las 2 lecturas de skill duplicadas. `btn-leave`/`btn-home` llaman `Campaign.exitToMenu()` (sale del modo, el save queda). Fin de la cinta → escena "Continuará…" y NO borra el save (al agregar nodos, continúa desde ahí).
   - Nuevas pantallas en index.html: `screen-scene` (+`scene-text`/`scene-continue`) y `camp-overlay`; estilos al final de style.css (`.camp-*`, `.scene-*`).
   - Validado con `new Function(...)` + smoke test Node con DOM stub (flujo completo: confirmar → fade → partida → ganar → caché → continuar → "Continuará…" → resume).
- — this session ran entirely in VS Code + Claude Code extension (no chat/Design merge involved), working directly on the 3 split files in `public/`. No re-split needed. See "v0.2.61 → v0.2.62" section below for what changed.
-**Working files (this session/tool):** `public/index.html` + `public/style.css` + `public/game.js` (repo root: `Rally - historico/Rally-alpha-0-2-61/`).
+
+### Sesión anterior (v0.2.62, VS Code + Claude Code extension)
+This session ran entirely in VS Code + Claude Code extension (no chat/Design merge involved), working directly on the 3 split files in `public/`. No re-split needed. See "v0.2.61 → v0.2.62" section below for what changed.
+**Working files (VS Code sessions):** `public/index.html` + `public/style.css` + `public/game.js` (repo root: `Rally - historico/Rally-alpha-0-2-61/`).
 **Language:** All interaction with user (Lucio) in Argentine Spanish. Keep responding in Spanish.
 
 ⚠️ Note: the `/home/claude/...` and `/mnt/user-data/outputs/...` paths below are leftovers from the chat/Design-tool workflow (different session, different machine). They don't apply to VS Code sessions — ignore them when working locally.
@@ -92,6 +99,8 @@ For math-heavy changes (damage, AI aim, probabilities), write a standalone `node
 ---
 
 ## DEPLOY (user does this from their Mac, NOT from phone)
+
+**NUEVO (2026-07-02): deploy automático vía GitHub Actions** — `.github/workflows/firebase-deploy.yml` deploya a Firebase Hosting (site de `firebase.json` = `rallyyy-test`) en cada push/merge a `main`, usando `FirebaseExtended/action-hosting-deploy@v0`. **Requiere el secret `FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE`** (JSON de cuenta de servicio, generado en Firebase console → Project settings → Service accounts → "Generate new private key") cargado en GitHub → repo Settings → Secrets and variables → Actions. Hasta que el usuario cargue ese secret, el workflow FALLA en cada push a main (esperable, no es un bug del código). Una vez cargado, ya no hace falta el CLI ni la Mac para deployar.
 User canNOT deploy from phone. In the VS Code / local repo setup (`Rally - historico/Rally-alpha-0-2-61/`), files already live in `public/` (no copy step needed — edit in place).
 
 ⚠️ **Target mismatch found in v0.2.62 session:** `.firebaserc` defines target `rally` → site `rallyyy`, but `firebase.json` (`{"hosting":{"site":"rallyyy-test",...}}`) points directly at site `rallyyy-test`. Running `firebase deploy --only hosting:rally` deploys to the OLD site (`rallyyy`), NOT the one `firebase.json`/the user actually tests (`rallyyy-test`) — likely why past deploys looked like "changes didn't apply". **Correct command: `firebase deploy --only hosting`** (no target — lets it read `site` from `firebase.json`). Consider fixing `.firebaserc` to match `rallyyy-test` so the target alias works too, if the user wants that path available.

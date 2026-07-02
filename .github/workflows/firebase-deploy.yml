@@ -1,0 +1,21 @@
+# Deploy automático a Firebase Hosting en cada push/merge a main.
+# Requiere el secret FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE (JSON de cuenta de
+# servicio) en Settings → Secrets and variables → Actions del repo.
+# Deploya al site definido en firebase.json (rallyyy-test).
+name: Deploy a Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE }}
+          channelId: live
+          projectId: rallye-online
