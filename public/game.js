@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.69';
+const VERSION = 'v0.2.70';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1317,9 +1317,20 @@ function updateIndicator(dt){
 
 function updateDuelPassLabel(){
   const el=$('duel-pass');
-  // La línea del perfecto solo tiene sentido en el 1er pase (ahí aplica el súper golpe).
+  // La línea del perfecto solo tiene sentido en el 1er pase (ahí aplica el súper
+  // golpe): brilla dorada mientras está activa y se apaga al terminar la ida.
   const mark=$('speedo-center-mark');
-  if(mark) mark.style.display = (G.duel.pass===1) ? '' : 'none';
+  if(mark){
+    if(G.duel.pass===1){
+      mark.style.display='';
+      mark.classList.add('is-live');
+      mark.classList.remove('is-gone');
+    } else if(mark.classList.contains('is-live')){
+      mark.classList.remove('is-live');
+      mark.classList.add('is-gone');
+      setTimeout(()=>{ mark.classList.remove('is-gone'); mark.style.display='none'; }, 500);
+    }
+  }
   if(G.duel.pass>CFG.duelMaxPasses){
     el.textContent='último pase';
     el.classList.add('is-danger');
