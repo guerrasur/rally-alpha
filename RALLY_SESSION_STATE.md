@@ -1,6 +1,10 @@
 # Rally — Session State & Learnings
 
-**Last updated:** v0.2.65 — remote session
+**Last updated:** v0.2.66 — remote session
+
+### v0.2.65 → v0.2.66
+- **Partida de campaña aparece repentinamente, sin fade-in:** nueva clase `.screen.is-instant{transition:none}` que `Campaign.handlers.match` pone en `#screen-game` antes de `show('game')` y saca a los 400ms (para no matar transiciones futuras de esa pantalla).
+- **Primer rival de campaña: "Tarata", 11 HP** (era Cachito 100 HP). Sigue skill 0.35.
 
 ### v0.2.64 → v0.2.65 (feedback del usuario probando)
 - **`Campaign.hasProgress()` ahora exige ≥1 nodo completado** (node>0 o history no vacía). Antes, con solo haber confirmado el inicio (save en node 0 sin ganar nada) el botón ya decía "Continuar campaña" y salteaba el menú de confirmación con el desvanecimiento. Ahora ese menú se repite hasta ganar el primer nodo.
