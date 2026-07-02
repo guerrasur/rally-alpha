@@ -400,6 +400,18 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js" defer></script>
+<!-- game.js repartido en módulos (mismo scope global, orden de carga = orden original) -->
+<script src="js/01-config.js" defer></script>
+<script src="js/02-tourney.js" defer></script>
+<script src="js/03-campaign.js" defer></script>
+<script src="js/04-util.js" defer></script>
+<script src="js/05-cfg.js" defer></script>
+<script src="js/06-board.js" defer></script>
+<script src="js/07-game-flow.js" defer></script>
+<script src="js/08-duel.js" defer></script>
+<script src="js/09-hud-endgame.js" defer></script>
+<script src="js/10-net.js" defer></script>
+<script src="js/11-online-tourney.js" defer></script>
+<script src="js/12-lab-bindings.js" defer></script>
 </body>
 </html>
