@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.68';
+const VERSION = 'v0.2.69';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -646,17 +646,20 @@ function renderBoard(){
       const youHere = (G.you.x === x && G.you.y === y);
       const oppHere = (G.opp.x === x && G.opp.y === y);
       const shielded = G.justDueled;   // tregua post-duelo: burbuja visible
+      const bothHere = youHere && oppHere;
+      if(bothHere) div.classList.add('is-both-here');
       if(youHere){
         const m=document.createElement('div'); m.className='player-marker is-you';
         if(shielded) m.classList.add('has-shield');
         if(G.skinYou){ m.classList.add('has-skin'); m.textContent=G.skinYou; }
+        if(bothHere) m.classList.add('is-clash');
         div.appendChild(m);
       }
       if(oppHere){
         const m=document.createElement('div'); m.className='player-marker is-opp';
         if(shielded) m.classList.add('has-shield');
         if(G.skinOpp){ m.classList.add('has-skin'); m.textContent=G.skinOpp; }
-        if(youHere){ div.classList.add('is-both-here'); m.style.transform='translate(20%,-20%) scale(.75)'; }
+        if(bothHere) m.classList.add('is-clash');
         div.appendChild(m);
       }
       if(reachable.some(p=>p.x===x && p.y===y)){
