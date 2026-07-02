@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm list *)",
+      "Bash(ccusage --version)",
+      "Bash(ccusage)",
+      "Bash(gh repo *)"
+    ]
+  }
+}

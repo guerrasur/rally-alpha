@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "rallye-online"
+  },
+  "targets": {
+    "rallye-online": {
+      "hosting": {
+        "rally": [
+          "rallyyy"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
