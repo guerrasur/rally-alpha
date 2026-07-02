@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.66</title>
+<title>Rally — duelo en tablero · v0.2.67</title>
 <link rel="stylesheet" href="style.css" />
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.66</div>
+  <div class="version-tag" id="version-tag">v0.2.67</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -68,7 +68,8 @@
     <div class="actions">
       <button class="btn btn--primary" id="btn-create">Crear sala</button>
       <button class="btn btn--outline" id="btn-join">Unirme con código</button>
-      <button class="btn btn--ghost" id="btn-offline">o jugar sin conexión</button>
+      <div class="actions-divider"><span>sin conexión</span></div>
+      <button class="btn btn--ink" id="btn-offline">Jugar solo</button>
     </div>
 
     <p class="home-foot" id="home-foot"></p>
@@ -115,9 +116,9 @@
       <p class="brand__tag">Jugá sin conexión contra la máquina.</p>
     </div>
     <div class="actions">
-      <button class="btn btn--primary" id="btn-quick">Partida rápida</button>
-      <button class="btn btn--outline" id="btn-campaign">Campaña</button>
-      <button class="btn btn--ghost" id="btn-tournament">🏆 o entrar al torneo</button>
+      <button class="btn btn--primary" id="btn-campaign">Campaña</button>
+      <button class="btn btn--outline" id="btn-quick">Partida rápida</button>
+      <button class="btn btn--outline" id="btn-tournament">🏆 Torneo</button>
       <button class="btn btn--ghost" id="btn-offline-back" style="margin-top:4px; opacity:.75;">Volver</button>
     </div>
   </section>

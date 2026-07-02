@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.66';
+const VERSION = 'v0.2.67';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
