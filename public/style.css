@@ -835,54 +835,50 @@
   .duel-result__title.is-win{ color: var(--good); }
   .duel-result__title.is-lose{ color: var(--bad); }
   .duel-result__title.is-tie{ color: var(--warn); }
-  .duel-result__scores{
-    display:flex; gap: 30px; align-items:center;
-  }
-  .duel-score{
-    display:flex; flex-direction:column; gap:2px; align-items:center;
-  }
-  .duel-score__label{
-    font-family: var(--font-body);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .2em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .duel-score__num{
+  /* Subtítulo del veredicto (ej: aviso de PERFECTO). Vacío si no aplica. */
+  .duel-result__sub{
+    min-height: 18px;
     font-family: var(--font-display);
+    font-size: 13px;
     font-weight: 700;
-    font-size: 28px;
-    letter-spacing: -.02em;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--perfect);
+  }
+  /* Filas de daño: una por golpe, dicen QUIÉN pierde CUÁNTA vida. */
+  .duel-result__hits{
+    display:flex; flex-direction:column; gap:8px; align-items:stretch;
+    width:100%; max-width: 300px;
+  }
+  .duel-hit{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
     color: var(--ink);
   }
-  .duel-score__num.is-winner{ color: var(--accent); }
-  .duel-score__mods{
-    display:flex; gap:4px; margin-top: 2px; min-height: 14px;
+  .duel-hit__who{
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    text-align:left;
   }
-  .duel-score__mod{
-    font-family: var(--font-body);
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--muted);
+  .duel-hit__hp{
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -.02em;
+    white-space:nowrap;
+    color: var(--bad);
   }
-  .duel-score__mod.is-atk{ color: var(--atk); }
-  .duel-score__mod.is-def{ color: var(--def); }
-  .duel-vs{
-    font-family: var(--font-body);
-    font-size: 12px;
-    color: var(--line);
-    font-weight: 600;
-    letter-spacing: .1em;
+  .duel-hit.is-chip{
+    font-size: 13px;
+    opacity: .85;
+    padding: 7px 14px;
   }
-  .duel-delta{
-    font-size: 14px;
-    color: var(--muted);
-    line-height: 1.5;
-  }
-  .duel-delta b{ color: var(--ink); font-weight: 700; }
-  .duel-delta.is-win b{ color: var(--good); }
-  .duel-delta.is-lose b{ color: var(--bad); }
+  .duel-hit.is-chip .duel-hit__hp{ font-size: 15px; }
+  .duel-hit.is-tie{ justify-content:center; font-size: 14px; color: var(--muted); }
 
   .duel-reveal{ display:flex; flex-direction:column; align-items:center; gap:12px; width:100%; max-width:360px; margin-bottom:10px; }
   .duel-reveal__cols{ display:flex; align-items:flex-start; justify-content:space-between; width:100%; gap:16px; }
@@ -894,8 +890,50 @@
     color: var(--perfect) !important;
     text-shadow: 0 0 6px rgba(20,83,45,0.4);
   }
-  .duel-reveal__verdict{ font-family:var(--font-display); font-size:15px; font-weight:600; text-align:center; color:var(--ink); line-height:1.35; }
+  .duel-reveal__verdict{ font-family:var(--font-display); font-size:16px; font-weight:600; text-align:center; color:var(--ink); line-height:1.35; }
   .duel-reveal__verdict b{ font-weight:700; }
+
+  /* ===== Ruleta rápida de buff compartido (ambos caen en el mismo ítem) ===== */
+  .roulette-overlay{
+    position: fixed; inset: 0; z-index: 60;
+    display:flex; align-items:center; justify-content:center;
+    background: var(--overlay);
+  }
+  .roulette-box{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    padding: 18px 22px;
+    border-radius: 16px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    box-shadow: 0 12px 32px rgba(0,0,0,.18);
+    animation: roulettePop .18s ease-out;
+  }
+  @keyframes roulettePop{ from{ transform: scale(.85); opacity: 0; } to{ transform: scale(1); opacity: 1; } }
+  .roulette-item{ font-size: 34px; line-height: 1; }
+  .roulette-caption{
+    font-family: var(--font-body); font-size: 11px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+  .roulette-names{ display:flex; gap:10px; }
+  .roulette-name{
+    font-family: var(--font-display); font-size: 15px; font-weight: 700;
+    padding: 6px 14px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted);
+    max-width: 130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    transition: none;
+  }
+  .roulette-name.is-on{
+    color: var(--ink);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .roulette-name.is-winner{
+    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+    animation: rouletteWin .35s ease-out;
+  }
+  @keyframes rouletteWin{ 0%{ transform: scale(1); } 45%{ transform: scale(1.14); } 100%{ transform: scale(1); } }
 
   .screen--result{ justify-content:center; gap:32px; text-align:center; }
   .result-verdict{ display:flex; flex-direction:column; align-items:center; gap:12px; }

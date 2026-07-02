@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.71';
+const VERSION = 'v0.2.72';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1088,7 +1088,7 @@ function resolveMoves(){
     if(G.opp.history.length>6) G.opp.history.shift();
   }
   G.you.x=G.yourMove.x; G.you.y=G.yourMove.y; G.opp.x=G.oppMove.x; G.opp.y=G.oppMove.y;
-  applySharedCellEffects();
+  const sharedBuff = applySharedCellEffects();
   applyRingDrip(G.you); applyRingDrip(G.opp);
   // La tregua se cumple en cuanto ambos se mueven: quitar la burbuja YA,
   // antes de redibujar, para que no quede un instante en la casilla nueva.
@@ -1109,19 +1109,62 @@ function resolveMoves(){
   }
 
   setTimeout(()=>{
-    if(wasTruce){
-      // Este turno era la tregua post-duelo: no se dispara duelo aunque estén juntos
-      startChoosePhase();
-    } else if(areAdjacentOrSame(G.you, G.opp) && !wallSeparates(G.you, G.opp)){
-      if(G.online){
-        startDuelOnline();
+    const proceed = ()=>{
+      if(wasTruce){
+        // Este turno era la tregua post-duelo: no se dispara duelo aunque estén juntos
+        startChoosePhase();
+      } else if(areAdjacentOrSame(G.you, G.opp) && !wallSeparates(G.you, G.opp)){
+        if(G.online){
+          startDuelOnline();
+        } else {
+          startDuel();
+        }
       } else {
-        startDuel();
+        startChoosePhase();
       }
-    } else {
-      startChoosePhase();
-    }
+    };
+    // Ambos cayeron en la MISMA casilla con un ítem: ruleta rápida que muestra
+    // quién se lo llevó (el sorteo ya está decidido), y recién después sigue el
+    // flujo normal (duelo si no había tregua; nada más si la había).
+    if(sharedBuff){ showBuffRoulette(sharedBuff, proceed); }
+    else proceed();
   }, 550);
+}
+
+// Ruleta rápida de buff compartido: alterna el resaltado entre los dos nombres
+// cada vez más lento y clava el ganador. Solo visual (el ganador ya se aplicó
+// en applySharedCellEffects). Dura ~1.5s en total, después llama a done().
+function showBuffRoulette(info, done){
+  const ov=$('roulette-overlay');
+  if(!ov){ done(); return; }
+  $('roulette-item').textContent=info.itemEmoji;
+  const nYou=$('roulette-name-you'), nOpp=$('roulette-name-opp');
+  nYou.textContent=App.playerName; nOpp.textContent=App.oppName;
+  nYou.classList.remove('is-on','is-winner'); nOpp.classList.remove('is-on','is-winner');
+  ov.style.display='flex';
+  // Delays crecientes: total ~1030ms de giro + 450ms mostrando al ganador.
+  // Cantidad IMPAR de pasos: el primero y el último caen del mismo lado, así
+  // arrancando por el ganador se garantiza que el resaltado final es el correcto.
+  const delays=[90,90,110,130,160,200,250];
+  let i=0;
+  const step=()=>{
+    if(i>=delays.length){
+      const win = info.youWins ? nYou : nOpp;
+      const lose = info.youWins ? nOpp : nYou;
+      lose.classList.remove('is-on');
+      win.classList.add('is-winner');
+      haptic(12);
+      setTimeout(()=>{ ov.style.display='none'; done(); }, 450);
+      return;
+    }
+    const onYou = info.youWins ? (i%2===0) : (i%2===1);
+    nYou.classList.toggle('is-on', onYou);
+    nOpp.classList.toggle('is-on', !onYou);
+    Sound.step && Sound.step();
+    setTimeout(step, delays[i]);
+    i++;
+  };
+  step();
 }
 // Aplica los efectos de casilla de ambos jugadores. Si los dos caen en la MISMA
 // casilla con un buff, lo gana solo uno (sorteo determinista por turno, para que
@@ -1135,22 +1178,24 @@ function applySharedCellEffects(){
       const seed = (G.turnCount*31 + G.you.x*7 + G.you.y*13) % 2;
       const youWins = (seed===0);
       const winner = youWins ? G.you : G.opp;
+      const itemEmoji = cell.type==='power_dmg' ? '🗡️' : (cell.type==='power_def' ? '◈' : '💍');
       applyCellEffect(winner);                 // solo uno recibe el ítem/anillo
       cell.type='empty';                       // la casilla queda vacía para el otro
-      // (sin toast: el HUD ya refleja el buff; el aviso solo interrumpía el ritmo)
-      return;
+      // Devuelve la info para la ruleta visual (el sorteo ya está aplicado)
+      return { youWins, itemEmoji };
     }
     if(cell.type==='down'){
       // Trampa compartida: ambos la pisan (ambos reciben el daño)
       applyCellEffect(G.you);
       // la casilla ya se consumió; aplicar daño al otro manualmente
       G.opp.hp = Math.max(1, G.opp.hp - CFG.downDamage);
-      return;
+      return null;
     }
-    return; // casilla vacía
+    return null; // casilla vacía
   }
   // Casillas distintas: cada uno la suya, normal
   applyCellEffect(G.you); applyCellEffect(G.opp);
+  return null;
 }
 
 function applyCellEffect(player){
@@ -1567,17 +1612,17 @@ function showDuelReveal(){
 
   // Quién gana el duelo lo decide SOLO el puntaje crudo del minijuego (0-20),
   // nunca los buffs: eso mantiene el minijuego totalmente independiente.
+  // Verdict corto: solo QUIÉN gana (los números grandes de cada columna ya
+  // muestran los puntajes — repetirlos acá era ruido).
   const vEl=$('reveal-verdict');
   if(rawYou>rawOpp){
-    const diff=rawYou-rawOpp;
     const sup = youPerfect ? '<b style="color:var(--perfect)">PERFECTO</b> · ' : '';
-    vEl.innerHTML=`${sup}<b style="color:var(--good)">${App.playerName}</b> gana por <b>${diff}</b> (${rawYou} vs ${rawOpp})`;
+    vEl.innerHTML=`${sup}gana <b style="color:var(--good)">${App.playerName}</b>`;
   } else if(rawOpp>rawYou){
-    const diff=rawOpp-rawYou;
     const sup = oppPerfect ? '<b style="color:var(--perfect)">PERFECTO</b> · ' : '';
-    vEl.innerHTML=`${sup}<b style="color:var(--bad)">${App.oppName}</b> gana por <b>${diff}</b> (${rawOpp} vs ${rawYou})`;
+    vEl.innerHTML=`${sup}gana <b style="color:var(--bad)">${App.oppName}</b>`;
   } else {
-    vEl.innerHTML=`<b style="color:var(--warn)">Empate</b> (${rawYou} vs ${rawOpp})`;
+    vEl.innerHTML=`<b style="color:var(--warn)">Empate</b>`;
   }
 
   // Feedback sutil si alguien hizo perfecto (sin flash de pantalla)
@@ -1593,6 +1638,39 @@ function showDuelReveal(){
   updateNeedles(G.duel.yourStoppedPos); // congelar agujas en su posición final
 }
 function hideDuelReveal(){ $('duel-reveal').style.display='none'; }
+
+// Pantalla de veredicto simplificada: título (ganaste/perdiste/empate), aviso
+// de PERFECTO si aplica, y una fila por golpe que dice QUIÉN pierde CUÁNTA
+// vida. Nada de puntajes ni buffs acá: eso ya se vio en el reveal y el HUD.
+function showDuelOutcome(o){
+  const titleEl=$('duel-result-title');
+  titleEl.classList.remove('is-win','is-lose','is-tie');
+  const sub=$('duel-result-sub');
+  const hits=$('duel-hits'); hits.innerHTML='';
+  const row=(cls, who, hp)=>{
+    const d=document.createElement('div'); d.className='duel-hit '+cls;
+    if(hp===undefined){ d.textContent=who; }
+    else {
+      const w=document.createElement('span'); w.className='duel-hit__who'; w.textContent=who;
+      const h=document.createElement('span'); h.className='duel-hit__hp'; h.textContent=`−${hp} HP`;
+      d.appendChild(w); d.appendChild(h);
+    }
+    hits.appendChild(d);
+  };
+  if(o.tie){
+    titleEl.textContent='Empate'; titleEl.classList.add('is-tie');
+    sub.textContent='';
+    row('is-tie','Nadie pierde vida — ambos salen expulsados');
+    return;
+  }
+  const winName = o.youWin ? App.playerName : App.oppName;
+  const loseName = o.youWin ? App.oppName : App.playerName;
+  titleEl.textContent = o.youWin ? 'Ganaste el duelo' : 'Perdiste el duelo';
+  titleEl.classList.add(o.youWin ? 'is-win' : 'is-lose');
+  sub.textContent = o.perfect ? `⭐ PERFECTO de ${winName}` : '';
+  row('', `🗡️ ${loseName}`, o.dmg);
+  if(o.chip>0) row('is-chip', `↩️ ${winName} (golpe de vuelta)`, o.chip);
+}
 
 function resolveDuel(){
   if(G._duelResolved) return;        // ya resuelto: ignorar llamadas repetidas
@@ -1611,46 +1689,25 @@ function resolveDuel(){
   const rawYou=G.duel.yourScore??0, rawOpp=G.duel.oppScore??0;
   const _dmg=computeDuelDamages();
   const yourRealDmg=_dmg.yourDmg, oppRealDmg=_dmg.oppDmg;
-  $('duel-score-you').textContent=rawYou; $('duel-score-opp').textContent=rawOpp;
-  $('duel-label-you').textContent=App.playerName; $('duel-label-opp').textContent=App.oppName;
-  const modsYou=$('duel-mods-you'), modsOpp=$('duel-mods-opp');
-  modsYou.innerHTML=''; modsOpp.innerHTML='';
-  if(G.you.buffs.dmg>0){ const m=document.createElement('span'); m.className='duel-score__mod is-atk'; m.textContent=`+${G.you.buffs.dmg}🗡️`; modsYou.appendChild(m); }
-  if(G.opp.buffs.def>0){ const m=document.createElement('span'); m.className='duel-score__mod is-def'; m.textContent=`−${G.opp.buffs.def}◈`; modsYou.appendChild(m); }
-  if(G.opp.buffs.dmg>0){ const m=document.createElement('span'); m.className='duel-score__mod is-atk'; m.textContent=`+${G.opp.buffs.dmg}🗡️`; modsOpp.appendChild(m); }
-  if(G.you.buffs.def>0){ const m=document.createElement('span'); m.className='duel-score__mod is-def'; m.textContent=`−${G.you.buffs.def}◈`; modsOpp.appendChild(m); }
-  // Quién ganó el duelo (y quién "es-winner" en pantalla) lo decide el puntaje
-  // crudo del minijuego, no el daño ya modificado por buffs.
-  $('duel-score-you').classList.toggle('is-winner', rawYou>rawOpp);
-  $('duel-score-opp').classList.toggle('is-winner', rawOpp>rawYou);
-  const titleEl=$('duel-result-title'), deltaEl=$('duel-delta');
-  deltaEl.classList.remove('is-win','is-lose'); titleEl.classList.remove('is-win','is-lose','is-tie');
+  // Quién ganó el duelo lo decide el puntaje crudo del minijuego, no el daño
+  // ya modificado por buffs.
   let isTie=false;
   if(rawYou>rawOpp){
     const rawChip=loserChipDamage(oppRealDmg, yourRealDmg);
     const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
     G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
     G.you.hp=Math.max(0,G.you.hp-chip);
-    titleEl.textContent='Ganaste el duelo'; titleEl.classList.add('is-win');
-    deltaEl.classList.add('is-win');
-    deltaEl.innerHTML = chip>0
-      ? `Le hiciste <b>${yourRealDmg} de daño</b>. El rival te devolvió <b>${chip}</b>.`
-      : `Le hiciste <b>${yourRealDmg} de daño</b> al rival.`;
+    showDuelOutcome({ youWin:true, dmg:yourRealDmg, chip, perfect:_dmg.youPerfect });
     Sound.win(); haptic([15,30,15]);
   } else if(rawOpp>rawYou){
     const rawChip=loserChipDamage(yourRealDmg, oppRealDmg);
     const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
     G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
     G.opp.hp=Math.max(0,G.opp.hp-chip);
-    titleEl.textContent='Perdiste el duelo'; titleEl.classList.add('is-lose');
-    deltaEl.classList.add('is-lose');
-    deltaEl.innerHTML = chip>0
-      ? `El rival te hizo <b>${oppRealDmg} de daño</b>. Le devolviste <b>${chip}</b>.`
-      : `El rival te hizo <b>${oppRealDmg} de daño</b>.`;
+    showDuelOutcome({ youWin:false, dmg:oppRealDmg, chip, perfect:_dmg.oppPerfect });
     Sound.lose(); haptic([20,60,20]);
   } else {
-    isTie=true; titleEl.textContent='Empate'; titleEl.classList.add('is-tie');
-    deltaEl.innerHTML='Ambos son expulsados en direcciones caóticas.'; Sound.tie();
+    isTie=true; showDuelOutcome({ tie:true }); Sound.tie();
   }
   G.you.buffs={dmg:0,def:0}; G.opp.buffs={dmg:0,def:0};
   G.justDueled = true;
@@ -1820,46 +1877,25 @@ function resolveDuelOnline(){
   const rawYou=G.duel.yourScore??0, rawOpp=G.duel.oppScore??0;
   const _dmgO=computeDuelDamages();
   const yourRealDmg=_dmgO.yourDmg, oppRealDmg=_dmgO.oppDmg;
-  $('duel-score-you').textContent=rawYou; $('duel-score-opp').textContent=rawOpp;
-  $('duel-label-you').textContent=App.playerName; $('duel-label-opp').textContent=App.oppName;
-  const modsYou=$('duel-mods-you'), modsOpp=$('duel-mods-opp');
-  modsYou.innerHTML=''; modsOpp.innerHTML='';
-  if(G.you.buffs.dmg>0){ const m=document.createElement('span'); m.className='duel-score__mod is-atk'; m.textContent=`+${G.you.buffs.dmg}🗡️`; modsYou.appendChild(m); }
-  if(G.opp.buffs.def>0){ const m=document.createElement('span'); m.className='duel-score__mod is-def'; m.textContent=`−${G.opp.buffs.def}◈`; modsYou.appendChild(m); }
-  if(G.opp.buffs.dmg>0){ const m=document.createElement('span'); m.className='duel-score__mod is-atk'; m.textContent=`+${G.opp.buffs.dmg}🗡️`; modsOpp.appendChild(m); }
-  if(G.you.buffs.def>0){ const m=document.createElement('span'); m.className='duel-score__mod is-def'; m.textContent=`−${G.you.buffs.def}◈`; modsOpp.appendChild(m); }
-  // Quién ganó el duelo (y quién "es-winner" en pantalla) lo decide el puntaje
-  // crudo del minijuego, no el daño ya modificado por buffs.
-  $('duel-score-you').classList.toggle('is-winner', rawYou>rawOpp);
-  $('duel-score-opp').classList.toggle('is-winner', rawOpp>rawYou);
-  const titleEl=$('duel-result-title'), deltaEl=$('duel-delta');
-  deltaEl.classList.remove('is-win','is-lose'); titleEl.classList.remove('is-win','is-lose','is-tie');
+  // Quién ganó el duelo lo decide el puntaje crudo del minijuego, no el daño
+  // ya modificado por buffs.
   let isTie=false;
   if(rawYou>rawOpp){
     const rawChip=loserChipDamage(oppRealDmg, yourRealDmg);
     const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
     G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
     G.you.hp=Math.max(0,G.you.hp-chip);
-    titleEl.textContent='Ganaste el duelo'; titleEl.classList.add('is-win');
-    deltaEl.classList.add('is-win');
-    deltaEl.innerHTML = chip>0
-      ? `Le hiciste <b>${yourRealDmg} de daño</b>. El rival te devolvió <b>${chip}</b>.`
-      : `Le hiciste <b>${yourRealDmg} de daño</b> al rival.`;
+    showDuelOutcome({ youWin:true, dmg:yourRealDmg, chip, perfect:_dmgO.youPerfect });
     Sound.win(); haptic([15,30,15]);
   } else if(rawOpp>rawYou){
     const rawChip=loserChipDamage(yourRealDmg, oppRealDmg);
     const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
     G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
     G.opp.hp=Math.max(0,G.opp.hp-chip);
-    titleEl.textContent='Perdiste el duelo'; titleEl.classList.add('is-lose');
-    deltaEl.classList.add('is-lose');
-    deltaEl.innerHTML = chip>0
-      ? `El rival te hizo <b>${oppRealDmg} de daño</b>. Le devolviste <b>${chip}</b>.`
-      : `El rival te hizo <b>${oppRealDmg} de daño</b>.`;
+    showDuelOutcome({ youWin:false, dmg:oppRealDmg, chip, perfect:_dmgO.oppPerfect });
     Sound.lose(); haptic([20,60,20]);
   } else {
-    isTie=true; titleEl.textContent='Empate'; titleEl.classList.add('is-tie');
-    deltaEl.innerHTML='Ambos son expulsados en direcciones caóticas.'; Sound.tie();
+    isTie=true; showDuelOutcome({ tie:true }); Sound.tie();
   }
   G.you.buffs={dmg:0,def:0}; G.opp.buffs={dmg:0,def:0};
   G.justDueled = true;
