@@ -1,6 +1,10 @@
 # Rally — Session State & Learnings
 
-**Last updated:** v0.2.64 — remote session (Claude Code on the web). Added the **offline Campaign system** foundation. See "v0.2.62 → v0.2.63" below.
+**Last updated:** v0.2.65 — remote session
+
+### v0.2.64 → v0.2.65 (feedback del usuario probando)
+- **`Campaign.hasProgress()` ahora exige ≥1 nodo completado** (node>0 o history no vacía). Antes, con solo haber confirmado el inicio (save en node 0 sin ganar nada) el botón ya decía "Continuar campaña" y salteaba el menú de confirmación con el desvanecimiento. Ahora ese menú se repite hasta ganar el primer nodo.
+- **La campaña NO muestra el overlay de instrucciones "Cómo se juega"**: `Campaign.handlers.match` va directo a `show('game'); startGame()` en vez de `beginGame()` (pedido explícito: la primera partida de campaña tiene que arrancar de golpe). `beginGame._seen` queda intacto, así la primera partida rápida normal sí muestra el howto. (Claude Code on the web). Added the **offline Campaign system** foundation. See "v0.2.62 → v0.2.63" below.
 
 ### v0.2.63 → v0.2.64 (bugfix, reportado por el usuario probando en navegador)
 - **Fix — overlay de campaña visible de entrada y tapando la partida tras el fade:** `.camp-overlay{display:flex}` le ganaba al atributo `hidden` del HTML (la regla UA `[hidden]{display:none}` pierde contra cualquier regla de autor con display). Síntomas: el juego arrancaba mostrando el menú de campaña en vez del home, y tras el fade de 3s el overlay opaco nunca se ocultaba (la partida corría abajo, invisible). Fix: `.camp-overlay[hidden]{display:none;}`. LECCIÓN: si un contenedor con `hidden` tiene `display:` en CSS, siempre agregar la regla `[hidden]` explícita (el smoke test con DOM stub no lo detecta — es un bug de CSS, no de JS).

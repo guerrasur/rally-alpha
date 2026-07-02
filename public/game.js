@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.64';
+const VERSION = 'v0.2.65';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -111,7 +111,12 @@ const Campaign = {
     try{ localStorage.setItem(CAMPAIGN_SAVE_KEY, JSON.stringify(this.data)); }catch(e){}
   },
   clear(){ this.data=null; try{ localStorage.removeItem(CAMPAIGN_SAVE_KEY); }catch(e){} },
-  hasProgress(){ if(this.data===null) this.load(); return !!this.data; },
+  // Hay progreso real solo si completó al menos un nodo. Empezar la campaña y
+  // no ganar nada todavía vuelve a mostrar el menú de inicio, no "Continuar".
+  hasProgress(){
+    if(this.data===null) this.load();
+    return !!(this.data && (this.data.node>0 || (this.data.history && this.data.history.length)));
+  },
 
   // Flags de historia: para que futuros nodos guarden decisiones/estado
   // (ej: Campaign.setFlag('vioLaEscenaX', true)) y persistan en el save.
@@ -174,7 +179,9 @@ Campaign.handlers = {
     Tourney.active=false;
     App.oppName = (node.opp && node.opp.name) || '???';
     applyOppCosmetic();
-    beginGame();
+    // Directo a la partida, SIN el overlay de instrucciones ("Cómo se juega"):
+    // la campaña arranca de golpe, como una partida ya empezada.
+    updateHud(); show('game'); startGame();
   },
   scene(node){
     playScene(node.lines || [], ()=>Campaign.advance());
