@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.73';
+const VERSION = 'v0.2.74';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1612,18 +1612,20 @@ function showDuelReveal(){
 
   // Quién gana el duelo lo decide SOLO el puntaje crudo del minijuego (0-20),
   // nunca los buffs: eso mantiene el minijuego totalmente independiente.
-  // Verdict corto: solo QUIÉN gana (los números grandes de cada columna ya
-  // muestran los puntajes — repetirlos acá era ruido).
+  // Verdict corto: "GANA {nombre}" con el GANA en verde si ganaste vos y en
+  // rojo si ganó el rival. Debajo, los puntajes chicos en gris: "(6v3)".
   const vEl=$('reveal-verdict');
   if(rawYou>rawOpp){
     const sup = youPerfect ? '<b style="color:var(--perfect)">PERFECTO</b> · ' : '';
-    vEl.innerHTML=`${sup}gana <b style="color:var(--good)">${App.playerName}</b>`;
+    vEl.innerHTML=`${sup}<b style="color:var(--good)">GANA</b> ${App.playerName}`;
   } else if(rawOpp>rawYou){
     const sup = oppPerfect ? '<b style="color:var(--perfect)">PERFECTO</b> · ' : '';
-    vEl.innerHTML=`${sup}gana <b style="color:var(--bad)">${App.oppName}</b>`;
+    vEl.innerHTML=`${sup}<b style="color:var(--bad)">GANA</b> ${App.oppName}`;
   } else {
-    vEl.innerHTML=`<b style="color:var(--warn)">Empate</b>`;
+    vEl.innerHTML=`<b style="color:var(--warn)">EMPATE</b>`;
   }
+  const sEl=$('reveal-scoreline');
+  if(sEl) sEl.textContent=`(${rawYou}v${rawOpp})`;
 
   // Feedback sutil si alguien hizo perfecto (sin flash de pantalla)
   if(youPerfect || oppPerfect){
@@ -1645,6 +1647,9 @@ function hideDuelReveal(){ $('duel-reveal').style.display='none'; }
 // hasta la que le quedó. El daño mostrado sale del delta real de HP (incluye
 // el golpe de vuelta del perdedor automáticamente).
 function showDuelOutcome(o){
+  // Guarda: si el HTML en caché es viejo y no tiene las columnas nuevas,
+  // no explotar acá (dejaría el duelo trabado en el velocímetro).
+  if(!$('rescol-dmg-you') || !$('duel-result-sub')) return;
   const titleEl=$('duel-result-title');
   titleEl.classList.remove('is-win','is-lose','is-tie');
   const sub=$('duel-result-sub');
