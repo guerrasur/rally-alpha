@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.72';
+const VERSION = 'v0.2.73';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1639,37 +1639,45 @@ function showDuelReveal(){
 }
 function hideDuelReveal(){ $('duel-reveal').style.display='none'; }
 
-// Pantalla de veredicto simplificada: título (ganaste/perdiste/empate), aviso
-// de PERFECTO si aplica, y una fila por golpe que dice QUIÉN pierde CUÁNTA
-// vida. Nada de puntajes ni buffs acá: eso ya se vio en el reveal y el HUD.
+// Pantalla de veredicto: título (ganaste/perdiste/empate), aviso de PERFECTO
+// si aplica, y dos columnas (vos izquierda, rival derecha) con el daño recibido
+// bien grande y la barra de HP animando el descenso desde la vida que tenía
+// hasta la que le quedó. El daño mostrado sale del delta real de HP (incluye
+// el golpe de vuelta del perdedor automáticamente).
 function showDuelOutcome(o){
   const titleEl=$('duel-result-title');
   titleEl.classList.remove('is-win','is-lose','is-tie');
   const sub=$('duel-result-sub');
-  const hits=$('duel-hits'); hits.innerHTML='';
-  const row=(cls, who, hp)=>{
-    const d=document.createElement('div'); d.className='duel-hit '+cls;
-    if(hp===undefined){ d.textContent=who; }
-    else {
-      const w=document.createElement('span'); w.className='duel-hit__who'; w.textContent=who;
-      const h=document.createElement('span'); h.className='duel-hit__hp'; h.textContent=`−${hp} HP`;
-      d.appendChild(w); d.appendChild(h);
-    }
-    hits.appendChild(d);
-  };
   if(o.tie){
     titleEl.textContent='Empate'; titleEl.classList.add('is-tie');
-    sub.textContent='';
-    row('is-tie','Nadie pierde vida — ambos salen expulsados');
-    return;
+    sub.textContent='Nadie pierde vida — ambos salen expulsados';
+  } else {
+    const winName = o.youWin ? App.playerName : App.oppName;
+    titleEl.textContent = o.youWin ? 'Ganaste el duelo' : 'Perdiste el duelo';
+    titleEl.classList.add(o.youWin ? 'is-win' : 'is-lose');
+    sub.textContent = o.perfect ? `⭐ PERFECTO de ${winName}` : '';
   }
-  const winName = o.youWin ? App.playerName : App.oppName;
-  const loseName = o.youWin ? App.oppName : App.playerName;
-  titleEl.textContent = o.youWin ? 'Ganaste el duelo' : 'Perdiste el duelo';
-  titleEl.classList.add(o.youWin ? 'is-win' : 'is-lose');
-  sub.textContent = o.perfect ? `⭐ PERFECTO de ${winName}` : '';
-  row('', `🗡️ ${loseName}`, o.dmg);
-  if(o.chip>0) row('is-chip', `↩️ ${winName} (golpe de vuelta)`, o.chip);
+  $('rescol-name-you').textContent=App.playerName;
+  $('rescol-name-opp').textContent=App.oppName;
+  const col=(side, before, after)=>{
+    const taken=Math.max(0, before-after);
+    const dmgEl=$('rescol-dmg-'+side);
+    dmgEl.textContent = taken>0 ? `−${taken}` : '0';
+    dmgEl.classList.toggle('is-zero', taken===0);
+    $('rescol-hp-'+side).textContent=`${after} HP`;
+    const fill=$('rescol-fill-'+side);
+    const pct=(hp)=>Math.max(0, Math.min(100, hp/CFG.maxHp*100));
+    const pctAfter=pct(after);
+    fill.classList.toggle('is-low', pctAfter<25);
+    fill.classList.toggle('is-mid', pctAfter>=25 && pctAfter<55);
+    // La barra arranca en la vida que TENÍA (sin transición) y, ya visible,
+    // baja animada hasta la vida que le quedó.
+    fill.style.transition='none';
+    fill.style.width=pct(before)+'%';
+    setTimeout(()=>{ fill.style.transition=''; fill.style.width=pctAfter+'%'; }, 500);
+  };
+  col('you', o.youBefore, G.you.hp);
+  col('opp', o.oppBefore, G.opp.hp);
 }
 
 function resolveDuel(){
@@ -1689,6 +1697,7 @@ function resolveDuel(){
   const rawYou=G.duel.yourScore??0, rawOpp=G.duel.oppScore??0;
   const _dmg=computeDuelDamages();
   const yourRealDmg=_dmg.yourDmg, oppRealDmg=_dmg.oppDmg;
+  const youHpBefore=G.you.hp, oppHpBefore=G.opp.hp;
   // Quién ganó el duelo lo decide el puntaje crudo del minijuego, no el daño
   // ya modificado por buffs.
   let isTie=false;
@@ -1697,17 +1706,17 @@ function resolveDuel(){
     const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
     G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
     G.you.hp=Math.max(0,G.you.hp-chip);
-    showDuelOutcome({ youWin:true, dmg:yourRealDmg, chip, perfect:_dmg.youPerfect });
+    showDuelOutcome({ youWin:true, perfect:_dmg.youPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
     Sound.win(); haptic([15,30,15]);
   } else if(rawOpp>rawYou){
     const rawChip=loserChipDamage(yourRealDmg, oppRealDmg);
     const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
     G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
     G.opp.hp=Math.max(0,G.opp.hp-chip);
-    showDuelOutcome({ youWin:false, dmg:oppRealDmg, chip, perfect:_dmg.oppPerfect });
+    showDuelOutcome({ youWin:false, perfect:_dmg.oppPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
     Sound.lose(); haptic([20,60,20]);
   } else {
-    isTie=true; showDuelOutcome({ tie:true }); Sound.tie();
+    isTie=true; showDuelOutcome({ tie:true, youBefore:youHpBefore, oppBefore:oppHpBefore }); Sound.tie();
   }
   G.you.buffs={dmg:0,def:0}; G.opp.buffs={dmg:0,def:0};
   G.justDueled = true;
@@ -1877,6 +1886,7 @@ function resolveDuelOnline(){
   const rawYou=G.duel.yourScore??0, rawOpp=G.duel.oppScore??0;
   const _dmgO=computeDuelDamages();
   const yourRealDmg=_dmgO.yourDmg, oppRealDmg=_dmgO.oppDmg;
+  const youHpBefore=G.you.hp, oppHpBefore=G.opp.hp;
   // Quién ganó el duelo lo decide el puntaje crudo del minijuego, no el daño
   // ya modificado por buffs.
   let isTie=false;
@@ -1885,17 +1895,17 @@ function resolveDuelOnline(){
     const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
     G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
     G.you.hp=Math.max(0,G.you.hp-chip);
-    showDuelOutcome({ youWin:true, dmg:yourRealDmg, chip, perfect:_dmgO.youPerfect });
+    showDuelOutcome({ youWin:true, perfect:_dmgO.youPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
     Sound.win(); haptic([15,30,15]);
   } else if(rawOpp>rawYou){
     const rawChip=loserChipDamage(yourRealDmg, oppRealDmg);
     const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
     G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
     G.opp.hp=Math.max(0,G.opp.hp-chip);
-    showDuelOutcome({ youWin:false, dmg:oppRealDmg, chip, perfect:_dmgO.oppPerfect });
+    showDuelOutcome({ youWin:false, perfect:_dmgO.oppPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
     Sound.lose(); haptic([20,60,20]);
   } else {
-    isTie=true; showDuelOutcome({ tie:true }); Sound.tie();
+    isTie=true; showDuelOutcome({ tie:true, youBefore:youHpBefore, oppBefore:oppHpBefore }); Sound.tie();
   }
   G.you.buffs={dmg:0,def:0}; G.opp.buffs={dmg:0,def:0};
   G.justDueled = true;
