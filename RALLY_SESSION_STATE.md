@@ -1,9 +1,10 @@
 # Rally — Session State & Learnings
 
-**Last updated:** v0.2.60 — jumped from v0.2.58 to v0.2.60 in ANOTHER session (chat normal o Design, no VS Code), delivered as single-file `.html` again. Re-split into 3 files this session (see WORKFLOW).
-**Working files:** `/home/claude/index.html` + `/home/claude/style.css` + `/home/claude/game.js`
-**Latest delivered output:** `/mnt/user-data/outputs/rally-split-0-2-60/` (index.html, style.css, game.js)
+**Last updated:** v0.2.62 — this session ran entirely in VS Code + Claude Code extension (no chat/Design merge involved), working directly on the 3 split files in `public/`. No re-split needed. See "v0.2.61 → v0.2.62" section below for what changed.
+**Working files (this session/tool):** `public/index.html` + `public/style.css` + `public/game.js` (repo root: `Rally - historico/Rally-alpha-0-2-61/`).
 **Language:** All interaction with user (Lucio) in Argentine Spanish. Keep responding in Spanish.
+
+⚠️ Note: the `/home/claude/...` and `/mnt/user-data/outputs/...` paths below are leftovers from the chat/Design-tool workflow (different session, different machine). They don't apply to VS Code sessions — ignore them when working locally.
 
 ⚠️ **RECURRING PATTERN — READ THIS EVERY SESSION:** User works across multiple tools (chat normal, Claude Design, VS Code w/ Claude Code extension) and each one outputs differently:
 - Chat normal / Design → delivers a **single merged `.html` file** (style + script inline). Needs re-splitting into index.html/style.css/game.js (see recipe below).
@@ -24,6 +25,14 @@ sed -n 'SCRIPT_START+1,SCRIPT_END-1p' uploaded_file.html > game.js
 node -e "const fs=require('fs');const js=fs.readFileSync('game.js','utf8');try{new Function('window','firebase','document','navigator','performance','requestAnimationFrame','cancelAnimationFrame','location','URLSearchParams',js);console.log('OK');}catch(e){console.log('ERR',e.message);}"
 # 6. Cross-check id="..." in index.html vs $('...') calls in game.js (counts should be in the same ballpark, not exact since some ids are dynamic)
 ```
+
+### v0.2.61 → v0.2.62 (this VS Code session)
+- **Fix — online duel score desync (crítico):** `Net.listenDuelScores` (game.js) solo reenviaba `.pos` a `onOppDuelStop`, no `.score` — cuando el rival frenaba primero, `G.duel.oppScore` quedaba `null` y se computaba como 0 (daño mal calculado, host/guest terminaban con HP distinto). Fix: `onOppDuelStop(pos, score)` ahora recibe y guarda ambos.
+- **Refactor — el minijuego decide el ganador, los buffs solo escalan el daño:** antes, quién ganaba el duelo se decidía comparando el daño YA CON BUFFS (`yourRealDmg`/`oppRealDmg`) — un jugador con puntaje más bajo en la barra de colores podía "ganar" si tenía buffs grandes. Ahora el ganador se decide SOLO por el puntaje crudo del minijuego (`rawYou` vs `rawOpp`, 0-20), en 3 lugares: `showDuelReveal`, `resolveDuel` (offline), `resolveDuelOnline`. El daño aplicado al HP sigue viniendo de `computeDuelDamages()`/`duelDamage()` con buffs incluidos — solo cambió QUIÉN gana, no CUÁNTO daño hace el ganador. `loserChipDamage()` se clampeó (`Math.min(1, loserDmg/winnerDmg)`) porque ahora el "perdedor" por puntaje puede tener daño buffeado mayor al del ganador (antes imposible). "Perfecto" sigue anulando ataque+defensa del rival sin cambios.
+- **Rebalance de buffs** (partidas se estaban alargando): `powerDmgValue` 3→2→3 (probó 2, subió de nuevo), `powerDefValue` 3→2→1 (defensa bajada más que ataque, ya no decide quién gana el duelo). `maxPowerDmg`/`maxPowerDef` 6→4 (techo: +12 ataque / +4 defensa, antes +18 cada uno). `maxHp`/`downDamage` probados en 120/12, revertidos a 100/10 (default). Todo documentado en comentario al final de `CFG` en game.js.
+- **NUEVO — chat en vivo (solo modos online):** panel plegable (botón flotante 💬 + badge de no leídos) en `#screen-game`, historial + input de texto. Infraestructura: `Net.pushChat`/`Net.listenChat`/`Net.stopChat` en `rooms/{code}/chat` (Firebase, push-id, `limitToLast(50)`). Objeto `Chat` (game.js) maneja la UI: `mount()`/`unmount()` según `G.online`, nunca aparece offline. Cubre salas 2p y torneo online (mismo `Net.ref` por match). Sin presets/emojis rápidos, texto libre.
+- **Descubierto — mismatch de deploy target:** `.firebaserc` define target `rally` → site `rallyyy`, pero `firebase.json` apunta directo a site `rallyyy-test`. Si el usuario corre `firebase deploy --only hosting:rally`, deploya al site VIEJO (`rallyyy`), no al que se testea (`rallyyy-test`) — probablemente la causa de que cambios previos "no se vieran" tras deployar. Deploy correcto: `firebase deploy --only hosting` (sin target), respeta el `site` de `firebase.json`. Ver sección DEPLOY más abajo — puede necesitar corrección/alineación de `.firebaserc` a futuro.
+- Todos los cambios validados con `node -e "new Function(...)"` sobre game.js. Usuario confirmó "anda" tras probar el chat online.
 
 ### v0.2.58 → v0.2.60 diff summary (found by diffing extracted game.js files)
 Major addition: **online tournament system** — new `OT` object (~2177+ in game.js), new screen `screen-othub` (lobby/hub for online tournament rooms), bracket + match routing + spectator mode (`showLobby`, `renderHub`, `renderLobby`, spectate screen with `btn-spec-back`). This is a SEPARATE system from the existing offline `Tourney` object — don't confuse the two. Also: the old 1-on-1 online "revancha" (rematch) flow was replaced by a "volver a la sala" (`returnToRoom`, `btn-to-room`) flow — if backlog items reference "rematch," check whether they mean the old system (removed) or need adapting to the new room-return flow.
@@ -62,14 +71,11 @@ For math-heavy changes (damage, AI aim, probabilities), write a standalone `node
 ---
 
 ## DEPLOY (user does this from their Mac, NOT from phone)
-User canNOT deploy from phone. **Deploy process changes slightly with the 3-file split:**
-```
-cp index.html style.css game.js public/
-firebase deploy --only hosting:rally
-```
-(Previously it was `cp Rally_vX.html public/index.html` — now it's copying 3 files instead of renaming 1. Make sure `style.css` and `game.js` land in `public/` alongside `index.html`, not in a subfolder, since the HTML references them with relative paths like `href="style.css"`.)
+User canNOT deploy from phone. In the VS Code / local repo setup (`Rally - historico/Rally-alpha-0-2-61/`), files already live in `public/` (no copy step needed — edit in place).
 
-User HAS deployed and confirmed online works perfectly in production with the OLD single-file setup, up to v0.2.38-ish — "anda perfecto". **Deploy of the NEW split structure has not yet been tested by the user** — flag this the first time they deploy after the split, in case relative paths behave differently on Firebase Hosting vs local file:// (they shouldn't, but confirm).
+⚠️ **Target mismatch found in v0.2.62 session:** `.firebaserc` defines target `rally` → site `rallyyy`, but `firebase.json` (`{"hosting":{"site":"rallyyy-test",...}}`) points directly at site `rallyyy-test`. Running `firebase deploy --only hosting:rally` deploys to the OLD site (`rallyyy`), NOT the one `firebase.json`/the user actually tests (`rallyyy-test`) — likely why past deploys looked like "changes didn't apply". **Correct command: `firebase deploy --only hosting`** (no target — lets it read `site` from `firebase.json`). Consider fixing `.firebaserc` to match `rallyyy-test` so the target alias works too, if the user wants that path available.
+
+User HAS deployed and confirmed online works perfectly in production with the OLD single-file setup, up to v0.2.38-ish — "anda perfecto". In v0.2.62 session, user deployed the split structure and confirmed "anda" after testing the new online chat live — split structure works in production. Not 100% confirmed whether they used the corrected no-target command or the target alias; if online features seem stale again after a future deploy, check which deploy command was used first.
 
 **Cannot host from phone.** Consumer Firebase console can't upload hosting files; needs CLI. Options given: deploy from computer (recommended). Lab panel is safe to ship (hidden behind secret access).
 
@@ -77,7 +83,7 @@ User HAS deployed and confirmed online works perfectly in production with the OL
 
 ## FIREBASE
 - Project `rallye-online`, Realtime Database (test-mode rules **EXPIRE 2026-07-30** — must replace before then or online breaks. This is the only hard-deadline item. Not yet done — user said "después lo probamos", wants to do it WITH live testing, not blind).
-- Hosting site `rallyyy` → `rallyyy.web.app`, target alias `rally`.
+- Hosting: `firebase.json` points at site `rallyyy-test` directly (the one actually served/tested). `.firebaserc` target alias `rally` → site `rallyyy` (DIFFERENT site, stale/unused as of v0.2.62 — see DEPLOY section for the mismatch this caused).
 - Compat SDK v10.12.2 (firebase-app-compat + firebase-database-compat).
 - HAS_FIREBASE/DEMO flags; global `fbDb`.
 
@@ -95,11 +101,12 @@ User HAS deployed and confirmed online works perfectly in production with the OL
 ## GAME OVERVIEW
 7x7 board (CFG.boardSize=7). Simultaneous moves (both pick adjacent cell, resolve together). Items: 🗡️ power_dmg (+damage buff), ◈ power_def (+defense buff), × down (trap), 💍 ring (rare heal). When players land adjacent/same cell → reflex duel (speedometer: stop needle in colored zones). Player bottom-right (n-1,n-1), opponent top-left (0,0).
 
-### Key CFG values (editable live via Laboratorio)
-boardSize 7, maxHp 100, powerDmgValue/powerDefValue 3, maxPowerDmg/Def 6, downDamage 10, regenInterval 4, powerDmgCount/powerDefCount 3, downCount 4.
+### Key CFG values (editable live via Laboratorio) — UPDATED v0.2.62
+boardSize 7, maxHp 100, **powerDmgValue 3 (was 3, dipped to 2, back to 3)**, **powerDefValue 1 (was 3, now nerfed — defense no longer decides who wins a duel, see refactor note above)**, **maxPowerDmg/Def 4 (was 6 — buff ceiling now +12 atk / +4 def, was +18/+18)**, downDamage 10, regenInterval 4, powerDmgCount/powerDefCount 3, downCount 4.
 Duel: duelCycleDuration 1.8, duelMaxPasses 4.
-Zones (needle position 0..1): green 0.46-0.54, yellow 0.40-0.60, orange 0.35-0.65, perfect 0.494-0.506. Scores: perfect 20, green 10, yellow 6, orange 4, redBase 3, redMin 1.
+Zones (needle position 0..1): green 0.46-0.54, yellow 0.40-0.60, orange 0.35-0.65, perfect 0.487-0.513 (hitbox enlarged from earlier 0.494-0.506). Scores: perfect 20, green 10, yellow 6, orange 4, orange2 3 (inner-orange, saves from red), redBase 2, redMin 1.
 Ring: ringChancePerTurn 0.06, ringMinTurn 8, ringBigHeal 50, ringHealDiff 20, ringHealUnder 40, ringDripHeal 5, ringDripRounds 5.
+**Duel winner logic (v0.2.62):** who wins is decided ONLY by raw minigame score (0-20) — buffs never affect this anymore, only the damage magnitude the winner deals. See `computeDuelDamages`/`duelDamage` in game.js.
 
 ---
 
@@ -140,6 +147,7 @@ Ring: ringChancePerTurn 0.06, ringMinTurn 8, ringBigHeal 50, ringHealDiff 20, ri
 - **Stale room cleanup (#13):** `cleanStaleRooms()` deletes rooms >2hrs old, opportunistic on createRoom.
 - **Invite link (#15-link):** btn-share generates `?sala=CODE` link (navigator.share/clipboard); `autoJoinFromURL` prefills code on load.
 - **Messi easter egg (resolveSkins):** name "messi" (case-insensitive) → 🇦🇷 skin. Both messi → you KEEP 🇦🇷, rival shows 🇧🇷 named "Vinicius" (capital V). FIXED in v0.2.39 (previously lost own flag + lowercase vinicius).
+- **Live chat (NEW v0.2.62, online-only):** collapsible panel (💬 floating button + unread badge) inside `#screen-game`. `Net.pushChat`/`listenChat`/`stopChat` write/read `rooms/{code}/chat` (push-id, `limitToLast(50)`). `Chat` object owns the UI (`mount()`/`unmount()` gated by `G.online` — never shows offline). Covers both 2p rooms and online-tournament matches (same `Net.ref`-per-match pattern). Free text input, no presets/emoji shortcuts. User-tested live, confirmed working ("anda").
 
 ### Robustness fixes (audit, v0.2.26)
 - moves DB cleanup, countdown timers abort on phase change (`G.phase!=='duel-countdown'` guard, offline+online), leave() clears child listeners + nulls callbacks, CPU history offline-only, btn-leave sets G.phase='idle'.

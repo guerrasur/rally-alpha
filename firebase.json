@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "target": "rally",
+    "site": "rallyyy-test",
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
   }

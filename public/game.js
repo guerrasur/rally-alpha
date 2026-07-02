@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.60';
+const VERSION = 'v0.2.62';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -84,15 +84,75 @@ function show(screen){
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', screen !== 'home');
 }
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 let toastT;
 function toast(msg, ms=2600){
   const t = $('toast');
   // escapa el texto y luego reemplaza el marcador {ring} por el mini-anillo
-  const esc = String(msg).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const esc = escapeHtml(msg);
   t.innerHTML = esc.replace(/\{ring\}/g, '<span class="ring-ic"></span>');
   t.classList.add('is-show');
   clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('is-show'), ms);
 }
+
+// ---- Chat en vivo (solo modos online) ----
+// UI plegable dentro de #screen-game. Los mensajes viajan por Net.pushChat /
+// Net.listenChat (Firebase). No se monta en offline (G.online === false).
+const Chat = {
+  unread: 0,
+  mount(){
+    const w = $('chat-widget'); if(!w) return;
+    $('chat-log').innerHTML = '';
+    this.unread = 0; this._updateBadge();
+    w.classList.remove('is-open');
+    w.style.display = 'flex';
+    Net.onChatMessage = m => this.receive(m);
+    Net.listenChat();
+  },
+  unmount(){
+    const w = $('chat-widget'); if(!w) return;
+    w.classList.remove('is-open');
+    w.style.display = 'none';
+    $('chat-log').innerHTML = '';
+    this.unread = 0; this._updateBadge();
+  },
+  send(){
+    const inp = $('chat-input'); if(!inp) return;
+    const text = inp.value.trim();
+    if(!text) return;
+    // Sin echo local: el propio mensaje vuelve por child_added (evita duplicado).
+    Net.pushChat(text).catch(e=>console.error('[chat] push', e));
+    inp.value = '';
+  },
+  receive(m){
+    const log = $('chat-log'); if(!log || !m) return;
+    const row = document.createElement('div');
+    row.className = 'chat-msg' + (m.from===Net.role ? ' is-mine' : '');
+    const nm = document.createElement('span'); nm.className='chat-msg__name'; nm.textContent = m.name || 'Rival';
+    const tx = document.createElement('span'); tx.className='chat-msg__text'; tx.textContent = m.text || '';
+    row.appendChild(nm); row.appendChild(tx);
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+    const w = $('chat-widget');
+    if(w && !w.classList.contains('is-open')){ this.unread++; this._updateBadge(); }
+  },
+  toggle(){
+    const w = $('chat-widget'); if(!w) return;
+    const open = w.classList.toggle('is-open');
+    if(open){
+      this.unread = 0; this._updateBadge();
+      const inp = $('chat-input'); if(inp) inp.focus();
+      const log = $('chat-log'); if(log) log.scrollTop = log.scrollHeight;
+    }
+  },
+  _updateBadge(){
+    const b = $('chat-badge'); if(!b) return;
+    if(this.unread>0){ b.textContent = this.unread>9 ? '9+' : String(this.unread); b.hidden = false; }
+    else { b.hidden = true; }
+  },
+};
 function genCode(){
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let c=''; for(let i=0;i<4;i++) c+=A[Math.floor(Math.random()*A.length)];
@@ -135,12 +195,12 @@ const CFG = {
   maxHp: 100,
   powerDmgCount: 3,
   powerDefCount: 3,
-  powerDmgValue: 3,
-  powerDefValue: 3,
+  powerDmgValue: 3,    // antes 2. Partidas se hacían largas: más punch por ítem de ataque.
+  powerDefValue: 1,    // antes 2. Defensa achicada para no alargar tanto los duelos.
   downCount: 4,
   downDamage: 10,
-  maxPowerDmg: 6,
-  maxPowerDef: 6,
+  maxPowerDmg: 4,       // techo de buff total: 4×3=12.
+  maxPowerDef: 4,       // techo de buff total: 4×1=4.
   regenInterval: 4,
   ejectMinDist: 4,
   ejectMaxDist: 6,
@@ -174,6 +234,21 @@ const CFG = {
   cpuDesperateTrapRatio: 0.6,
   cpuDesperateHpMin: 30,
 };
+// ---- Diseño del duelo: minijuego vs. daño ----
+// El puntaje crudo del minijuego (0-20, ver computeScore) decide QUIÉN gana el
+// duelo — es independiente de los buffs. Los buffs solo escalan el DAÑO que el
+// ganador aplica al HP del rival (ver computeDuelDamages/duelDamage). "Perfecto"
+// sigue anulando ataque+defensa del rival cuando solo uno lo saca.
+//
+// ---- Rebalance de stats (ítems/duelo) ----
+// Objetivo: duelos ni instantáneos ni eternos, y buffs que se sientan pero no decidan solos.
+//   maxHp, downDamage: sin cambios (100 / 10, se probó 120/12 y se revirtió).
+//   powerDmgValue  3 → 2 → 3  (2 achicaba demasiado el impacto de un ítem; se subió
+//                              de nuevo a 3 porque las partidas se estaban alargando)
+//   powerDefValue  3 → 2 → 1  (misma razón: defensa se achicó más que el ataque para
+//                              acortar partidas, ya no decide quién gana el duelo)
+//   maxPowerDmg    6 → 4  (techo de buff total: 4×3=12, antes 6×3=18)
+//   maxPowerDef    6 → 4  (techo de buff total: 4×1=4, antes 6×3=18)
 
 const G = {
   running: false,
@@ -560,9 +635,17 @@ function getReachable(x, y){
   return out;
 }
 function areAdjacentOrSame(a, b){ return Math.abs(a.x-b.x)<=1 && Math.abs(a.y-b.y)<=1; }
+// En Modo Paredes, dos casillas "adyacentes" no cuentan como contacto real
+// si hay una pared entre medio (misma regla que bloquea el movimiento).
+function wallSeparates(a, b){
+  if(!App.wallsMode || !Walls.active()) return false;
+  if(a.x===b.x && a.y===b.y) return false;
+  return Walls.blocks(a.x, a.y, b.x, b.y);
+}
 
 function startGame(){
   G.online=false; G.flip=false;
+  Chat.unmount();   // sin chat en offline/local
   applyOppCosmetic();
   buildBoard(); const n=CFG.boardSize;
   const oppHp = Tourney.active ? tourneyHpFor(Tourney.index) : CFG.maxHp;
@@ -618,6 +701,9 @@ function startOnlineGame(boardStr, role){
   Net.onOpponentWaiting = ()=>{ toast('Rival desconectado… esperando reconexión'); setMsg('⚠️ Rival desconectado — esperando…', true); };
   Net.onOpponentBack = ()=>{ toast('Rival reconectado ✓'); };
   Net.startPresence();
+
+  // Chat en vivo (solo online): monta el panel y escucha mensajes.
+  Chat.mount();
 
   // Etapa 3A: arrancamos la fase de elección con movimientos sincronizados.
   startChoosePhase();
@@ -867,7 +953,7 @@ function resolveMoves(){
     if(wasTruce){
       // Este turno era la tregua post-duelo: no se dispara duelo aunque estén juntos
       startChoosePhase();
-    } else if(areAdjacentOrSame(G.you, G.opp)){
+    } else if(areAdjacentOrSame(G.you, G.opp) && !wallSeparates(G.you, G.opp)){
       if(G.online){
         startDuelOnline();
       } else {
@@ -1229,10 +1315,13 @@ function cpuDmgMult(){
 // Daño de "consuelo" del perdedor del duelo: proporcional a qué tan cerca estuvo.
 // = round( perdedorDmg × (perdedorDmg/ganadorDmg) × FACTOR ). Cuanto más cerca,
 // más daño (la cercanía multiplica dos veces). Buffs ya incluidos en loserDmg.
+// Quién es "perdedor" ahora lo decide el puntaje crudo, no este daño buffeado:
+// por eso loserDmg puede superar a winnerDmg (rival flojo en el minijuego pero
+// bien buffeado) — se clampea la cercanía a 1 para no romper la proporción.
 const LOSER_CHIP_FACTOR = 0.5;
 function loserChipDamage(loserDmg, winnerDmg){
   if(winnerDmg<=0 || loserDmg<=0) return 0;
-  const cercania = loserDmg / winnerDmg;     // 0..1
+  const cercania = Math.min(1, loserDmg / winnerDmg);     // 0..1
   return Math.round(loserDmg * cercania * LOSER_CHIP_FACTOR);
 }
 // "Tiro de gracia": un jugador en 1 HP no muere por el chip del perdedor.
@@ -1290,7 +1379,6 @@ function showDuelReveal(){
   const oppPassR = (G.duel.oppStoppedPass!==undefined)?G.duel.oppStoppedPass:(rawOpp===CFG.perfectScore?1:2);
   const zYou=zoneInfo(G.duel.yourStoppedPos, youPassR), zOpp=zoneInfo(G.duel.oppStoppedPos, oppPassR);
   const dmg=computeDuelDamages();
-  const yourRealDmg=dmg.yourDmg, oppRealDmg=dmg.oppDmg;
   const youPerfect=dmg.youPerfect, oppPerfect=dmg.oppPerfect;
 
   $('reveal-name-you').textContent=App.playerName;
@@ -1303,17 +1391,19 @@ function showDuelReveal(){
   bYou.classList.toggle('is-perfect-hit', youPerfect);
   bOpp.classList.toggle('is-perfect-hit', oppPerfect);
 
+  // Quién gana el duelo lo decide SOLO el puntaje crudo del minijuego (0-20),
+  // nunca los buffs: eso mantiene el minijuego totalmente independiente.
   const vEl=$('reveal-verdict');
-  if(yourRealDmg>oppRealDmg){
-    const diff=yourRealDmg-oppRealDmg;
+  if(rawYou>rawOpp){
+    const diff=rawYou-rawOpp;
     const sup = youPerfect ? '<b style="color:var(--perfect)">PERFECTO</b> · ' : '';
-    vEl.innerHTML=`${sup}<b style="color:var(--good)">${App.playerName}</b> gana por <b>${diff}</b> (${yourRealDmg} vs ${oppRealDmg})`;
-  } else if(oppRealDmg>yourRealDmg){
-    const diff=oppRealDmg-yourRealDmg;
+    vEl.innerHTML=`${sup}<b style="color:var(--good)">${App.playerName}</b> gana por <b>${diff}</b> (${rawYou} vs ${rawOpp})`;
+  } else if(rawOpp>rawYou){
+    const diff=rawOpp-rawYou;
     const sup = oppPerfect ? '<b style="color:var(--perfect)">PERFECTO</b> · ' : '';
-    vEl.innerHTML=`${sup}<b style="color:var(--bad)">${App.oppName}</b> gana por <b>${diff}</b> (${oppRealDmg} vs ${yourRealDmg})`;
+    vEl.innerHTML=`${sup}<b style="color:var(--bad)">${App.oppName}</b> gana por <b>${diff}</b> (${rawOpp} vs ${rawYou})`;
   } else {
-    vEl.innerHTML=`<b style="color:var(--warn)">Empate</b> (${yourRealDmg} vs ${oppRealDmg})`;
+    vEl.innerHTML=`<b style="color:var(--warn)">Empate</b> (${rawYou} vs ${rawOpp})`;
   }
 
   // Feedback sutil si alguien hizo perfecto (sin flash de pantalla)
@@ -1355,12 +1445,14 @@ function resolveDuel(){
   if(G.opp.buffs.def>0){ const m=document.createElement('span'); m.className='duel-score__mod is-def'; m.textContent=`−${G.opp.buffs.def}◈`; modsYou.appendChild(m); }
   if(G.opp.buffs.dmg>0){ const m=document.createElement('span'); m.className='duel-score__mod is-atk'; m.textContent=`+${G.opp.buffs.dmg}🗡️`; modsOpp.appendChild(m); }
   if(G.you.buffs.def>0){ const m=document.createElement('span'); m.className='duel-score__mod is-def'; m.textContent=`−${G.you.buffs.def}◈`; modsOpp.appendChild(m); }
-  $('duel-score-you').classList.toggle('is-winner', yourRealDmg>oppRealDmg);
-  $('duel-score-opp').classList.toggle('is-winner', oppRealDmg>yourRealDmg);
+  // Quién ganó el duelo (y quién "es-winner" en pantalla) lo decide el puntaje
+  // crudo del minijuego, no el daño ya modificado por buffs.
+  $('duel-score-you').classList.toggle('is-winner', rawYou>rawOpp);
+  $('duel-score-opp').classList.toggle('is-winner', rawOpp>rawYou);
   const titleEl=$('duel-result-title'), deltaEl=$('duel-delta');
   deltaEl.classList.remove('is-win','is-lose'); titleEl.classList.remove('is-win','is-lose','is-tie');
   let isTie=false;
-  if(yourRealDmg>oppRealDmg){
+  if(rawYou>rawOpp){
     const rawChip=loserChipDamage(oppRealDmg, yourRealDmg);
     const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
     G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
@@ -1371,7 +1463,7 @@ function resolveDuel(){
       ? `Le hiciste <b>${yourRealDmg} de daño</b>. El rival te devolvió <b>${chip}</b>.`
       : `Le hiciste <b>${yourRealDmg} de daño</b> al rival.`;
     Sound.win(); haptic([15,30,15]);
-  } else if(oppRealDmg>yourRealDmg){
+  } else if(rawOpp>rawYou){
     const rawChip=loserChipDamage(yourRealDmg, oppRealDmg);
     const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
     G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
@@ -1423,10 +1515,11 @@ function startDuelOnline(){
   const duelId = duelIdFor();
   Net.onDuelScores = onDuelScoresReady;
   // Mostrar la aguja del rival apenas frena (sin esperar a que yo frene)
-  Net.onOppDuelStop = (pos)=>{
+  Net.onOppDuelStop = (pos, score)=>{
     if(G.duel.oppStopped) return;
     G.duel.oppStopped = true;
     G.duel.oppStoppedPos = pos;
+    G.duel.oppScore = score;
     if(G.phase==='duel-play'){ Sound.stop && Sound.stop(); haptic(6); }
   };
   Net.listenDuelScores(duelId);
@@ -1561,12 +1654,14 @@ function resolveDuelOnline(){
   if(G.opp.buffs.def>0){ const m=document.createElement('span'); m.className='duel-score__mod is-def'; m.textContent=`−${G.opp.buffs.def}◈`; modsYou.appendChild(m); }
   if(G.opp.buffs.dmg>0){ const m=document.createElement('span'); m.className='duel-score__mod is-atk'; m.textContent=`+${G.opp.buffs.dmg}🗡️`; modsOpp.appendChild(m); }
   if(G.you.buffs.def>0){ const m=document.createElement('span'); m.className='duel-score__mod is-def'; m.textContent=`−${G.you.buffs.def}◈`; modsOpp.appendChild(m); }
-  $('duel-score-you').classList.toggle('is-winner', yourRealDmg>oppRealDmg);
-  $('duel-score-opp').classList.toggle('is-winner', oppRealDmg>yourRealDmg);
+  // Quién ganó el duelo (y quién "es-winner" en pantalla) lo decide el puntaje
+  // crudo del minijuego, no el daño ya modificado por buffs.
+  $('duel-score-you').classList.toggle('is-winner', rawYou>rawOpp);
+  $('duel-score-opp').classList.toggle('is-winner', rawOpp>rawYou);
   const titleEl=$('duel-result-title'), deltaEl=$('duel-delta');
   deltaEl.classList.remove('is-win','is-lose'); titleEl.classList.remove('is-win','is-lose','is-tie');
   let isTie=false;
-  if(yourRealDmg>oppRealDmg){
+  if(rawYou>rawOpp){
     const rawChip=loserChipDamage(oppRealDmg, yourRealDmg);
     const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
     G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
@@ -1577,7 +1672,7 @@ function resolveDuelOnline(){
       ? `Le hiciste <b>${yourRealDmg} de daño</b>. El rival te devolvió <b>${chip}</b>.`
       : `Le hiciste <b>${yourRealDmg} de daño</b> al rival.`;
     Sound.win(); haptic([15,30,15]);
-  } else if(oppRealDmg>yourRealDmg){
+  } else if(rawOpp>rawYou){
     const rawChip=loserChipDamage(yourRealDmg, oppRealDmg);
     const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
     G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
@@ -2041,7 +2136,7 @@ const Net = {
       // Apenas aparece el dato del rival, mostrar su aguja (una sola vez)
       if(d[oppKey] && !this._oppShownThisDuel && this.onOppDuelStop){
         this._oppShownThisDuel = true;
-        this.onOppDuelStop(d[oppKey].pos);
+        this.onOppDuelStop(d[oppKey].pos, d[oppKey].score);
       }
       if(d.host && d.guest && this.onDuelScores){
         this._duelRef.off(); this._duelRef=null;
@@ -2061,6 +2156,33 @@ const Net = {
       const e = s.val();
       if(e && this.onEject){ this.ref.child('game/ejects/'+duelId).off(); this.onEject(e); }
     });
+  },
+
+  // ---- Chat en vivo (solo online) ----
+  // Vive en rooms/{code}/chat (nivel sala: persiste entre revanchas; se borra con
+  // la sala en leave()). Cada mensaje usa push-id → orden cronológico gratis.
+  onChatMessage: null,   // callback(msg) por cada mensaje nuevo
+  _chatQueryRef: null,   // ref (sin límite) para poder soltar el listener
+  async pushChat(text){
+    if(!this.ref) return;
+    const t = String(text).slice(0, 200);
+    await this.ref.child('chat').push({
+      from: this.role, name: App.playerName, text: t,
+      ts: firebase.database.ServerValue.TIMESTAMP,
+    });
+  },
+  listenChat(){
+    if(!this.ref) return;
+    this._chatQueryRef = this.ref.child('chat');
+    // limitToLast: acota crecimiento y da historial (hasta 50) al reconectar.
+    this._chatQueryRef.limitToLast(50).on('child_added', s=>{
+      const m = s.val();
+      if(m && this.onChatMessage) this.onChatMessage(m);
+    });
+  },
+  stopChat(){
+    if(this._chatQueryRef){ this._chatQueryRef.off('child_added'); this._chatQueryRef=null; }
+    this.onChatMessage=null;
   },
 
   // ---- Presencia / abandono (cambio #2) ----
@@ -2122,6 +2244,7 @@ const Net = {
   detachMatch(){
     try {
       this.stopPresence();
+      this.stopChat();
       if(this._movesRef){ this._movesRef.off(); this._movesRef=null; }
       if(this._duelRef){ this._duelRef.off(); this._duelRef=null; }
       if(this.ref){ this.ref.child('game/board').off(); this.ref.off(); }
@@ -2135,6 +2258,7 @@ const Net = {
   leave(){
     try {
       this.stopPresence();
+      this.stopChat();
       if(this._movesRef){ this._movesRef.off(); this._movesRef=null; }
       if(this._duelRef){ this._duelRef.off(); this._duelRef=null; }
       if(this.ref){
@@ -2785,10 +2909,14 @@ $('btn-join-go').addEventListener('click', async ()=>{
 $('btn-lobby-back').addEventListener('click', ()=>{ if(OT.active){ OT.leaveTournament(); return; } Net.leave(); show('home'); });
 $('btn-join-back').addEventListener('click', ()=>show('home'));
 $('code-in').addEventListener('input', e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
-$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
 $('btn-mute').addEventListener('click', ()=>{ App.muted=!App.muted; $('btn-mute').textContent=App.muted?'♪ off':'♪ on'; });
 $('btn-again').addEventListener('click', ()=>{ show('game'); startGame(); });
-$('btn-home').addEventListener('click', ()=>{ Tourney.active=false; applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-home').addEventListener('click', ()=>{ Chat.unmount(); Tourney.active=false; applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+
+// Chat en vivo (solo online): abrir/cerrar panel y enviar mensajes.
+$('chat-toggle').addEventListener('click', ()=> Chat.toggle());
+$('chat-form').addEventListener('submit', e=>{ e.preventDefault(); Chat.send(); });
 
 // #15 — Compartir invitación: arma un link con ?sala=CODIGO y lo comparte/copia
 $('btn-share').addEventListener('click', async ()=>{
