@@ -1,6 +1,9 @@
 # Rally — Session State & Learnings
 
-**Last updated:** v0.2.63 — remote session (Claude Code on the web). Added the **offline Campaign system** foundation. See "v0.2.62 → v0.2.63" below.
+**Last updated:** v0.2.64 — remote session (Claude Code on the web). Added the **offline Campaign system** foundation. See "v0.2.62 → v0.2.63" below.
+
+### v0.2.63 → v0.2.64 (bugfix, reportado por el usuario probando en navegador)
+- **Fix — overlay de campaña visible de entrada y tapando la partida tras el fade:** `.camp-overlay{display:flex}` le ganaba al atributo `hidden` del HTML (la regla UA `[hidden]{display:none}` pierde contra cualquier regla de autor con display). Síntomas: el juego arrancaba mostrando el menú de campaña en vez del home, y tras el fade de 3s el overlay opaco nunca se ocultaba (la partida corría abajo, invisible). Fix: `.camp-overlay[hidden]{display:none;}`. LECCIÓN: si un contenedor con `hidden` tiene `display:` en CSS, siempre agregar la regla `[hidden]` explícita (el smoke test con DOM stub no lo detecta — es un bug de CSS, no de JS).
 
 ### v0.2.62 → v0.2.63 (this session)
 - **NUEVO — Sistema de Campaña offline (bases):**
