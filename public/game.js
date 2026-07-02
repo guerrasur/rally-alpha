@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.70';
+const VERSION = 'v0.2.71';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1328,7 +1328,7 @@ function updateDuelPassLabel(){
     } else if(mark.classList.contains('is-live')){
       mark.classList.remove('is-live');
       mark.classList.add('is-gone');
-      setTimeout(()=>{ mark.classList.remove('is-gone'); mark.style.display='none'; }, 500);
+      setTimeout(()=>{ mark.classList.remove('is-gone'); mark.style.display='none'; }, 320);
     }
   }
   if(G.duel.pass>CFG.duelMaxPasses){
