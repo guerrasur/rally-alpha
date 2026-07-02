@@ -4,11 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.71</title>
+<title>Rally — duelo en tablero · v0.2.72</title>
 <link rel="stylesheet" href="style.css" />
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.71</div>
+  <div class="version-tag" id="version-tag">v0.2.72</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -280,22 +280,21 @@
 
       <div class="duel-result" id="duel-result" style="display:none;">
         <div class="duel-result__title" id="duel-result-title">—</div>
-        <div class="duel-result__scores">
-          <div class="duel-score">
-            <span class="duel-score__label" id="duel-label-you">Vos</span>
-            <span class="duel-score__num" id="duel-score-you">0</span>
-            <div class="duel-score__mods" id="duel-mods-you"></div>
-          </div>
-          <span class="duel-vs">vs</span>
-          <div class="duel-score">
-            <span class="duel-score__label" id="duel-label-opp">Rival</span>
-            <span class="duel-score__num" id="duel-score-opp">0</span>
-            <div class="duel-score__mods" id="duel-mods-opp"></div>
-          </div>
-        </div>
-        <div class="duel-delta" id="duel-delta"></div>
+        <div class="duel-result__sub" id="duel-result-sub"></div>
+        <div class="duel-result__hits" id="duel-hits"></div>
       </div>
 
+    </div>
+
+    <div class="roulette-overlay" id="roulette-overlay" style="display:none;">
+      <div class="roulette-box">
+        <div class="roulette-item" id="roulette-item">🗡️</div>
+        <div class="roulette-caption">¿quién se lo lleva?</div>
+        <div class="roulette-names">
+          <span class="roulette-name" id="roulette-name-you">Vos</span>
+          <span class="roulette-name" id="roulette-name-opp">Rival</span>
+        </div>
+      </div>
     </div>
   </section>
 
