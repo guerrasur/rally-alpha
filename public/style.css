@@ -190,6 +190,7 @@
   .fighter--rival .r-hp{ font-size:10px; color:var(--muted); }
   .fighter--rival.is-king{ border-color:#D4AF37; background:rgba(212,175,55,0.12); }
   .fighter--rival.is-king .r-name{ color:#9A7B14; }
+  [data-theme="dark"] .fighter--rival.is-king .r-name{ color:#D4AF37; }
   .fighter--rival.is-current{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
   .fighter--rival.is-beaten{ opacity:.5; }
   .fighter--rival.is-beaten .r-name{ text-decoration:line-through; color:var(--bad); }
