@@ -1,0 +1,205 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "rooms": {
+      ".read": "auth != null",
+
+      "$code": {
+        ".write": "auth != null",
+        ".validate": "$code.matches(/^[A-HJ-NP-Z2-9]{4}$/) && (data.exists() || newData.hasChild('createdAt'))",
+
+        "status": { ".validate": "newData.isString() && (newData.val() === 'waiting' || newData.val() === 'ready' || newData.val() === 'playing' || newData.val() === 'lobby')" },
+        "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+        "type": { ".validate": "newData.val() === 'tourney'" },
+
+        "host": {
+          "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+          "$other": { ".validate": false }
+        },
+        "guest": {
+          "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+          "$other": { ".validate": false }
+        },
+
+        "rematch": {
+          "$role": { ".validate": "($role === 'host' || $role === 'guest') && newData.isBoolean()" }
+        },
+        "presence": {
+          "$role": { ".validate": "($role === 'host' || $role === 'guest') && newData.isBoolean()" }
+        },
+
+        "chat": {
+          "$msg": {
+            "from": { ".validate": "newData.val() === 'host' || newData.val() === 'guest'" },
+            "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "text": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 200" },
+            "ts": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "game": {
+          "board": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "turn": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "mode": { ".validate": "newData.val() === 'single' || newData.val() === 'bo5'" },
+          "startedAt": { ".validate": "newData.isNumber()" },
+          "moves": {
+            "$turn": {
+              ".validate": "$turn.matches(/^[0-9]+$/)",
+              "$role": {
+                ".validate": "$role === 'host' || $role === 'guest'",
+                "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                "$other": { ".validate": false }
+              }
+            }
+          },
+          "duels": {
+            "$duelId": {
+              ".validate": "$duelId.matches(/^d[0-9]+$/)",
+              "$role": {
+                ".validate": "$role === 'host' || $role === 'guest'",
+                "score": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+                "pos": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
+                "$other": { ".validate": false }
+              }
+            }
+          },
+          "ejects": {
+            "$duelId": {
+              ".validate": "$duelId.matches(/^d[0-9]+$/)",
+              "youPos": { ".validate": "newData.isNumber()" },
+              "oppPos": { ".validate": "newData.isNumber()" },
+              "$other": { ".validate": false }
+            }
+          },
+          "$other": { ".validate": false }
+        },
+
+        "players": {
+          "$seat": {
+            ".validate": "$seat.matches(/^s[0-3]$/)",
+            "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+            "color": { ".validate": "newData.isString() && newData.val().length <= 30" },
+            "uid": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "cpu": { ".validate": "newData.isBoolean()" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "bracket": {
+          "r1": {
+            "$mid": {
+              ".validate": "$mid === 'm0' || $mid === 'm1'",
+              "a": { ".validate": "newData.isString() && newData.val().matches(/^s[0-3]$/)" },
+              "b": { ".validate": "newData.isString() && newData.val().matches(/^s[0-3]$/)" },
+              "winner": { ".validate": "newData.isString() && newData.val().matches(/^s[0-3]$/)" },
+              "$other": { ".validate": false }
+            }
+          },
+          "f": {
+            "a": { ".validate": "newData.isString() && newData.val().matches(/^s[0-3]$/)" },
+            "b": { ".validate": "newData.isString() && newData.val().matches(/^s[0-3]$/)" },
+            "winner": { ".validate": "newData.isString() && newData.val().matches(/^s[0-3]$/)" },
+            "$other": { ".validate": false }
+          },
+          "$other": { ".validate": false }
+        },
+
+        "matches": {
+          "$mid": {
+            ".validate": "$mid === 'm0' || $mid === 'm1' || $mid === 'f'",
+
+            "game": {
+              "board": { ".validate": "newData.isString() && newData.val().length <= 200" },
+              "turn": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "mode": { ".validate": "newData.val() === 'single' || newData.val() === 'bo5'" },
+              "startedAt": { ".validate": "newData.isNumber()" },
+              "moves": {
+                "$turn": {
+                  ".validate": "$turn.matches(/^[0-9]+$/)",
+                  "$role": {
+                    ".validate": "$role === 'host' || $role === 'guest'",
+                    "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                    "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                    "$other": { ".validate": false }
+                  }
+                }
+              },
+              "duels": {
+                "$duelId": {
+                  ".validate": "$duelId.matches(/^d[0-9]+$/)",
+                  "$role": {
+                    ".validate": "$role === 'host' || $role === 'guest'",
+                    "score": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+                    "pos": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
+                    "$other": { ".validate": false }
+                  }
+                }
+              },
+              "ejects": {
+                "$duelId": {
+                  ".validate": "$duelId.matches(/^d[0-9]+$/)",
+                  "youPos": { ".validate": "newData.isNumber()" },
+                  "oppPos": { ".validate": "newData.isNumber()" },
+                  "$other": { ".validate": false }
+                }
+              },
+              "$other": { ".validate": false }
+            },
+
+            "presence": {
+              "$role": { ".validate": "($role === 'host' || $role === 'guest') && newData.isBoolean()" }
+            },
+            "rematch": {
+              "$role": { ".validate": "($role === 'host' || $role === 'guest') && newData.isBoolean()" }
+            },
+            "chat": {
+              "$msg": {
+                "from": { ".validate": "newData.val() === 'host' || newData.val() === 'guest'" },
+                "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+                "text": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 200" },
+                "ts": { ".validate": "newData.isNumber()" },
+                "$other": { ".validate": false }
+              }
+            },
+            "spec": {
+              "note": { ".validate": "newData.val() === 'cpu'" },
+              "board": { ".validate": "newData.isString() && newData.val().length <= 200" },
+              "turn": { ".validate": "newData.isNumber()" },
+              "A": {
+                "x": { ".validate": "newData.isNumber()" },
+                "y": { ".validate": "newData.isNumber()" },
+                "hp": { ".validate": "newData.isNumber()" },
+                "$other": { ".validate": false }
+              },
+              "B": {
+                "x": { ".validate": "newData.isNumber()" },
+                "y": { ".validate": "newData.isNumber()" },
+                "hp": { ".validate": "newData.isNumber()" },
+                "$other": { ".validate": false }
+              },
+              "$other": { ".validate": false }
+            },
+            "result": {
+              "winner": { ".validate": "newData.isString() && newData.val().matches(/^s[0-3]$/)" },
+              "$other": { ".validate": false }
+            },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "$other": { ".validate": false }
+      }
+    },
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}

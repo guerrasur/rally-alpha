@@ -1,6 +1,6 @@
 # Rally — Session State & Learnings
 
-**Última actualización:** v0.2.77 — 2026-07-03, sesión remota (Claude Code on the web).
+**Última actualización:** v0.2.78 — 2026-07-03, sesión remota (Claude Code on the web).
 **Idioma:** todo con el usuario (Lucio) en español argentino.
 Este archivo es la memoria entre sesiones: mantenerlo actualizado pero COMPACTO (el usuario cuida tokens — al agregar secciones nuevas, condensar o borrar lo viejo que ya no aplique).
 
@@ -22,8 +22,10 @@ Para integrar su aporte cuando aparezca: si es fork → que abra un Pull Request
 - Site correcto: **`rallyyy`** (`firebase.json` target `rally` → `.firebaserc` mapea a `rallyyy`). `rallyyy-test` NO se usa (notas viejas decían lo contrario — corregido 2026-07-02). Manual: `firebase deploy --only hosting` desde la Mac del usuario (no puede deployar desde el teléfono).
 
 ## FIREBASE
-- Proyecto `rallye-online`, Realtime Database. ⚠️ **Reglas test-mode EXPIRAN 2026-07-30** — único deadline duro; el usuario quiere hacerlo CON test en vivo, no a ciegas. Priorizar ya.
-- Compat SDK v10.12.2 (app-compat + database-compat). Flags HAS_FIREBASE/DEMO, global `fbDb`.
+- Proyecto `rallye-online`, Realtime Database. ⚠️ Las reglas test-mode expiraban 2026-07-30; **en v0.2.78 se hicieron reglas definitivas + auth anónima** (ver abajo). Estado al cierre de sesión: código listo y mergeable; FALTAN 2 pasos del usuario en la consola: (1) habilitar proveedor **Anónimo** en Authentication → Sign-in method, (2) publicar `database.rules.json` en Realtime Database → Reglas. **Orden: primero habilitar Anónimo + deployar el juego v0.2.78, DESPUÉS publicar las reglas** (si no, el juego viejo sin auth queda bloqueado). Después de publicar: test en vivo con 2 dispositivos + tests REST negativos/positivos desde la sesión.
+- **Auth anónima (v0.2.78):** `firebase-auth-compat` en index.html; `ensureAuth()` en game.js (arriba, junto al init) = único punto de entrada de auth, memoizada, con retry; se awaitea en `Net.createRoom` y `Net.joinRoom` (cubre también torneo OT, que entra por esos flujos). Invisible al jugador, persiste el uid entre visitas. **Futuro login real (pedido del usuario, para guardar progreso):** linkear la cuenta anónima con `linkWithCredential` (conserva uid) — solo tocar `ensureAuth()` + UI; las reglas ya sirven (`auth != null`) y ya existe el nodo `users/$uid` solo-dueño reservado en las reglas para progreso en la nube (hoy sin uso; progreso actual en localStorage).
+- **Reglas (`database.rules.json`, versionado en repo; `firebase.json` tiene sección `database`):** default deny; `rooms` legible con auth (necesario: `cleanStaleRooms` lista la raíz); `rooms/$code` escribible con auth + código `^[A-HJ-NP-Z2-9]{4}$` + sala nueva exige `createdAt` (≤ now+60s, no forjable a futuro → siempre limpiable); whitelist estricta de campos en todo el árbol ($other → false), enums para status/mode/roles/seats/matchIds, límites (nombres ≤40, chat ≤200, board ≤200, x/y 0-8). El subárbol `game/` está duplicado para `rooms/$code/game` y `rooms/$code/matches/$mid/game` (torneo). **Validadas con el emulador RTDB (firebase-tools + Java, disponibles en el entorno remoto): 58/58 tests** — script en scratchpad `test-rules.sh` (recrearlo si hace falta: curl + JWT sin firma, el emulador no verifica firma). Sin auth por identidad de sala: cualquier autenticado puede escribir cualquier sala (mismo statu quo; los roles host/guest no son verificables sin refactor grande).
+- Compat SDK v10.12.2 (app-compat + auth-compat + database-compat). Flags HAS_FIREBASE/DEMO, global `fbDb`. Si el SDK de auth no carga, `ensureAuth()` resuelve null y el error de reglas cae en los try/catch existentes (toasts de conexión).
 - **Arquitectura online (determinista):** sala en `rooms/{código-4-chars}`, host crea / guest se une. Board lo genera el host, serializado (CELL_CODE: e/a/d/x/r; prefijo "W" = paredes) y el guest lo espeja 180° vía `G.flip` + `viewCoord` (ambos se ven abajo-derecha). Moves en `game/moves/{turn}/{role}`, resolución idéntica en ambos; host limpia `moves/{turn-1}`. Duelo: cada uno pushea score+pos a `game/duels/{duelId}/{role}` (`duelId='d'+turnCount`), resolución determinista. Empate/eject decide host. Objeto `Net` concentra todo; `Net.leave()` limpia listeners y anula callbacks. Modo en `game/mode`; presencia en `presence/{role}` + onDisconnect con 6s de gracia por reconexión. Chat en `rooms/{code}/chat` (push-id, limitToLast(50)).
 
 ## JUEGO — resumen y valores clave
@@ -54,8 +56,9 @@ Tablero 7x7 (paredes: 9), movimientos simultáneos. Ítems: 🗡️ power_dmg, �
 - Al versionar: el usuario copia la carpeta de la versión y la renombra — el versionado es por carpeta sin importar la herramienta.
 
 ## BACKLOG (repriorizado 2026-07-03)
-- **CRÍTICO: reglas de seguridad de Firebase antes del 2026-07-30** (con test en vivo junto al usuario).
+- **CRÍTICO — completar lo de Firebase (código YA hecho en v0.2.78):** el usuario debe habilitar auth Anónima y publicar las reglas en la consola ANTES del 2026-07-30 (pasos exactos en sección FIREBASE); después, test en vivo juntos.
 - **Cargar secret de deploy** `FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE` (acción del usuario; recordárselo).
+- **Login real para guardar progreso (pedido 2026-07-03):** linkear cuenta anónima + UI de login + migrar progreso de localStorage a `users/$uid` (reglas ya listas). Sin fecha.
 - **Testear en vivo (2 dispositivos):** torneo online x4 (`OT`) end-to-end y Modo Paredes online.
 - **#19 Torneo — mejoras pendientes:** curación extra entre rondas (hoy solo conserva HP); jugador que "sube" un puesto con animación al ganar; rivales ocultos en negro hasta desbloquear + cache localStorage de desbloqueados.
 - **#18 Modo Veneno:** no arrancado.

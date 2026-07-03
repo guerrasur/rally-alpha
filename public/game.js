@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.77';
+const VERSION = 'v0.2.78';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -19,6 +19,28 @@ if(HAS_FIREBASE){
   } catch(e){
     console.error('[Rally] Error iniciando Firebase:', e);
   }
+}
+
+// ===== Auth anónima (v0.2.78) =====
+// Las reglas de la DB exigen estar autenticado; el login anónimo es invisible
+// para el jugador y persiste entre visitas (mismo uid). Único punto de entrada
+// de auth: cuando haya login real, la cuenta anónima se linkea con
+// linkWithCredential conservando el uid — solo habría que cambiar esta función.
+let _authPromise = null;
+function ensureAuth(){
+  if(DEMO || !fbDb || !firebase.auth) return Promise.resolve(null);
+  const cur = firebase.auth().currentUser;
+  if(cur) return Promise.resolve(cur);
+  if(!_authPromise){
+    _authPromise = firebase.auth().signInAnonymously()
+      .then(cred => cred.user)
+      .catch(e => {
+        _authPromise = null;   // permite reintentar en el próximo intento online
+        console.error('[Rally] Auth anónima falló:', e);
+        throw e;
+      });
+  }
+  return _authPromise;
 }
 
 const App = {
@@ -2267,6 +2289,7 @@ const Net = {
   // HOST: crea una sala con código único y espera al invitado
   async createRoom(){
     if(DEMO || !fbDb) return genCode();
+    await ensureAuth();
     // Limpieza oportunista de salas viejas (#13): borra las de > 2 horas.
     this.cleanStaleRooms().catch(()=>{});
     // Genera un código que no esté en uso
@@ -2324,6 +2347,7 @@ const Net = {
   // GUEST: se une a una sala existente
   async joinRoom(code){
     if(DEMO || !fbDb){ return { ok:true, demo:true }; }
+    await ensureAuth();
     const ref = fbDb.ref('rooms/'+code);
     const snap = await ref.get();
     if(!snap.exists())      return { ok:false, reason:'no-existe' };
