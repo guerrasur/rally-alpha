@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.81';
+const VERSION = 'v0.2.82';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -27,18 +27,29 @@ if(HAS_FIREBASE){
 // de auth: cuando haya login real, la cuenta anónima se linkea con
 // linkWithCredential conservando el uid — solo habría que cambiar esta función.
 let _authPromise = null;
+let _authSettled = false;   // ya se conoció el primer estado de auth (restauración lista)
 function ensureAuth(){
   if(DEMO || !fbDb || !firebase.auth) return Promise.resolve(null);
   const cur = firebase.auth().currentUser;
   if(cur) return Promise.resolve(cur);
   if(!_authPromise){
-    _authPromise = firebase.auth().signInAnonymously()
-      .then(cred => cred.user)
-      .catch(e => {
-        _authPromise = null;   // permite reintentar en el próximo intento online
-        console.error('[Rally] Auth anónima falló:', e);
-        throw e;
-      });
+    const anon = ()=> firebase.auth().signInAnonymously().then(cred => cred.user);
+    // Al cargar la página, currentUser es null hasta que Firebase RESTAURA la
+    // sesión guardada (asíncrono, puede tardar segundos en un celu). Entrar
+    // anónimo en esa ventana PISA la sesión del usuario logueado (#23) — hay
+    // que esperar el primer onAuthStateChanged antes de decidir.
+    _authPromise = (_authSettled ? anon()
+      : new Promise((resolve, reject)=>{
+          const unsub = firebase.auth().onAuthStateChanged(u=>{
+            unsub();
+            if(u) resolve(u); else anon().then(resolve, reject);
+          });
+        })
+    ).catch(e => {
+      _authPromise = null;   // permite reintentar en el próximo intento online
+      console.error('[Rally] Auth falló:', e);
+      throw e;
+    });
   }
   return _authPromise;
 }
@@ -183,6 +194,26 @@ const User = {
     }
   },
 };
+
+// Primer estado de auth conocido (y cada cambio): marca la restauración como
+// lista para ensureAuth, re-sincroniza el usuario cacheado si hace falta y
+// refresca la UI — sin esto, la pantalla pintada antes de que Firebase
+// restaure la sesión queda mostrando "sin sesión" para siempre (#23).
+if(HAS_FIREBASE && firebase.auth){
+  firebase.auth().onAuthStateChanged(u=>{
+    _authSettled = true;
+    if(u && !u.isAnonymous && !User.name && fbDb){
+      // Sesión viva pero caché local perdida: recuperar el usuario de la DB
+      fbDb.ref('users/'+u.uid+'/username').get()
+        .then(s=>{ const n=s.val(); if(n && !User.name) User.set(n); })
+        .catch(()=>{});
+    }
+    User.updateUI();
+    // Si el overlay de cuenta está abierto, repintarlo con el estado real
+    const ov = $('user-overlay');
+    if(ov && !ov.hidden && typeof UserUI!=='undefined') UserUI.render();
+  });
+}
 
 const App = {
   screen: 'home',
