@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.74';
+const VERSION = 'v0.2.75';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -198,6 +198,17 @@ function currentCpuSkill(){
     if(s != null) return s;
   }
   return Tourney.active ? tourneySkillFor(Tourney.index) : 0.35;
+}
+
+// ¿Le conviene a la CPU un duelo AHORA? Combina la ventaja de vida, los buffs
+// acumulados de ambos (daño+defensa, que se juegan enteros en el duelo) y su
+// propia puntería. >0 = buscar el duelo; <0 = evitarlo. Rango aprox. [-1, 1].
+function cpuDuelAdvantage(){
+  const skill = currentCpuSkill();
+  const hpEdge   = (G.opp.hp - G.you.hp) / CFG.maxHp;
+  const buffEdge = ((G.opp.buffs.dmg - G.you.buffs.dmg) + (G.opp.buffs.def - G.you.buffs.def)) / 12;
+  const aimEdge  = (Math.max(skill, 0.3) - 0.55) * 0.6;
+  return hpEdge*0.6 + buffEdge*0.5 + aimEdge;
 }
 
 // Reproductor genérico de escenas de texto (fondo plano, líneas de a una).
@@ -984,6 +995,29 @@ function cpuDecideMove(){
     });
   }
 
+  // Ventaja de duelo (HP + buffs + puntería): gobierna acercarse o huir.
+  // Durante la tregua post-duelo no hay duelo posible → no influye ese turno.
+  const adv = G.justDueled ? 0 : cpuDuelAdvantage();
+
+  // Ítem objetivo: el más valioso del tablero, descontado por distancia desde
+  // la CPU. Cada casilla candidata que acorte camino hacia él suma (gradiente):
+  // atrae hacia ítems a 3-4 casillas sin búsqueda de caminos.
+  let targetItem = null;
+  if(skill > 0.25){
+    let bestVal = 0;
+    for(let ty=0; ty<n; ty++) for(let tx=0; tx<n; tx++){
+      const t = cellAt(tx,ty).type;
+      let val = 0;
+      if(t==='power_dmg') val = 6;
+      else if(t==='power_def') val = 5;
+      else if(t==='ring') val = 7 + ((CFG.maxHp - G.opp.hp)/CFG.maxHp)*8;
+      if(!val) continue;
+      const d = Math.max(Math.abs(tx-G.opp.x), Math.abs(ty-G.opp.y));
+      const discounted = val - d * 1.2;
+      if(discounted > bestVal){ bestVal = discounted; targetItem = {x:tx, y:ty, val}; }
+    }
+  }
+
   const scored = reachable.map(p => {
     const cell = cellAt(p.x, p.y);
     let score = 0;
@@ -1017,23 +1051,26 @@ function cpuDecideMove(){
       else if(leadsToNeededBuff(p)){
         score += 9;
       }
+      // Excepción 3: casi acorralada y con la mayoría de salidas con trampa —
+      // mejor comerse una cruz que quedar encerrada el turno siguiente.
+      else if(almostBoxed && (nonTrap.length / reachable.length) < CFG.cpuDesperateTrapRatio){
+        score += 7;   // neto −7: la mitad del castigo normal
+      }
       // En cualquier otro caso, la cruz queda muy negativa → la evita.
     }
 
-    // Acercarse / alejarse del rival según ventaja (solo casillas no-trampa)
     if(cell.type !== 'down'){
+      // Buscar o evitar el duelo según la ventaja REAL (HP + buffs + puntería),
+      // usando la posición actual del jugador como predicción (mov. simultáneo).
       const dist = Math.max(Math.abs(p.x - G.you.x), Math.abs(p.y - G.you.y));
-      if(dist <= 2 && G.opp.hp > G.you.hp) score += 1.5 + skill * 2;     // presiona
-      else if(dist <= 2 && G.opp.hp < G.you.hp) score -= 2 + skill * 2;  // evita
+      if(dist <= 1)      score += adv * (4 + skill * 4);   // casilla de duelo casi seguro
+      else if(dist === 2) score += adv * (2 + skill * 2);  // zona de riesgo
+      if(adv < -0.15)     score += Math.min(dist, 4) * 0.6; // en desventaja: premiar distancia
 
-      // Rivales hábiles valoran acercarse a power-ups alcanzables el próximo turno
-      if(skill > 0.4){
-        const fut = getReachable(p.x, p.y);
-        const powerNear = fut.filter(fp=>{
-          const t = cellAt(fp.x,fp.y).type;
-          return t==='power_dmg' || t==='power_def' || t==='ring';
-        }).length;
-        score += powerNear * skill * 1.2;
+      // Gradiente hacia el ítem objetivo: cada casilla que acorte camino suma.
+      if(targetItem){
+        const d = Math.max(Math.abs(p.x - targetItem.x), Math.abs(p.y - targetItem.y));
+        score += Math.max(0, targetItem.val - d * 1.2) * skill * 0.5;
       }
     }
 
@@ -1048,8 +1085,8 @@ function cpuDecideMove(){
       }
       if(lastIdx !== -1){
         const recency = G.opp.history.length - lastIdx; // 1 = la más reciente
-        score -= 6 / recency;          // penalización por reciente
-        score -= (visits - 1) * 3;     // extra por cada repetición → castiga ciclos
+        score -= 8 / recency;          // penalización por reciente
+        score -= (visits - 1) * 5;     // extra por cada repetición → castiga ciclos
       }
     }
 
@@ -1060,18 +1097,41 @@ function cpuDecideMove(){
   scored.sort((a, b) => b.score - a.score);
 
   // Salvaguarda dura anti-trabazón (#17): si la mejor opción es una casilla ya
-  // visitada 2+ veces en el historial reciente, y existe alguna casilla NO trampa
-  // que NO esté en el historial, forzar ir a esa casilla fresca. Rompe el ciclo
-  // aunque el score la favoreciera.
+  // visitada 2+ veces en el historial reciente, forzar una alternativa. Antes
+  // solo saltaba a una casilla "fresca" (no visitada) y si no había ninguna
+  // fallaba en silencio → el ciclo persistía. Ahora, sin frescas, cae a la
+  // no-trampa MENOS visitada (desempate por score, ya vienen ordenadas).
   if(!G.online && G.opp.history && G.opp.history.length>=4){
-    const best = scored[0];
-    const bestVisits = G.opp.history.filter(h=>h===`${best.x},${best.y}`).length;
+    const h = G.opp.history;
+    const visitsOf = (p)=> h.filter(k=>k===`${p.x},${p.y}`).length;
+
+    // Detector de ciclo exacto A,B,A,B: si la elegida vuelve al ping-pong,
+    // forzar la mejor opción fuera de {A,B} aunque el score no la favorezca.
+    const last4 = h.slice(-4);
+    const isPingPong = last4.length===4 && last4[0]===last4[2] &&
+                       last4[1]===last4[3] && last4[0]!==last4[1];
+    if(isPingPong){
+      const bestKey = `${scored[0].x},${scored[0].y}`;
+      if(bestKey===last4[0] || bestKey===last4[1]){
+        const out = scored.find(p=>{
+          const k=`${p.x},${p.y}`;
+          return k!==last4[0] && k!==last4[1] && cellAt(p.x,p.y).type!=='down';
+        });
+        if(out) return { x: out.x, y: out.y };
+      }
+    }
+
+    const bestVisits = visitsOf(scored[0]);
     if(bestVisits>=2){
-      const fresh = scored.filter(p=>{
-        const key = `${p.x},${p.y}`;
-        return cellAt(p.x,p.y).type!=='down' && !G.opp.history.includes(key);
-      });
+      const nonTrapScored = scored.filter(p=>cellAt(p.x,p.y).type!=='down');
+      const fresh = nonTrapScored.filter(p=>visitsOf(p)===0);
       if(fresh.length) return { x: fresh[0].x, y: fresh[0].y };
+      if(nonTrapScored.length){
+        // Sin casillas frescas: la menos pisada rompe el ciclo igual.
+        let least = nonTrapScored[0];
+        for(const p of nonTrapScored){ if(visitsOf(p) < visitsOf(least)) least = p; }
+        return { x: least.x, y: least.y };
+      }
     }
   }
 
@@ -1419,8 +1479,17 @@ function scheduleCpuStop(){
     }
   }
 
+  // Estado de la partida: desesperada/perdiendo arriesga el pase 1 (donde vive
+  // el PERFECTO) y aprieta la puntería; cómoda juega seguro y algo relajado.
+  const desperate  = G.opp.hp <= CFG.cpuDesperateHpMin;
+  const losingMatch = G.opp.hp < G.you.hp - 10;
+  const comfortable = G.opp.hp > G.you.hp + 20;
+  let pass1Prob = 0.6, aimTighten = 1.0;
+  if(desperate || losingMatch){ pass1Prob = 0.9; aimTighten = 1 - 0.35*skill; }
+  else if(comfortable){ pass1Prob = 0.45; aimTighten = 1.1; }
+
   // Apunta al centro (verde) de un tramo de subida (pases impares 1, 3).
-  const targetPass = (Math.random() < 0.6) ? 1 : 3;
+  const targetPass = (Math.random() < pass1Prob) ? 1 : 3;
   const idealInSweep = half / 2;                     // centro del tramo (verde)
 
   // Piso de habilidad: ni el rival más débil apunta tan mal como para caer
@@ -1429,7 +1498,7 @@ function scheduleCpuStop(){
   // Error con distribución cuasi-gaussiana (promedio de 3 randoms): concentra
   // las frenadas cerca del verde y hace raros los extremos (rojo).
   const gauss = ((Math.random()+Math.random()+Math.random())/3 - 0.5) * 2;
-  const aimError = (1 - aimSkill) * half * 0.28 + 0.03;
+  const aimError = ((1 - aimSkill) * half * 0.28 + 0.03) * aimTighten;
   const jitter = gauss * aimError;
   let stopTime = (targetPass - 1) * half + idealInSweep + jitter;
   stopTime = Math.max(0.1, stopTime);
