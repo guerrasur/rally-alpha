@@ -1,270 +1,69 @@
 # Rally — Session State & Learnings
 
-**Last updated:** v0.2.70 — remote session (Claude Code on the web, rama `claude/game-design-menu-review-jv8jrz` mergeada a `main`). Rediseño de menús + fixes de lobby + clash en casilla + perfecto dorado. Deploy automático a Firebase Hosting vía GitHub Actions (falta que el usuario cargue el secret — ver sección DEPLOY).
+**Última actualización:** v0.2.77 — 2026-07-03, sesión remota (Claude Code on the web).
+**Idioma:** todo con el usuario (Lucio) en español argentino.
+Este archivo es la memoria entre sesiones: mantenerlo actualizado pero COMPACTO (el usuario cuida tokens — al agregar secciones nuevas, condensar o borrar lo viejo que ya no aplique).
 
-⚠️ **Workflow de esta sesión remota (distinto a VS Code y a chat):** se trabaja sobre los 3 archivos split en `public/` dentro del repo git, con commits/push a una rama `claude/...` y PR a `main`. Para que el usuario teste (sin nada instalado), se le entrega un **HTML único fusionado** generado con python (style.css + game.js inline en index.html) vía SendUserFile — es solo una copia de prueba, la fuente de verdad es el repo.
+## WORKFLOW (sesión remota)
+- Se trabaja sobre los 3 archivos split en `public/` (index.html ~429 líneas, style.css ~1143, game.js ~3485), commits/push a una rama `claude/...` y PR a `main`.
+- Para que el usuario teste (sin nada instalado): generar **HTML único fusionado** con python (style.css + game.js inline en index.html) y entregarlo vía SendUserFile — es copia de prueba, la fuente de verdad es el repo.
+- Por versión: 1) editar, 2) bump `VERSION` en game.js + `<title>` y `.version-tag` en index.html **+ los `?v=` de los `<script>/<link>` en index.html (cache-busting, existe desde v0.2.74 — no olvidarlo o los usuarios ven JS nuevo con HTML viejo)**, 3) validar sintaxis:
+  `node -e "const fs=require('fs');const js=fs.readFileSync('public/game.js','utf8');try{new Function('window','firebase','document','navigator','performance','requestAnimationFrame','cancelAnimationFrame','location','URLSearchParams',js);console.log('OK');}catch(e){console.log('ERR',e.message);}"`
+- Screenshots de verificación: playwright-core (npm i en scratchpad) + Chromium preinstalado en `/opt/pw-browsers/chromium`, viewport 390px.
+- Para cambios de matemática (daño, puntería, probabilidades): simulación standalone en node ANTES de entregar (caught real bugs; ver aisim v0.2.75).
+- El usuario también trabaja en VS Code (edita los 3 archivos directo) y a veces en chat/Design (que entrega un solo .html fusionado). Si aparece un `.html` único con `<style>`/`<script>` inline: viene de chat/Design y hay que re-splitearlo (ubicar límites con `grep -n "<style>\|</style>\|<script"`, extraer con sed, validar con `new Function`). Siempre comparar la constante VERSION contra la última conocida para detectar versiones salteadas en otra herramienta.
 
-### Incidente PR #1 (2026-07-02) — leer si el historial de main se ve raro
-Al mergear el PR #1: (a) el merge en `main` tomó solo v0.2.63, NO los commits v0.2.64–66 que ya estaban pusheados en la rama; (b) apareció en `main` un commit "Revert…" con la cuenta del usuario que **no revertía nada** (solo agregaba un `.git-revert-marker`). El usuario confirmó que no fue él a propósito. Resolución: rama reconstruida desde `origin/main` + cherry-pick de v0.2.64–66 + borrado del marker, re-mergeado. LECCIÓN: después de mergear, verificar `git log origin/main` y diff contra la rama — no asumir que el merge tomó todo.
+## COLABORACIÓN EXTERNA (revisado 2026-07-03)
+El usuario mencionó que un amigo creó "una rama" para aportar código. **Verificado en GitHub a esta fecha: NO existe** — en `guerrasur/rally-alpha` solo hay `main` + ramas `claude/...`, todos los commits/PRs son del usuario, y el único colaborador con acceso es `guerrasur`. Interpretación probable: el amigo hizo un **fork** (copia del repo en SU cuenta), que no aparece como rama acá, o todavía no pusheó nada.
+Para integrar su aporte cuando aparezca: si es fork → que abra un Pull Request hacia `guerrasur/rally-alpha`; si quiere pushear ramas directo → el usuario debe invitarlo como colaborador (repo Settings → Collaborators). Próxima sesión: pedir al usuario el nombre de usuario de GitHub del amigo o el link a su rama/PR, y revisar PRs entrantes antes de asumir que no hay nada.
 
-### v0.2.66 → v0.2.70 (sesión remota 2026-07-02, "rediseño de menús")
-Todo validado con `new Function(...)` + screenshots reales en Chromium/Playwright (viewport 390px). Usuario pidió: revisar diseño manteniendo simpleza, hacer visible el torneo online, mover Paredes fuera del menú escondido, 2 bugfixes de lobby, y rediseñar el encuentro en misma casilla.
-
-**v0.2.67 — jerarquía de menús:**
-- Home: offline promovido de link subrayado a botón sólido `btn--ink` **"Jugar solo"**, con divisor `.actions-divider` ("sin conexión") entre online y offline.
-- Menú offline: **Campaña ahora es el botón primary** (es el modo insignia); Partida rápida outline; **Torneo sube de ghost a outline**.
-- Polish: `.screen` entra con translateY(8px)→0 además del fade (respeta `.is-instant` y reduced-motion). Estados `:hover` para los 4 tipos de botón bajo `@media(hover:hover)`.
-
-**v0.2.68 — torneo online visible + Paredes accesible:**
-- Lobby: selector de modo rediseñado de pastillas 12px a **filas verticales full-width** con `.mode-opt__name` + `.mode-opt__desc` (Partida única / Mejor de 5 / 🏆 Torneo x4). Mismos ids/handlers, solo presentación.
-- **Nuevo toggle `#walls-toggle` "🧱 Modo Paredes (beta)" en el lobby** (solo host): enciende/apaga `enterWallsMode()`/`exitSpecialMode()` antes de que arranque la partida. Funciona con partida única y bo5. **NO disponible en torneo x4:** al elegir mode-t4 se apaga y oculta (`updateWallsToggle()` lo esconde si `OT.active`); si OT activo y se toca, toast avisando. `updateWallsToggle()` se llama en startCreateRoom y en los 3 handlers de modo.
-- Menú offline: nuevo botón **"🧱 Paredes (beta)"** (id `btn-walls`, mismo handler de antes: partida rápida con paredes vs Cachito). `.beta-tag` = chip uppercase chiquito.
-- **ELIMINADA la pantalla `screen-experimental`** y sus accesos ocultos (`?beta=1`, 7 taps en `brand-logo`) y el botón `btn-walls-online` (reemplazado por el toggle). El texto de info explica dónde está Paredes ahora.
-- La serialización online de paredes (prefijo "W" en board) NO cambió — guest sigue deserializando igual. Falta test online real con 2 dispositivos.
-
-**v0.2.69 — bugfixes de lobby (reportados por el usuario con screenshots del teléfono):**
-- **Fix "Salir" cortado con torneo x4:** `.screen--lobby` centraba con flex sin scroll; con la lista + botón de torneo el contenido desbordaba. Ahora `justify-content:flex-start; overflow-y:auto` + `#lobby-created,#lobby-join{margin:auto 0; flex-shrink:0}` (centrado cuando entra, scroll cuando no). LECCIÓN: contenedor flex centrado + contenido variable = usar margin:auto en hijos, no justify-content:center.
-- **Fix bordes recortados del modo seleccionado:** el ring `box-shadow: 0 0 0 1px` (hacia afuera) se recortaba en el teléfono. Ahora `box-shadow: inset 0 0 0 1px var(--accent)` — hacia adentro, nunca se corta.
-- **Rediseño misma casilla:** antes la ficha rival se encimaba con transform inline. Ahora clases `.is-clash` en ambos markers (renderBoard) + CSS: fichas en diagonal sin taparse, y `.cell.is-both-here::before` = marco accent que late (`clashPulse` 1.1s).
-
-**v0.2.70 — feedback del usuario:**
-- Clash orientado como las posiciones iniciales: **vos abajo-derecha, rival arriba-izquierda** (translate(20%,20%) / translate(-20%,-20%)).
-- **PERFECTO dorado en el duelo:** `.speedo-center-mark.is-live` = línea 3px dorada (gradiente #F7DC7E→#D4AF37) con glow que late (`perfectShine` .9s), activa solo en pase 1. Al pasar a pase 2, `updateDuelPassLabel` la cambia a `.is-gone` (fade .45s) y luego display:none — se VE cómo se apaga la ventana del súper golpe. Cubre offline y online (ambos llaman updateDuelPassLabel). El glow queda contenido dentro de la barra (overflow:hidden del track); el usuario quedó en avisar si lo quiere más notorio (sería sacar el glow fuera de la barra).
-- NOTA workflow: screenshots de verificación tomados con playwright-core (npm i en scratchpad) + Chromium preinstalado `/opt/pw-browsers/chromium`; entregas al usuario = HTML único fusionado con python + SendUserFile.
-
-### v0.2.65 → v0.2.66
-- **Partida de campaña aparece repentinamente, sin fade-in:** nueva clase `.screen.is-instant{transition:none}` que `Campaign.handlers.match` pone en `#screen-game` antes de `show('game')` y saca a los 400ms (para no matar transiciones futuras de esa pantalla).
-- **Primer rival de campaña: "Tarata", 11 HP** (era Cachito 100 HP). Sigue skill 0.35.
-
-### v0.2.64 → v0.2.65 (feedback del usuario probando)
-- **`Campaign.hasProgress()` ahora exige ≥1 nodo completado** (node>0 o history no vacía). Antes, con solo haber confirmado el inicio (save en node 0 sin ganar nada) el botón ya decía "Continuar campaña" y salteaba el menú de confirmación con el desvanecimiento. Ahora ese menú se repite hasta ganar el primer nodo.
-- **La campaña NO muestra el overlay de instrucciones "Cómo se juega"**: `Campaign.handlers.match` va directo a `show('game'); startGame()` en vez de `beginGame()` (pedido explícito: la primera partida de campaña tiene que arrancar de golpe). `beginGame._seen` queda intacto, así la primera partida rápida normal sí muestra el howto.
-
-### v0.2.63 → v0.2.64 (bugfix, reportado por el usuario probando en navegador)
-- **Fix — overlay de campaña visible de entrada y tapando la partida tras el fade:** `.camp-overlay{display:flex}` le ganaba al atributo `hidden` del HTML (la regla UA `[hidden]{display:none}` pierde contra cualquier regla de autor con display). Síntomas: el juego arrancaba mostrando el menú de campaña en vez del home, y tras el fade de 3s el overlay opaco nunca se ocultaba (la partida corría abajo, invisible). Fix: `.camp-overlay[hidden]{display:none;}`. LECCIÓN: si un contenedor con `hidden` tiene `display:` en CSS, siempre agregar la regla `[hidden]` explícita (el smoke test con DOM stub no lo detecta — es un bug de CSS, no de JS).
-
-### v0.2.62 → v0.2.63 (this session)
-- **NUEVO — Sistema de Campaña offline (bases):**
-  - `CAMPAIGN_SCRIPT` (game.js, arriba de todo): cinta de nodos que se recorre en orden. Tipos hoy: `match` (partida vs CPU con `opp:{name,hp,skill,accent,emoji,dmgMult}` y `youHp` opcional) y `scene` (escena de texto sobre fondo plano, líneas que aparecen de a una vía `playScene()`). Extensible: registrar `Campaign.handlers.nuevoTipo = (node)=>{...; Campaign.advance();}` para animaciones/juegos internos futuros. Nodo 0 actual: partida vs Cachito idéntica a una partida rápida (a propósito — el CONCEPTO de la campaña es que parece normal y de a poco aparecen mecánicas/historia inesperadas; el usuario la irá escribiendo agregando nodos).
-  - **Caché de progreso:** localStorage `rally_campaign_v1` → `{v,node,name,flags,history,startedAt,updatedAt}`. Se guarda al ganar cada nodo (`Campaign.completeCurrent()`, ANTES de la pantalla de resultado, así cerrar la app no pierde avance). `Campaign.setFlag/getFlag` para decisiones de historia futuras.
-  - **UI:** botón `btn-campaign` en screen-offline — dice "Campaña" o "▶ Continuar campaña" si hay save (`updateCampaignBtn()`). Primera vez: overlay `camp-overlay` (fondo plano opaco --paper) "¿Comenzar campaña como (nombre)?"; al confirmar, `.camp-box.is-fading` desvanece el menú en 3s (transition opacity) dejando el fondo plano, y a los 3.6s arranca de golpe la partida del nodo 0. Con progreso: retoma directo en el nodo guardado, sin confirmar.
-  - **Integración:** rama `Campaign.active` en `endGame` (ganar → "Continuar ▸" `btn-camp-next`; perder/empate → "Reintentar" mismo nodo), en `startGame` (hp de ambos), `applyOppCosmetic` (accent/nombre del nodo), `cpuDmgMult` (dmgMult del nodo), y nuevo `currentCpuSkill()` (campaña > torneo > 0.35) que reemplazó las 2 lecturas de skill duplicadas. `btn-leave`/`btn-home` llaman `Campaign.exitToMenu()` (sale del modo, el save queda). Fin de la cinta → escena "Continuará…" y NO borra el save (al agregar nodos, continúa desde ahí).
-  - Nuevas pantallas en index.html: `screen-scene` (+`scene-text`/`scene-continue`) y `camp-overlay`; estilos al final de style.css (`.camp-*`, `.scene-*`).
-  - Validado con `new Function(...)` + smoke test Node con DOM stub (flujo completo: confirmar → fade → partida → ganar → caché → continuar → "Continuará…" → resume).
-
-### Sesión anterior (v0.2.62, VS Code + Claude Code extension)
-This session ran entirely in VS Code + Claude Code extension (no chat/Design merge involved), working directly on the 3 split files in `public/`. No re-split needed. See "v0.2.61 → v0.2.62" section below for what changed.
-**Working files (VS Code sessions):** `public/index.html` + `public/style.css` + `public/game.js` (repo root: `Rally - historico/Rally-alpha-0-2-61/`).
-**Language:** All interaction with user (Lucio) in Argentine Spanish. Keep responding in Spanish.
-
-⚠️ Note: the `/home/claude/...` and `/mnt/user-data/outputs/...` paths below are leftovers from the chat/Design-tool workflow (different session, different machine). They don't apply to VS Code sessions — ignore them when working locally.
-
-⚠️ **RECURRING PATTERN — READ THIS EVERY SESSION:** User works across multiple tools (chat normal, Claude Design, VS Code w/ Claude Code extension) and each one outputs differently:
-- Chat normal / Design → delivers a **single merged `.html` file** (style + script inline). Needs re-splitting into index.html/style.css/game.js (see recipe below).
-- VS Code w/ Claude Code extension → user edits the **3 split files directly**, no merging needed.
-**Always check what was uploaded first.** If it's a single `.html` file with `<style>` and `<script>` inline, it came from chat/Design and needs re-splitting. If 3 separate files were uploaded, it came from VS Code and can be used as-is. Compare the VERSION constant to the last-known version to catch how many versions were skipped in the other tool.
-
-### Recipe to re-split a merged single-file upload into 3 files
-(Confirmed working on both v0.2.58 and v0.2.60 uploads — line numbers WILL differ each time, always locate boundaries fresh, don't assume prior line numbers.)
-```bash
-# 1. Find the boundaries
-grep -n "<style>\|</style>\|<script\|</script>" uploaded_file.html
-# 2. Extract style.css (everything between <style> and </style>, exclusive)
-sed -n 'STYLE_START+1,STYLE_END-1p' uploaded_file.html > style.css
-# 3. Extract game.js (everything inside the LAST/large <script>...</script>, exclusive)
-sed -n 'SCRIPT_START+1,SCRIPT_END-1p' uploaded_file.html > game.js
-# 4. Build index.html: head (up to <style>) + link tag + body markup (between </style> and firebase <script src> tags) + firebase CDN tags (keep as-is) + <script src="game.js" defer> + closing tags
-# 5. Validate:
-node -e "const fs=require('fs');const js=fs.readFileSync('game.js','utf8');try{new Function('window','firebase','document','navigator','performance','requestAnimationFrame','cancelAnimationFrame','location','URLSearchParams',js);console.log('OK');}catch(e){console.log('ERR',e.message);}"
-# 6. Cross-check id="..." in index.html vs $('...') calls in game.js (counts should be in the same ballpark, not exact since some ids are dynamic)
-```
-
-### v0.2.61 → v0.2.62 (this VS Code session)
-- **Fix — online duel score desync (crítico):** `Net.listenDuelScores` (game.js) solo reenviaba `.pos` a `onOppDuelStop`, no `.score` — cuando el rival frenaba primero, `G.duel.oppScore` quedaba `null` y se computaba como 0 (daño mal calculado, host/guest terminaban con HP distinto). Fix: `onOppDuelStop(pos, score)` ahora recibe y guarda ambos.
-- **Refactor — el minijuego decide el ganador, los buffs solo escalan el daño:** antes, quién ganaba el duelo se decidía comparando el daño YA CON BUFFS (`yourRealDmg`/`oppRealDmg`) — un jugador con puntaje más bajo en la barra de colores podía "ganar" si tenía buffs grandes. Ahora el ganador se decide SOLO por el puntaje crudo del minijuego (`rawYou` vs `rawOpp`, 0-20), en 3 lugares: `showDuelReveal`, `resolveDuel` (offline), `resolveDuelOnline`. El daño aplicado al HP sigue viniendo de `computeDuelDamages()`/`duelDamage()` con buffs incluidos — solo cambió QUIÉN gana, no CUÁNTO daño hace el ganador. `loserChipDamage()` se clampeó (`Math.min(1, loserDmg/winnerDmg)`) porque ahora el "perdedor" por puntaje puede tener daño buffeado mayor al del ganador (antes imposible). "Perfecto" sigue anulando ataque+defensa del rival sin cambios.
-- **Rebalance de buffs** (partidas se estaban alargando): `powerDmgValue` 3→2→3 (probó 2, subió de nuevo), `powerDefValue` 3→2→1 (defensa bajada más que ataque, ya no decide quién gana el duelo). `maxPowerDmg`/`maxPowerDef` 6→4 (techo: +12 ataque / +4 defensa, antes +18 cada uno). `maxHp`/`downDamage` probados en 120/12, revertidos a 100/10 (default). Todo documentado en comentario al final de `CFG` en game.js.
-- **NUEVO — chat en vivo (solo modos online):** panel plegable (botón flotante 💬 + badge de no leídos) en `#screen-game`, historial + input de texto. Infraestructura: `Net.pushChat`/`Net.listenChat`/`Net.stopChat` en `rooms/{code}/chat` (Firebase, push-id, `limitToLast(50)`). Objeto `Chat` (game.js) maneja la UI: `mount()`/`unmount()` según `G.online`, nunca aparece offline. Cubre salas 2p y torneo online (mismo `Net.ref` por match). Sin presets/emojis rápidos, texto libre.
-- **Descubierto — mismatch de deploy target:** `.firebaserc` define target `rally` → site `rallyyy`, pero `firebase.json` apunta directo a site `rallyyy-test`. Si el usuario corre `firebase deploy --only hosting:rally`, deploya al site VIEJO (`rallyyy`), no al que se testea (`rallyyy-test`) — probablemente la causa de que cambios previos "no se vieran" tras deployar. Deploy correcto: `firebase deploy --only hosting` (sin target), respeta el `site` de `firebase.json`. Ver sección DEPLOY más abajo — puede necesitar corrección/alineación de `.firebaserc` a futuro. **[CORRECCIÓN 2026-07-02: esta nota estaba al revés — el site real que usa el usuario es `rallyyy`, no `rallyyy-test`. La config actual (target `rally` → `rallyyy`) es la correcta. Ver DEPLOY.]**
-- Todos los cambios validados con `node -e "new Function(...)"` sobre game.js. Usuario confirmó "anda" tras probar el chat online.
-
-### v0.2.58 → v0.2.60 diff summary (found by diffing extracted game.js files)
-Major addition: **online tournament system** — new `OT` object (~2177+ in game.js), new screen `screen-othub` (lobby/hub for online tournament rooms), bracket + match routing + spectator mode (`showLobby`, `renderHub`, `renderLobby`, spectate screen with `btn-spec-back`). This is a SEPARATE system from the existing offline `Tourney` object — don't confuse the two. Also: the old 1-on-1 online "revancha" (rematch) flow was replaced by a "volver a la sala" (`returnToRoom`, `btn-to-room`) flow — if backlog items reference "rematch," check whether they mean the old system (removed) or need adapting to the new room-return flow.
-**This wasn't in the backlog at all** — likely a feature the user requested directly in the other session. Backlog status below was re-checked against v0.2.60 code; no other backlog items changed state between v0.2.58 and v0.2.60 (dark mode, poison mode, bracket rising-animation, bug #17 all still in the same state as before — see backlog section).
-
----
-
-## FILE STRUCTURE (as of this session)
-Split from the original single-file `rally.html` (3685 lines) into:
-- **`index.html`** (~345 lines) — DOCTYPE, `<head>`, all HTML markup (screens, buttons, HUD, etc.), plus the two Firebase CDN `<script src>` tags and a `<script src="game.js" defer>` at the end.
-- **`style.css`** (852 lines) — everything that was inside the old `<style>` block. Linked via `<link rel="stylesheet" href="style.css" />` in `<head>`.
-- **`game.js`** (2486 lines) — everything that was inside the main game `<script>` block (VERSION const, firebaseConfig, CFG, all game logic). Loaded with `defer` so it runs after the DOM parses, equivalent to its old position at the end of `<body>`.
-
-**Why:** user doesn't use a code editor and was pasting full 3000+ line HTML into chat for every tweak, burning tokens. Splitting means most edits only touch `game.js` (or a smaller section of it), and CSS-only tweaks only touch `style.css` — much cheaper to work with in chat, and the user can eventually open individual files in a text/code editor without scrolling through unrelated markup/styles.
-
-**All 3 files must be delivered together** for the game to work (index.html references the other two by relative path). When only one file changes, still redeliver all three (or at least clearly state which changed) so the user doesn't mix mismatched versions.
-
----
-
-## WORKFLOW (follow every time)
-User is token-conscious. Work incrementally, ONE change set at a time, validate before delivering.
-Per new version:
-1. Make edits in the relevant file(s): `/home/claude/game.js` for logic, `/home/claude/style.css` for visuals, `/home/claude/index.html` for markup/screens.
-2. Bump version string in `game.js` (`const VERSION = 'v0.2.XX'`) AND in `index.html` (`<title>` and `.version-tag` div — these two are now in a DIFFERENT file than VERSION, don't forget them).
-3. Validate JS syntax directly (much cheaper now, no HTML to strip out):
-   ```
-   node -e "const fs=require('fs');const js=fs.readFileSync('game.js','utf8');try{new Function('window','firebase','document','navigator','performance','requestAnimationFrame','cancelAnimationFrame','location','URLSearchParams',js);console.log('OK');}catch(e){console.log('ERR',e.message);}"
-   ```
-4. Also run a feature-presence grep check for the specific edits.
-5. Copy all 3 files to `/mnt/user-data/outputs/rally-split/` (overwrite).
-6. `present_files` with all 3 paths.
-7. Explain changes in Spanish; remind what's offline-testable vs needs hosting (2 devices) for online features.
-
-For math-heavy changes (damage, AI aim, probabilities), write a standalone `node -e` simulation to verify before delivering. This has caught real bugs.
-
----
-
-## DEPLOY (user does this from their Mac, NOT from phone)
-
-**NUEVO (2026-07-02): deploy automático vía GitHub Actions** — `.github/workflows/firebase-deploy.yml` deploya a Firebase Hosting (site **`rallyyy`**, vía target `rally` de `firebase.json` → `.firebaserc`; NO `rallyyy-test`) en cada push/merge a `main`, usando `FirebaseExtended/action-hosting-deploy@v0`. **Requiere el secret `FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE`** (JSON de cuenta de servicio, generado en Firebase console → Project settings → Service accounts → "Generate new private key") cargado en GitHub → repo Settings → Secrets and variables → Actions. Hasta que el usuario cargue ese secret, el workflow FALLA en cada push a main (esperable, no es un bug del código). Una vez cargado, ya no hace falta el CLI ni la Mac para deployar.
-User canNOT deploy from phone. In the VS Code / local repo setup (`Rally - historico/Rally-alpha-0-2-61/`), files already live in `public/` (no copy step needed — edit in place).
-
-✅ **Corregido (2026-07-02):** el hosting deploya al site **`rallyyy`** — `firebase.json` usa `"target": "rally"` y `.firebaserc` mapea `rally` → `rallyyy`. Esto es lo CORRECTO y esperado (el site que el usuario usa es `rallyyy`, NO `rallyyy-test` — una nota anterior de la sesión v0.2.62 decía lo contrario y estaba desactualizada). Tanto `firebase deploy --only hosting` como `firebase deploy --only hosting:rally` van al mismo site.
-
-User HAS deployed and confirmed online works perfectly in production with the OLD single-file setup, up to v0.2.38-ish — "anda perfecto". In v0.2.62 session, user deployed the split structure and confirmed "anda" after testing the new online chat live — split structure works in production. Not 100% confirmed whether they used the corrected no-target command or the target alias; if online features seem stale again after a future deploy, check which deploy command was used first.
-
-**Cannot host from phone.** Consumer Firebase console can't upload hosting files; needs CLI. Options given: deploy from computer (recommended). Lab panel is safe to ship (hidden behind secret access).
-
----
+## DEPLOY
+- **Automático vía GitHub Actions**: `.github/workflows/firebase-deploy.yml` deploya a Firebase Hosting en cada push/merge a `main`. Requiere el secret `FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE` en GitHub (Settings → Secrets → Actions); hasta que el usuario lo cargue, el workflow falla en cada push (esperable, no es bug). Verificar en cada sesión si ya lo cargó.
+- Site correcto: **`rallyyy`** (`firebase.json` target `rally` → `.firebaserc` mapea a `rallyyy`). `rallyyy-test` NO se usa (notas viejas decían lo contrario — corregido 2026-07-02). Manual: `firebase deploy --only hosting` desde la Mac del usuario (no puede deployar desde el teléfono).
 
 ## FIREBASE
-- Project `rallye-online`, Realtime Database (test-mode rules **EXPIRE 2026-07-30** — must replace before then or online breaks. This is the only hard-deadline item. Not yet done — user said "después lo probamos", wants to do it WITH live testing, not blind).
-- Hosting: site **`rallyyy`** (the one actually served/tested). `firebase.json` uses `"target": "rally"` and `.firebaserc` maps `rally` → `rallyyy`. (`rallyyy-test` is NOT in use — older notes claiming the host was on `rallyyy-test` were wrong.)
-- Compat SDK v10.12.2 (firebase-app-compat + firebase-database-compat).
-- HAS_FIREBASE/DEMO flags; global `fbDb`.
+- Proyecto `rallye-online`, Realtime Database. ⚠️ **Reglas test-mode EXPIRAN 2026-07-30** — único deadline duro; el usuario quiere hacerlo CON test en vivo, no a ciegas. Priorizar ya.
+- Compat SDK v10.12.2 (app-compat + database-compat). Flags HAS_FIREBASE/DEMO, global `fbDb`.
+- **Arquitectura online (determinista):** sala en `rooms/{código-4-chars}`, host crea / guest se une. Board lo genera el host, serializado (CELL_CODE: e/a/d/x/r; prefijo "W" = paredes) y el guest lo espeja 180° vía `G.flip` + `viewCoord` (ambos se ven abajo-derecha). Moves en `game/moves/{turn}/{role}`, resolución idéntica en ambos; host limpia `moves/{turn-1}`. Duelo: cada uno pushea score+pos a `game/duels/{duelId}/{role}` (`duelId='d'+turnCount`), resolución determinista. Empate/eject decide host. Objeto `Net` concentra todo; `Net.leave()` limpia listeners y anula callbacks. Modo en `game/mode`; presencia en `presence/{role}` + onDisconnect con 6s de gracia por reconexión. Chat en `rooms/{code}/chat` (push-id, limitToLast(50)).
 
-### Online architecture (deterministic, host-authoritative-ish)
-- Room at `rooms/{4-char-code}`. Host creates, guest joins.
-- Board generated by host, serialized (CELL_CODE: e=empty, a=power_dmg, d=power_def, x=down, r=ring), pushed; guest mirrors 180° via `G.flip` + `viewCoord` (involutive). Both see themselves bottom-right.
-- Moves: each writes `game/moves/{turn}/{role}`; both resolve identically when both present. Host cleans `moves/{turn-1}` to avoid DB buildup.
-- Duel: each computes own score+pos locally, pushes `game/duels/{duelId}/{role}`; deterministic identical resolution. `duelId = 'd'+turnCount`.
-- Eject (tie) decided by host, synced.
-- `Net` object holds all Firebase methods + callbacks. `Net.leave()` cleans all listeners + nulls callbacks.
-- Match mode synced via `game/mode`. Rematch via `rematch/{role}` flags. Presence via `presence/{role}` + onDisconnect, with 6s reconnection grace.
+## JUEGO — resumen y valores clave
+Tablero 7x7 (paredes: 9), movimientos simultáneos. Ítems: 🗡️ power_dmg, ◈ power_def, × down (trampa), 💍 ring (heal raro). Adyacentes/misma casilla → duelo de reflejos (frenar aguja en zonas de color). Jugador abajo-derecha, rival arriba-izquierda.
+- **CFG (v0.2.62+):** maxHp 100, powerDmgValue 3, powerDefValue 1, maxPowerDmg/Def 4 (techo +12 atk/+4 def), downDamage 10, regenInterval 4, counts 3/3/4. Duelo: duelCycleDuration 1.8, duelMaxPasses 4. Zonas (0..1): green .46-.54, yellow .40-.60, orange .35-.65, perfect .487-.513. Scores: perfect 20, green 10, yellow 6, orange 4, orange2 3, redBase 2, redMin 1. Ring: 6%/turno desde turno 8, +50 instant si <40 HP y 20+ abajo del rival, si no +5/ronda x5.
+- **Ganador del duelo = SOLO puntaje crudo del minijuego** (0-20); los buffs solo escalan el daño (`computeDuelDamages`/`duelDamage`), en 3 sitios: showDuelReveal, resolveDuel, resolveDuelOnline. `loserChipDamage` clampeado a ≤ daño del ganador. PERFECTO solo en pase 1 (`isPerfect(pos,pass)`), anula ataque+defensa del rival, duplica buffs de daño propios.
+- **Piedad:** trampas NUNCA matan (floor 1 HP), chip no mata (a 1 HP inmune al chip); solo PERDER un duelo mata.
+- **Colisión de ítems en misma casilla:** sorteo determinista `(turnCount*31+x*7+y*13)%2` + ruleta visual rápida (~1.5s, v0.2.72). Trampa compartida golpea a ambos.
+- **CPU/IA (v0.2.75, solo offline):** `cpuDuelAdvantage()` (HP+buffs de ambos+puntería) decide pelear/huir; gradiente hacia el ítem más valioso del tablero; anti-ping-pong con fallback a la casilla menos visitada + detector de ciclo A,B,A,B (bug #17 CERRADO, 0 ping-pongs en 600 partidas simuladas con aisim.js); duelo consciente del estado (desesperada → apunta pase 1 con puntería fina). Skill 0.35 quedó idéntico al viejo. Puntería: gaussian jitter, aimSkill floor 0.3, coef 0.28.
+- **Veredicto de duelo (v0.2.72-76):** reveal "GANA {nombre}" (verde/rojo) + puntajes chicos "(6v3)"; pantalla final con barras de vida estilo HUD animadas (vacían desde HP previo al resultante, número cuenta en sincronía, colores is-low/is-mid, respeta reduced-motion, escala con maxHp real del rival).
 
----
+## MODOS
+- **Campaña offline (v0.2.63+):** `CAMPAIGN_SCRIPT` = cinta de nodos (tipos `match` con `opp:{name,hp,skill,accent,emoji,dmgMult}` y `youHp`; `scene` = texto línea a línea vía `playScene()`; extensible con `Campaign.handlers.nuevoTipo`). Progreso en localStorage `rally_campaign_v1`, se guarda al ganar cada nodo ANTES de la pantalla de resultado. `Campaign.setFlag/getFlag` para historia. Primer rival: **Tarata, 11 HP**, skill 0.35. `hasProgress()` exige ≥1 nodo ganado (si no, repite el menú de confirmación). Arranca de golpe (sin fade ni overlay de instrucciones; `beginGame._seen` intacto para partida rápida). Ganar → "Continuar ▸"; perder/empatar → "Reintentar". Salir no borra el save; fin de cinta → "Continuará…" y conserva save. Skill CPU: `currentCpuSkill()` = campaña > torneo > 0.35. El CONCEPTO: parece partida normal y de a poco aparecen mecánicas/historia inesperadas — el usuario la irá escribiendo.
+- **Torneo offline:** 8 rivales TOURNEY_ROSTER (Madagascar): Maurice🐒, Mort🐭, Clover🛡️, Skipper🐧, Kowalski📐, Marlene🦦(doubleStep: 30% alcance 2), Alex🦁(hardHit: daño x1.75 offline), Rey Julian👑(luck: cada 5º duelo 50% perfect). HP 10→200 y skill 0→1 exponenciales. HP del jugador se conserva entre rondas (`Tourney._carryHp`). Pantalla bracket estilo Mortal Kombat (`showTourneyBracket`, `.is-king/.is-beaten/.is-current`).
+- **Torneo online x4 (`OT`, v0.2.60):** sistema SEPARADO del Tourney offline — salas, hub (`screen-othub`), bracket, ruteo de matches, espectador. ⚠️ Nunca verificado end-to-end con dispositivos reales. El flujo 1-a-1 post-partida es "volver a la sala" (`returnToRoom`/`btn-to-room`) — el viejo rematch de ambos-aceptan fue REEMPLAZADO.
+- **Modo Paredes (beta):** toggle `#walls-toggle` en lobby (solo host; partida única y bo5, NO torneo x4 — se apaga/oculta) + botón `btn-walls` en menú offline. Serialización online con prefijo "W" en board. Falta test online real con 2 dispositivos.
+- **Modo oscuro (HECHO, ~v0.2.76-77):** toggle `btn-theme`, `data-theme` en `<html>`, localStorage `rally_theme`, claro por defecto. Anti-FOUC: script inline en `<head>` aplica tema + meta theme-color antes del primer paint (v0.2.77). Dorado de Rey Julián en bracket: #9A7B14 claro / #D4AF37 oscuro.
+- **Chat online (v0.2.62):** panel plegable 💬 + badge no leídos en `#screen-game`, objeto `Chat` (`mount()/unmount()` según `G.online`, nunca offline). Cubre salas 2p y torneo online. Confirmado funcionando en producción.
+- **🧪 Laboratorio:** acceso oculto `?lab=1` o 5 taps en version-tag. Sliders live sobre CFG, export/import JSON, reset, botón spawnear anillo. Seguro de shippear.
+- Extras: easter egg "messi" (🇦🇷; ambos messi → rival 🇧🇷 "Vinicius"), nombre cacheado en localStorage `rally_name`, link de invitación `?sala=CODE`, limpieza de salas >2hs, indicador "el rival ya eligió".
 
-## GAME OVERVIEW
-7x7 board (CFG.boardSize=7). Simultaneous moves (both pick adjacent cell, resolve together). Items: 🗡️ power_dmg (+damage buff), ◈ power_def (+defense buff), × down (trap), 💍 ring (rare heal). When players land adjacent/same cell → reflex duel (speedometer: stop needle in colored zones). Player bottom-right (n-1,n-1), opponent top-left (0,0).
+## LECCIONES (leer antes de tocar código)
+- **`[hidden]` vs CSS:** si un contenedor con `hidden` tiene `display:` en CSS de autor, agregar SIEMPRE la regla `[hidden]{display:none}` explícita (la regla UA pierde; el smoke test JS no lo detecta).
+- **Flex centrado + contenido variable:** usar `margin:auto` en los hijos + `overflow-y:auto`, no `justify-content:center` (recorta contenido que desborda — bug "Salir cortado" del lobby).
+- **Rings/bordes en móvil:** `box-shadow: inset` en vez de hacia afuera (el de afuera se recorta).
+- **Después de mergear un PR, verificar `git log origin/main` + diff contra la rama.** Incidente PR #1 (2026-07-02): el merge tomó solo parte de los commits y apareció un commit "Revert" espurio con la cuenta del usuario que no revertía nada. Se reconstruyó la rama con cherry-pick. No asumir que el merge tomó todo.
+- **Mismatch de caché HTML/JS** (duelo trabado v0.2.74): de ahí el cache-busting `?v=` por versión; mantenerlo al bumpear.
+- Al versionar: el usuario copia la carpeta de la versión y la renombra — el versionado es por carpeta sin importar la herramienta.
 
-### Key CFG values (editable live via Laboratorio) — UPDATED v0.2.62
-boardSize 7, maxHp 100, **powerDmgValue 3 (was 3, dipped to 2, back to 3)**, **powerDefValue 1 (was 3, now nerfed — defense no longer decides who wins a duel, see refactor note above)**, **maxPowerDmg/Def 4 (was 6 — buff ceiling now +12 atk / +4 def, was +18/+18)**, downDamage 10, regenInterval 4, powerDmgCount/powerDefCount 3, downCount 4.
-Duel: duelCycleDuration 1.8, duelMaxPasses 4.
-Zones (needle position 0..1): green 0.46-0.54, yellow 0.40-0.60, orange 0.35-0.65, perfect 0.487-0.513 (hitbox enlarged from earlier 0.494-0.506). Scores: perfect 20, green 10, yellow 6, orange 4, orange2 3 (inner-orange, saves from red), redBase 2, redMin 1.
-Ring: ringChancePerTurn 0.06, ringMinTurn 8, ringBigHeal 50, ringHealDiff 20, ringHealUnder 40, ringDripHeal 5, ringDripRounds 5.
-**Duel winner logic (v0.2.62):** who wins is decided ONLY by raw minigame score (0-20) — buffs never affect this anymore, only the damage magnitude the winner deals. See `computeDuelDamages`/`duelDamage` in game.js.
+## BACKLOG (repriorizado 2026-07-03)
+- **CRÍTICO: reglas de seguridad de Firebase antes del 2026-07-30** (con test en vivo junto al usuario).
+- **Cargar secret de deploy** `FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE` (acción del usuario; recordárselo).
+- **Testear en vivo (2 dispositivos):** torneo online x4 (`OT`) end-to-end y Modo Paredes online.
+- **#19 Torneo — mejoras pendientes:** curación extra entre rondas (hoy solo conserva HP); jugador que "sube" un puesto con animación al ganar; rivales ocultos en negro hasta desbloquear + cache localStorage de desbloqueados.
+- **#18 Modo Veneno:** no arrancado.
+- **Campaña:** escribir nodos nuevos (historia del usuario) — la infraestructura está lista.
+- Hechos y verificados (sacar de discusión): #17 vaivén IA (v0.2.75), #21 modo oscuro (v0.2.76-77), #10 perfecto anula buffs rivales, #20 perfecto solo pase 1, #18b Paredes, dark-mode FOUC.
 
----
-
-## COMPLETED FEATURES (all in v0.2.42)
-
-### Core / balance
-- Damage buff chips red. Duel rounds count per half-sweep (ida=1, vuelta=2...). Reveal screen (showDuelReveal): two columns, color name + big number, verdict. Single-resolution guards (_duelResolved, _revealShown).
-- **AI movement (cpuDecideMove):** traps penalized -14, only crossed if fully boxed-in (all neighbors traps) OR desperate-for-needed-buff (low HP + def available, or losing + dmg available). Anti-ping-pong: `G.opp.history` (last 4 cells, offline only) penalizes revisiting recent cells (-5/recency). Diagonals always available in getReachable.
-  - **BUG #17 FIXED (v0.2.75):** la salvaguarda vieja fallaba en silencio si no había casilla "fresca". Ahora: penalizaciones más duras (−8/recency, −5·repetición), fallback a la no-trampa MENOS visitada, y detector de ciclo exacto A,B,A,B que fuerza salir del par. Verificado: 0 ping-pongs en 600 partidas simuladas (aisim).
-  - **IA v0.2.75:** nuevo `cpuDuelAdvantage()` (HP + buffs de ambos + puntería) gobierna pelear/huir (reemplaza la comparación de HP crudo); gradiente hacia el ítem más valioso del tablero (reemplaza `powerNear` de 1 turno); `cpuDesperateTrapRatio` + `almostBoxed` ahora se usan (media penalización de trampa si casi acorralada); duelo consciente del estado (desesperada/perdiendo → pase 1 al 90% y puntería ×(1−0.35·skill); cómoda → juega seguro). Skill 0.35 normal quedó idéntico al viejo (avg score ~4.9); verificado con aisim.js + escenarios dirigidos (huye 84% en desventaja, presiona 74% con ventaja).
-- **CPU duel aim (scheduleCpuStop):** gaussian jitter (avg of 3 randoms, centers on green), aimSkill floor 0.3, coef 0.28. Red rates: skill0.3~47%, skill1~0% (75% green). Verified by simulation.
-- **Perfect / súper golpe:** center zone 0.494-0.506, score 20 (double), dmg buffs doubled via `duelDamage(raw,pos,buffDmg,defDef,mult)` + `isPerfect(pos)`. Visual: repurposed `.speedo-center-mark` as thin 2px dark-green (`--perfect #14532D`) vertical line at 50%, opacity 0.7, top:0/bottom:0 (contained). Removed all flashy band/glow after user feedback (too flashy). Text "PERFECTO" in --perfect green. CPU perfect rates: skill0.3~2%, skill1~13%.
-- **Loser chip damage (#9):** loser also deals proportional damage. `loserChipDamage(loserDmg,winnerDmg)=round(loserDmg*(loserDmg/winnerDmg)*0.5)`. LOSER_CHIP_FACTOR=0.5. Examples: 18v20→8, 8v9→4, 3v20→0. Both offline+online, verified consistent.
-- **Tiro de gracia:** traps NEVER kill — `applyCellEffect` floors trap at `Math.max(1, hp-downDamage)` ALWAYS. `chipWithMercy(hp,chip)`: at 1 HP immune to chip; chip never drops winner below 1. Only LOSING a duel kills. Winning never kills.
-- **Buff collision (#11):** `applySharedCellEffects()` — when both land same cell with buff/ring, deterministic draw `(turnCount*31 + x*7 + y*13) % 2` (identical on both online clients) gives it to one; toast "X se quedó con el ítem" (not for ring). Shared trap hits both.
-- **Ring item (#15):** type 'ring' (code 'r'). Spawns once per game, rare (6%/turn after turn 8), NOT in tournament, sometimes not at all. `G.ringSpawned` flag reset each game. Pickup: if holder has 20+ HP less than rival AND <40 HP → +50 HP instant; else → +5 HP/round for 5 rounds (`player.ringDrip`, applied in resolveMoves via `applyRingDrip`). Multicolor 💍 with `ringGlow` animation. Spawn toast REMOVED (user request). Online: host generates, syncs via board.
-
-### Offline / Tournament
-- Offline menu: single "Offline" button on home → screen-offline with "Partida rápida" (btn-quick) + "🏆 Torneo offline". Quick-play CPU named **"Cachito"** (was 'CPU').
-- Tournament: 8 rivals in TOURNEY_ROSTER (Madagascar-themed, each accent color + emoji + tag:'CPU'):
-  Maurice(🐒 #2B8C4E), Mort(🐭 #D6A22B), Clover(🛡️ #1FA8A0 — was #2B4DE0 same-as-player blue, FIXED), Skipper(🐧 #5A6B7A), Kowalski(📐 #7A3BD6), Marlene(🦦 #D6577A, trait:'doubleStep'), Alex(🦁 #D6772B, trait:'hardHit'), Rey Julian(👑 #C8302B, trait:'luck' — no tilde, was "Rey Julián").
-  HP exponential 10→200 (tourneyHpFor), skill exponential 0→1 (tourneySkillFor). Counter "🏆 Torneo · N/8" (tourney-bar) below HUD.
-- **Rival traits (currentTrait()):**
-  - hardHit (Alex): `cpuDmgMult()` returns 1.75, applied to opp's `duelDamage` in the 2 OFFLINE sites only (reveal + resolveDuel), NOT online.
-  - doubleStep (Marlene): 30% chance to add distance-2 ring cells to CPU reachable in cpuDecideMove.
-  - luck (Julian): `Tourney._duelCount`; every 5th duel, 50% chance to force perfect aim (sets oppScore=computeScore(pos,1) at center time). Plus his high skill already gives ~75% green.
-- **Player HP carries between rounds:** `Tourney._carryHp` (null=fresh maxHp). Set on round win, reset on startTournament. Champion screen shows remaining HP; defeat shows how far you got.
-- **Bracket "Mortal Kombat" screen (screen-bracket):** shown before each match via `showTourneyBracket(onGo)`. Your name+HP left, 8 rivals stacked right (reversed order, Julian/king on top in gold `.is-king`), beaten rivals struck-through red `.is-beaten`, current `.is-current`. `Tourney._beaten` tracks progress.
-
-### Online (advanced)
-- Simultaneous moves, synced duel, translucent rival needle.
-- **Online tournament system (NEW in v0.2.60, not in prior backlog — confirm scope with user):** `OT` object — separate from offline `Tourney`. Room-based (`ref`, `code`, `mySeat`), player list synced (`players`), lobby (`showLobby`/`renderLobby`), hub screen (`screen-othub`, `renderHub`), bracket (`br`), match routing (`inMatch`, `myMatchId`, `matchA`/`matchB`, `master` flag for match authority), spectator mode (`spectate` screen, `stopSpec`, `btn-spec-back`), elimination tracking (`eliminated`, `finished`). Colors applied per-match via `applyColors`. NEEDS FULL REVIEW/TEST — appeared between sessions, not verified working end-to-end by this session.
-- **1-on-1 "revancha" flow REPLACED:** old `setupOnlineRematch`/`btn-rematch` (both-must-accept flow) is gone, replaced by `setupOnlineEnd`/`returnToRoom`/`btn-to-room` — after a match, players return to the room/lobby instead of directly requesting a rematch. If old backlog items mention "rematch," verify against this new flow.
-- **Immediate rival needle (v0.2.38):** `Net.onOppDuelStop` callback + `_oppShownThisDuel` shows rival's frozen needle as soon as their Firebase data arrives (via listenDuelScores per-rival check), not waiting for own stop. User wanted "see where rival's needle landed ASAP". Simplified onDuelScoresReady (removed iWasWaiting/"¡Frenó el rival!" msg).
-- **Reconnection grace (#5):** presence watcher waits 6s before declaring abandonment; `onOpponentWaiting`/`onOpponentBack` show "⚠️ Rival desconectado — esperando…" / "Rival reconectado ✓".
-- **Online rematch (#6):** `setupOnlineRematch` — both must accept via `rematch/{role}` flags; host generates new board. "Revancha (rival listo ✓)".
-- **Best-of-5 (#6):** host picks "Partida única"/"Mejor de 5" in lobby (mode-single/mode-bo5 buttons, guest hides selector). App.matchMode synced via game/mode. BO5_TARGET=3. App.scoreYou/scoreOpp. setupNextRound auto-continues (host regenerates after 3s). "🏆 Ganaste la serie".
-- **Opponent-moved indicator (#7):** `Net.onOppMoved` → "El rival ya eligió — te toca mover".
-- **Stale room cleanup (#13):** `cleanStaleRooms()` deletes rooms >2hrs old, opportunistic on createRoom.
-- **Invite link (#15-link):** btn-share generates `?sala=CODE` link (navigator.share/clipboard); `autoJoinFromURL` prefills code on load.
-- **Messi easter egg (resolveSkins):** name "messi" (case-insensitive) → 🇦🇷 skin. Both messi → you KEEP 🇦🇷, rival shows 🇧🇷 named "Vinicius" (capital V). FIXED in v0.2.39 (previously lost own flag + lowercase vinicius).
-- **Live chat (NEW v0.2.62, online-only):** collapsible panel (💬 floating button + unread badge) inside `#screen-game`. `Net.pushChat`/`listenChat`/`stopChat` write/read `rooms/{code}/chat` (push-id, `limitToLast(50)`). `Chat` object owns the UI (`mount()`/`unmount()` gated by `G.online` — never shows offline). Covers both 2p rooms and online-tournament matches (same `Net.ref`-per-match pattern). Free text input, no presets/emoji shortcuts. User-tested live, confirmed working ("anda").
-
-### Robustness fixes (audit, v0.2.26)
-- moves DB cleanup, countdown timers abort on phase change (`G.phase!=='duel-countdown'` guard, offline+online), leave() clears child listeners + nulls callbacks, CPU history offline-only, btn-leave sets G.phase='idle'.
-
-### CPU tag (#16)
-- `.hud-tag` is now plain gray text (font-body 11px, muted, opacity .7, no border/box). Content "(CPU)" beside opponent name. Tournament uses "(CPU)", online shows nothing (human), offline practice "(CPU)". Element id `hud-tag-opp`.
-
-### Name cache
-- `readName()` saves to localStorage 'rally_name'. On load, restores into name-input + App.playerName.
-
-### 🧪 Laboratorio (debug panel, v0.2.37+)
-- screen-lab, titled "🧪 Laboratorio" (named to avoid confusing with technical debug).
-- `LAB_PARAMS` array (~17 balance params) → live sliders editing CFG. `CFG_DEFAULTS` for reset.
-- Export/Import JSON (covers #13). "Restaurar valores" resets.
-- **"💍 Spawnear anillo" button (v0.2.42):** places ring on empty cell in current game, syncs online.
-- Hidden access: `?lab=1` URL OR 5 taps on version-tag (made clickable, id `version-tag`).
-- "Volver" returns to game if G.running, else home.
-- Safe to ship (hidden from normal players).
-
----
-
-## MULTI-TOOL WORKFLOW (user alternates between chat, Design, and VS Code)
-User now has 3 ways of working on this project:
-1. **Chat normal / Claude Design** (token-limited) — outputs a single merged `.html`. Requires re-splitting on next handoff (see recipe above).
-2. **VS Code + Claude Code extension** (local, own machine) — user opens the 3-file folder directly, no merging/splitting needed, Claude Code edits `game.js`/`style.css`/`index.html` in place with diff review.
-3. Both tools may be used in the SAME version-to-version gap (e.g. v0.2.58→v0.2.60 skipped this session's chat entirely).
-
-**Versioning stays folder-based regardless of which tool was used** — user copies the current version folder, renames it to the next version number, and works inside that copy (in VS Code) or uploads/downloads through chat. Always confirm which tool produced the current upload before assuming file structure.
-
----
-
-## PENDING BACKLOG (priority order, from last discussion)
-**Status column added this session** by diffing the actual v0.2.58 code against this list (doc was stale, last synced at v0.2.42 — 16 versions behind).
-
-### HIGH (core mechanics / requested tweaks)
-- **#20 — Perfect adjustments:** PARTIALLY DONE. `isPerfect(pos, pass)` already restricts perfect to pass 1 only (`if(pass !== undefined && pass !== 1) return false`) — confirmed in code. NOT confirmed: whether hitbox was enlarged, or whether red zone was rebalanced (extra orange worth 3 inside red, red worth less). Ask user or re-check `CFG` zone values before assuming done.
-- **#19 — Tournament improvements:** PARTIALLY DONE.
-  - HP carry between rounds: confirmed working (`Tourney._carryHp`), but this is just *conserving* HP, not *recovering/healing* extra HP after each battle — that part looks NOT done.
-  - Bracket visual states (`is-king`, `is-beaten`, `is-current`) exist in `showTourneyBracket()`.
-  - NOT found: player starting at bottom + "rising" one spot with animation on win, rivals hidden in black until unlocked with reveal animation, localStorage caching of which rivals are already unlocked. Likely NOT done — needs confirmation with user.
-- **#17 — BUG: AI gets stuck between 2 cells and never leaves.** FIXED en v0.2.75 (ver sección AI arriba): fallback a la casilla menos visitada + detector de ciclo A,B,A,B. 0 ping-pongs en 600 partidas simuladas.
-
-### MEDIUM
-- **#21 — Dark mode:** NOT DONE. No trace of dark mode CSS/toggle/localStorage found in code.
-- **#10 — Perfect blocks rival buffs:** NOT CONFIRMED — didn't specifically check this one this session, verify before starting other perfect-related work.
-
-### MEDIUM-HIGH (big new mode)
-- **#18b — Experimental modes menu + Modo Paredes (Walls):** DONE. Fully implemented: `wallsMode` flag, `enterWallsMode()`/`exitSpecialMode()`, `wallsBoardSize: 9`, `Walls.clear()`, dedicated buttons (`btn-walls`, `btn-walls-online`), even has an online variant. This item can be removed from backlog or moved to a "polish/bugfix" list if there are still issues with it.
-
-### LOW
-- **#18 — Modo Veneno (Poison):** NOT DONE. No trace found (`poison`/`veneno` search came up empty).
-
-### NO DATE BUT CRITICAL
-- **Firebase security rules** before 2026-07-30 (test rules expire). Still using default config in code (`rallye-online` project) — no evidence rules were touched. Do WITH live testing, not blind. This deadline is getting close — prioritize soon.
-
----
-
-## USER PREFERENCES / STYLE LEARNINGS
-- Wants minimal, integrated visuals — repeatedly asked to tone down flashy effects (perfect zone went from gold glow band → subtle dark-green center line; removed screen flash). Match existing translucent zone opacity (~0.38).
-- Prefers to test offline between changes; deploys to hosting himself when ready.
-- Likes being offered choices for design/mechanics decisions (used ask_user_input several times for damage formulas, needle behavior, etc.).
-- Appreciates when I add debug/testing affordances (Lab panel, spawn ring button).
-- Often batches multiple requests; wants them done "in one go" when small, but I should still work incrementally and validate.
-- Asks me to maintain and reprioritize the backlog list as new ideas come.
+## PREFERENCIAS DEL USUARIO
+- Visuales mínimos e integrados — repetidamente pidió bajar efectos llamativos (el perfecto pasó de banda dorada con glow a línea finita; después volvió a dorado pero contenido dentro de la barra — avisar que puede pedir más notoriedad).
+- Testea offline entre cambios; deploya él mismo cuando está listo. Cuida tokens: trabajar incremental, UN set de cambios por vez, validar antes de entregar.
+- Le gusta que le ofrezcan opciones en decisiones de diseño/mecánica, y que se agreguen herramientas de testeo (Lab, spawnear anillo).
+- Suele mandar varios pedidos juntos; hacerlos "de una" si son chicos, pero igual validar incrementalmente. Pide mantener y repriorizar este backlog.
