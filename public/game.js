@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.80';
+const VERSION = 'v0.2.81';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -2458,14 +2458,21 @@ const Net = {
     // Nota: el auto-borrado por desconexión se desactivó para testear con
     // múltiples pestañas. La sala se limpia al salir con Net.leave().
 
-    // Escucha la llegada del invitado
+    // Escucha la llegada del invitado (y su partida antes de empezar)
+    this._sawGuest = false;
     this.ref.child('guest').on('value', s=>{
       const g = s.val();
       if(g && g.name){
+        this._sawGuest = true;
         App.oppName = g.name;
         App.oppUser = g.user || null;
         this.ref.child('status').set('ready');
         if(this.onReady) this.onReady({ role:'host', oppName:g.name });
+      } else if(this._sawGuest && !G.running && this.ref){
+        // El invitado se fue del lobby (o se le cortó): volver a esperar
+        this._sawGuest = false;
+        this.ref.child('status').set('waiting');
+        if(this.onGuestLeft) this.onGuestLeft();
       }
     });
     return code;
@@ -2508,6 +2515,13 @@ const Net = {
     App.oppUser = (room.host && room.host.user) || null;
 
     await ref.child('guest').set({ name: App.playerName, user: User.name || null });
+    // Si me desconecto antes de que arranque la partida (refresh, pestaña
+    // cerrada, celu que mata el navegador), mi lugar se libera solo — si no,
+    // la sala queda "llena" para siempre y no se puede reintentar (#22).
+    // Al arrancar la partida se cancela (startPresence): ahí ya vigila la
+    // presencia con periodo de gracia, y un corte breve no debe borrar nada.
+    this._guestSlotRef = ref.child('guest');
+    this._guestSlotRef.onDisconnect().remove();
 
     if(this.onReady) this.onReady({ role:'guest', oppName: App.oppName });
     return { ok:true, oppName: App.oppName };
@@ -2704,6 +2718,9 @@ const Net = {
   startPresence(){
     if(!this.ref || this._presenceWatch) return;
     this._presenceWatch = true;
+    // La partida arrancó: el lugar del guest ya no se libera por desconexión
+    // (de eso se encarga la presencia, con gracia de reconexión).
+    this.cancelGuestSlotCleanup();
     const myKey  = this.role;                       // 'host' | 'guest'
     const oppKey = this.role==='host' ? 'guest' : 'host';
     // Mi presencia: se borra sola si me desconecto/cierro pestaña
@@ -2739,6 +2756,13 @@ const Net = {
   onOpponentWaiting: null,  // rival se cayó, esperando reconexión
   onOpponentBack: null,     // rival volvió dentro del periodo de gracia
 
+  // Cancela el auto-borrado del lugar del guest armado en joinRoom (#22)
+  cancelGuestSlotCleanup(){
+    if(!this._guestSlotRef) return;
+    try{ this._guestSlotRef.onDisconnect().cancel(); }catch(e){}
+    this._guestSlotRef = null;
+  },
+
   stopPresence(){
     try {
       if(this._graceTimer){ clearTimeout(this._graceTimer); this._graceTimer=null; }
@@ -2754,6 +2778,7 @@ const Net = {
   // Suelta los listeners de una partida de torneo SIN borrar nada de la sala
   detachMatch(){
     try {
+      this.cancelGuestSlotCleanup();
       this.stopPresence();
       this.stopChat();
       if(this._movesRef){ this._movesRef.off(); this._movesRef=null; }
@@ -2769,6 +2794,7 @@ const Net = {
   leave(){
     App.oppUser = null;
     try {
+      this.cancelGuestSlotCleanup();
       this.stopPresence();
       this.stopChat();
       if(this._movesRef){ this._movesRef.off(); this._movesRef=null; }
@@ -2783,6 +2809,7 @@ const Net = {
       }
     } catch(e){ console.warn('[Rally] Net.leave', e); }
     this.ref=null; this.code=null; this.role=null; this.onReady=null;
+    this.onGuestLeft=null; this._sawGuest=false;
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
   },
@@ -3361,6 +3388,12 @@ async function startCreateRoom(){
   $('wait-text').textContent='Esperando rival…';
   $('code-out').textContent='····';
   Net.onReady = onBothReady;
+  // Si el invitado se va del lobby antes de empezar, volver a esperar (#22)
+  Net.onGuestLeft = ()=>{
+    App.oppName=null; App.oppUser=null;
+    $('wait-text').textContent='El rival se fue — esperando otro…';
+    const go=$('btn-online-start'); if(go) go.style.display='none';
+  };
   try {
     const code=await Net.createRoom(); App.roomCode=code; $('code-out').textContent=code;
   } catch(e){
