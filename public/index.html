@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.78</title>
-<link rel="stylesheet" href="style.css?v=v0.2.78" />
+<title>Rally — duelo en tablero · v0.2.79</title>
+<link rel="stylesheet" href="style.css?v=v0.2.79" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -19,7 +19,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.78</div>
+  <div class="version-tag" id="version-tag">v0.2.79</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -190,6 +190,7 @@
     <div class="hud-bar">
       <div class="hud-player" id="hud-opp">
         <span class="hud-name" id="hud-name-opp">Rival</span><span class="hud-tag" id="hud-tag-opp"></span>
+        <div class="hud-user" id="hud-user-opp"></div>
         <div class="hud-hp-row">
           <div class="hp-bar"><div class="hp-fill" id="hp-fill-opp" style="width:100%"></div></div>
           <span class="hp-num" id="hp-num-opp">100</span>
@@ -198,6 +199,7 @@
       </div>
       <div class="hud-player is-you" id="hud-you">
         <span class="hud-name" id="hud-name-you">Vos</span>
+        <div class="hud-user" id="hud-user-you"></div>
         <div class="hud-hp-row">
           <div class="hp-bar"><div class="hp-fill" id="hp-fill-you" style="width:100%"></div></div>
           <span class="hp-num" id="hp-num-you">100</span>
@@ -387,6 +389,20 @@
   </section>
 
   <!-- Campaña: menú de confirmación de inicio (fondo plano, se desvanece al confirmar) -->
+  <div class="user-overlay" id="user-overlay" hidden>
+    <div class="user-box">
+      <span class="camp-eyebrow">Cuenta</span>
+      <h2 class="camp-title">Creá tu <b>usuario</b></h2>
+      <p class="user-hint">Es tu identidad permanente, única para todos. Siempre en minúscula. El nickname de cada partida se elige aparte, como siempre.</p>
+      <input class="input" id="user-input" type="text" placeholder="usuario" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="15" />
+      <p class="user-err" id="user-err"></p>
+      <div class="camp-actions">
+        <button class="btn btn--primary" id="user-create">Crear</button>
+        <button class="btn btn--ghost" id="user-cancel">Volver</button>
+      </div>
+    </div>
+  </div>
+
   <div class="camp-overlay" id="camp-overlay" hidden>
     <div class="camp-box" id="camp-box">
       <span class="camp-eyebrow">Campaña</span>
@@ -425,6 +441,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.2.78" defer></script>
+<script src="game.js?v=v0.2.79" defer></script>
 </body>
 </html>

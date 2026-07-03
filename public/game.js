@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.78';
+const VERSION = 'v0.2.79';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -43,10 +43,70 @@ function ensureAuth(){
   return _authPromise;
 }
 
+// ===== 👤 Usuario (v0.2.79) =====
+// El usuario es la identidad permanente (única, global, en minúscula), distinta
+// del nickname que se elige por partida. Se reclama una sola vez en
+// usernames/{usuario} → auth.uid (transacción: nadie puede pisarlo) y se
+// cachea en localStorage. En el HUD aparece abajo del nickname, chico y gris.
+const User = {
+  name: null,
+  RE: /^[a-z0-9_]{3,15}$/,
+  load(){
+    try{ this.name = localStorage.getItem('rally_user') || null; }catch(e){}
+    this.updateUI();
+  },
+  set(u){
+    this.name = u;
+    try{ localStorage.setItem('rally_user', u); }catch(e){}
+    this.updateUI();
+  },
+  normalize(raw){ return String(raw||'').trim().toLowerCase(); },
+  async create(raw){
+    const u = this.normalize(raw);
+    if(!this.RE.test(u)) return { ok:false, reason:'formato' };
+    if(DEMO || !fbDb) return { ok:false, reason:'sin-conexion' };
+    let me;
+    try{ me = await ensureAuth(); }catch(e){ return { ok:false, reason:'sin-conexion' }; }
+    if(!me) return { ok:false, reason:'sin-conexion' };
+    try{
+      const res = await fbDb.ref('usernames/'+u).transaction(cur=>{
+        if(cur === null) return me.uid;
+        return;   // ya existe → abortar
+      });
+      if(!res.committed){
+        // ¿Ya era mío? (mismo dispositivo, caché borrada)
+        if(res.snapshot && res.snapshot.val() === me.uid){ this.set(u); return { ok:true }; }
+        return { ok:false, reason:'ocupado' };
+      }
+      fbDb.ref('users/'+me.uid+'/username').set(u).catch(()=>{});
+      this.set(u);
+      return { ok:true };
+    }catch(e){
+      console.error('[Rally] Error creando usuario:', e);
+      return { ok:false, reason:'sin-conexion' };
+    }
+  },
+  updateUI(){
+    // El botón es un ícono (top-controls, junto al tema) — no tocar su SVG.
+    const btn = $('btn-user');
+    if(btn){
+      btn.title = this.name ? ('Usuario: '+this.name) : 'Crear usuario';
+      btn.classList.toggle('has-user', !!this.name);
+    }
+    const foot = $('home-foot');
+    if(foot){
+      const base = DEMO ? 'Modo práctica activo. Conectá Firebase para jugar online con un amigo.'
+                        : 'Online activo · creá una sala y pasá el código.';
+      foot.textContent = this.name ? ('👤 '+this.name+' · '+base) : base;
+    }
+  },
+};
+
 const App = {
   screen: 'home',
   playerName: 'Jugador',
   oppName: 'CPU',
+  oppUser: null,    // usuario permanente del rival (solo online), va abajo del nickname
   roomCode: null,
   online: false,
   muted: false,
@@ -2072,6 +2132,9 @@ function updateHud(){
   $('hp-fill-you').classList.toggle('is-low',youPct<25); $('hp-fill-you').classList.toggle('is-mid',youPct>=25&&youPct<55);
   $('hp-fill-opp').classList.toggle('is-low',oppPct<25); $('hp-fill-opp').classList.toggle('is-mid',oppPct>=25&&oppPct<55);
   $('hud-name-you').textContent=App.playerName;
+  // Usuario permanente abajo del nickname (chico y gris). El del rival solo online.
+  $('hud-user-you').textContent = User.name || '';
+  $('hud-user-opp').textContent = (G.online && App.oppUser) ? App.oppUser : '';
   const tagEl=$('hud-tag-opp');
   const tBar=$('tourney-bar');
   if(Tourney.active){
@@ -2306,7 +2369,7 @@ const Net = {
 
     await this.ref.set({
       status: 'waiting',
-      host: { name: App.playerName },
+      host: { name: App.playerName, user: User.name || null },
       guest: null,
       createdAt: firebase.database.ServerValue.TIMESTAMP,
     });
@@ -2318,6 +2381,7 @@ const Net = {
       const g = s.val();
       if(g && g.name){
         App.oppName = g.name;
+        App.oppUser = g.user || null;
         this.ref.child('status').set('ready');
         if(this.onReady) this.onReady({ role:'host', oppName:g.name });
       }
@@ -2359,8 +2423,9 @@ const Net = {
     this.role = 'guest';
     this.ref = ref;
     App.oppName = (room.host && room.host.name) || 'Rival';
+    App.oppUser = (room.host && room.host.user) || null;
 
-    await ref.child('guest').set({ name: App.playerName });
+    await ref.child('guest').set({ name: App.playerName, user: User.name || null });
 
     if(this.onReady) this.onReady({ role:'guest', oppName: App.oppName });
     return { ok:true, oppName: App.oppName };
@@ -2620,6 +2685,7 @@ const Net = {
   },
 
   leave(){
+    App.oppUser = null;
     try {
       this.stopPresence();
       this.stopChat();
@@ -2745,7 +2811,7 @@ const OT = {
       const g=(await Net.ref.child('guest').get()).val();
       if(g && g.name){ toast('Cambiá el modo antes de que entre tu rival.'); return false; }
     }catch(e){}
-    const players={ s0:{ name:App.playerName||'Jugador', color:SEAT_COLORS.s0, uid:this.uid } };
+    const players={ s0:{ name:App.playerName||'Jugador', color:SEAT_COLORS.s0, uid:this.uid, user:User.name||null } };
     await Net.ref.update({ type:'tourney', players, guest:null, status:'waiting' });
     this.setup(Net.ref, Net.code, 's0');
     this.showLobby();
@@ -2773,7 +2839,7 @@ const OT = {
     let claimed=null;
     for(const s of ['s1','s2','s3']){
       const r=await ref.child('players/'+s).transaction(cur=>{
-        if(cur===null) return { name:App.playerName||'Jugador', color:SEAT_COLORS[s], uid:OT.uid };
+        if(cur===null) return { name:App.playerName||'Jugador', color:SEAT_COLORS[s], uid:OT.uid, user:User.name||null };
         return; // ocupado → abortar e intentar el siguiente
       });
       if(r.committed && r.snapshot.val() && r.snapshot.val().uid===OT.uid){ claimed=s; break; }
@@ -2810,7 +2876,8 @@ const OT = {
       if(p){
         row.className='ot-row';
         const tag = (s===this.mySeat) ? 'vos' : (s==='s0' ? 'anfitrión' : (p.cpu?'CPU':''));
-        row.innerHTML=`<span class="p-dot" style="background:${p.color||CPU_GRAY}"></span><span>${escHtml(p.name)}</span><span class="ot-tag">${tag}</span>`;
+        const userTxt = p.user ? ` <span class="ot-user">${escHtml(p.user)}</span>` : '';
+        row.innerHTML=`<span class="p-dot" style="background:${p.color||CPU_GRAY}"></span><span>${escHtml(p.name)}${userTxt}</span><span class="ot-tag">${tag}</span>`;
       } else {
         row.className='ot-row is-free';
         row.innerHTML=`<span class="p-dot" style="background:${CPU_GRAY}"></span><span>— libre —</span><span class="ot-tag">CPU al iniciar</span>`;
@@ -2869,6 +2936,7 @@ const OT = {
     const oppSeat=(a===this.mySeat)?b:a;
     const me=this.players[this.mySeat], opp=this.players[oppSeat];
     App.oppName=opp.name;
+    App.oppUser=opp.user||null;
     Tourney.active=false;
     if(opp.cpu){
       // Partida local vs CPU; publico el estado para que la puedan espectar
@@ -3221,6 +3289,38 @@ async function startCreateRoom(){
 }
 $('btn-create').addEventListener('click', ()=>{ exitSpecialMode(); startCreateRoom(); });
 $('btn-join').addEventListener('click', ()=>{ readName(); $('join-name').value=App.playerName==='Jugador'?'':App.playerName; $('lobby-created').style.display='none'; $('lobby-join').style.display='flex'; $('code-in').value=''; show('lobby'); setTimeout(()=>$('code-in').focus(),200); });
+
+// ---- 👤 Usuario: overlay de creación ----
+User.load();
+$('btn-user').addEventListener('click', ()=>{
+  if(User.name){ toast(`Tu usuario es "${User.name}" (permanente)`); return; }
+  $('user-err').textContent='';
+  $('user-input').value='';
+  $('user-overlay').hidden=false;
+  setTimeout(()=>$('user-input').focus(),150);
+});
+$('user-cancel').addEventListener('click', ()=>{ $('user-overlay').hidden=true; });
+$('user-input').addEventListener('input', e=>{
+  // Estilizado en vivo: todo minúscula, solo [a-z0-9_]
+  const v=e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,'');
+  if(v!==e.target.value) e.target.value=v;
+});
+$('user-create').addEventListener('click', async ()=>{
+  const btn=$('user-create'), err=$('user-err');
+  const u=User.normalize($('user-input').value);
+  if(!User.RE.test(u)){ err.textContent='De 3 a 15 caracteres: minúsculas, números o _'; return; }
+  btn.disabled=true; btn.textContent='Creando…'; err.textContent='';
+  const res=await User.create(u);
+  btn.disabled=false; btn.textContent='Crear';
+  if(res.ok){
+    $('user-overlay').hidden=true;
+    toast(`Usuario "${u}" creado ✓`);
+  } else {
+    err.textContent = res.reason==='ocupado' ? 'Ese usuario ya está tomado.' :
+                      res.reason==='formato' ? 'De 3 a 15 caracteres: minúsculas, números o _' :
+                      'Sin conexión — probá de nuevo.';
+  }
+});
 function setModeUI(id){
   ['mode-single','mode-bo5','mode-t4'].forEach(m=>$(m).classList.toggle('is-on', m===id));
 }
@@ -3369,7 +3469,7 @@ $('btn-share').addEventListener('click', async ()=>{
   }, 300);
 })();
 
-$('home-foot').textContent = DEMO ? 'Modo práctica activo. Conectá Firebase para jugar online con un amigo.' : 'Online activo · creá una sala y pasá el código.';
+User.updateUI();   // pinta home-foot (estado online/práctica + usuario si hay)
 try {
   const savedName = localStorage.getItem('rally_name');
   if(savedName){ $('name-input').value = savedName; App.playerName = savedName; }
@@ -3401,7 +3501,6 @@ $('btn-theme').addEventListener('click', ()=>{
 
 // Botón de usuario: reservado para un update futuro (stats/logros/perfil).
 // Por ahora no hace nada al tocarlo.
-$('btn-user').addEventListener('click', ()=>{ /* TODO: pantalla de usuario */ });
 
 // Botón de información: explica los elementos y el duelo del juego.
 $('btn-info').addEventListener('click', ()=>{
