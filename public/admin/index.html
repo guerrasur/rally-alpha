@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Rally — Admin</title>
+<style>
+  :root{
+    --paper:#EAEAE7; --field:#FBFBF9; --ink:#19181A; --muted:#8C8A85;
+    --line:#DAD8D2; --accent:#2B4DE0; --accent-soft:rgba(43,77,224,.10);
+    --good:#2B8C4E; --bad:#951515;
+    --font:'Inter',system-ui,-apple-system,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#141416; --field:#1E1E21; --ink:#ECEBE8; --muted:#8E8C88;
+      --line:#34343A; --accent:#5E7BFF; --accent-soft:rgba(94,123,255,.14);
+      --good:#43B36B; --bad:#E0524D;
+    }
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  body{ font-family:var(--font); background:var(--paper); color:var(--ink); min-height:100dvh; }
+  .wrap{ max-width:560px; margin:0 auto; padding:28px 20px 60px; }
+  h1{ font-size:22px; font-weight:700; letter-spacing:.01em; }
+  .eyebrow{ font-size:11px; font-weight:600; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); }
+  h2{ font-size:13px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent); margin:34px 0 12px; }
+  .card{ background:var(--field); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .input{ width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:10px;
+          background:var(--paper); color:var(--ink); font:inherit; font-size:15px; margin-bottom:10px; }
+  .btn{ display:block; width:100%; padding:12px; border:none; border-radius:10px; font:inherit;
+        font-size:15px; font-weight:600; cursor:pointer; }
+  .btn--primary{ background:var(--accent); color:#fff; }
+  .btn--ghost{ background:transparent; color:var(--muted); text-decoration:underline; text-underline-offset:3px; }
+  .btn--small{ width:auto; padding:8px 14px; font-size:13px; display:inline-block; }
+  .btn:disabled{ opacity:.5; cursor:default; }
+  .err{ color:var(--bad); font-size:12.5px; min-height:16px; margin:4px 0; }
+  .okmsg{ color:var(--good); font-size:12.5px; min-height:16px; margin:4px 0; }
+  .hint{ color:var(--muted); font-size:12.5px; line-height:1.5; margin:6px 0 12px; }
+  .sess{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .sess__who{ font-size:15px; font-weight:600; }
+  .badge{ display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+          padding:3px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent); }
+  .badge.is-off{ background:transparent; border:1px solid var(--line); color:var(--muted); }
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  th{ text-align:left; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+      padding:6px 8px; border-bottom:1px solid var(--line); }
+  td{ padding:8px; border-bottom:1px solid var(--line); }
+  td.uid{ color:var(--muted); font-size:11px; font-family:monospace; word-break:break-all; }
+  tr:last-child td{ border-bottom:none; }
+  .stat{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .stat:last-child{ border-bottom:none; }
+  .stat__label{ font-size:13.5px; }
+  .stat__def{ display:block; font-size:11px; color:var(--muted); }
+  .stat__def b{ color:var(--accent); }
+  .stat input{ width:86px; padding:7px 8px; text-align:center; border:1px solid var(--line); border-radius:8px;
+               background:var(--paper); color:var(--ink); font:inherit; font-size:14px; }
+  .stat input.is-changed{ border-color:var(--accent); color:var(--accent); font-weight:700; }
+  .group{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:14px 0 2px; }
+  .row-actions{ display:flex; gap:10px; margin-top:14px; }
+  .row-actions .btn{ flex:1; }
+  .topline{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:22px; }
+  .count{ color:var(--muted); font-size:12.5px; }
+  #panel{ display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topline">
+    <div><span class="eyebrow">Rally</span><h1>Panel de admin</h1></div>
+    <span class="count" id="ver">v0.2.83</span>
+  </div>
+
+  <!-- Login -->
+  <div class="card" id="login-card">
+    <p class="hint">Entrá con tu usuario y contraseña de Rally. Para editar los stats, tu cuenta tiene que ser admin.</p>
+    <input class="input" id="l-user" type="text" placeholder="usuario" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="15" />
+    <input class="input" id="l-pass" type="password" placeholder="contraseña" maxlength="40" />
+    <p class="err" id="l-err"></p>
+    <button class="btn btn--primary" id="l-go">Entrar</button>
+  </div>
+
+  <!-- Panel -->
+  <div id="panel">
+    <div class="card sess">
+      <div>
+        <span class="sess__who" id="s-who">—</span>
+        <span class="badge is-off" id="s-badge">sin permisos</span>
+      </div>
+      <button class="btn btn--ghost btn--small" id="s-out">Cerrar sesión</button>
+    </div>
+    <p class="hint" id="s-uid"></p>
+    <div id="claim-box" style="display:none;">
+      <p class="hint">Todavía no hay ningún admin. El primero que reclame, se queda con el control (después solo se agregan admins desde la consola de Firebase).</p>
+      <button class="btn btn--primary" id="claim-go">Reclamar admin</button>
+      <p class="err" id="claim-err"></p>
+    </div>
+
+    <h2>👥 Usuarios creados <span class="count" id="u-count"></span></h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Usuario</th><th>UID</th></tr></thead>
+        <tbody id="u-rows"><tr><td colspan="2">Cargando…</td></tr></tbody>
+      </table>
+      <div class="row-actions"><button class="btn btn--ghost btn--small" id="u-refresh">Refrescar</button></div>
+    </div>
+
+    <h2>⚙️ Stats del juego</h2>
+    <p class="hint">Los valores en <b>azul</b> difieren del default del juego. Los cambios se guardan en la nube y aplican a <b>todos los jugadores</b> en la próxima carga del juego (no hace falta deploy). Las partidas en curso no se tocan.</p>
+    <div class="card" id="stats-card">Cargando…</div>
+    <p class="err" id="st-err"></p>
+    <p class="okmsg" id="st-ok"></p>
+    <div class="row-actions">
+      <button class="btn btn--primary" id="st-save" disabled>Guardar cambios</button>
+      <button class="btn btn--ghost" id="st-reset">Restaurar defaults</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
+  authDomain: "rallye-online.firebaseapp.com",
+  databaseURL: "https://rallye-online-default-rtdb.firebaseio.com",
+  projectId: "rallye-online",
+  storageBucket: "rallye-online.firebasestorage.app",
+  messagingSenderId: "88354632994",
+  appId: "1:88354632994:web:7a23113ece01bbd55fa17b",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const MAIL_SUFFIX = '@user.rallye-online.app';   // mismo mapeo usuario→email que el juego
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// Misma lista que LAB_PARAMS de game.js (defaults espejo de CFG) — mantener sincronizada.
+const PARAMS = [
+  ['maxHp','Vida máxima',100,'General'],
+  ['regenInterval','Turnos para regenerar ítems',4,'General'],
+  ['powerDmgValue','Valor buff daño (🗡️)',3,'Ítems'],
+  ['powerDefValue','Valor buff defensa (◈)',1,'Ítems'],
+  ['maxPowerDmg','Tope buff daño',4,'Ítems'],
+  ['maxPowerDef','Tope buff defensa',4,'Ítems'],
+  ['downDamage','Daño de trampa (×)',10,'Ítems'],
+  ['powerDmgCount','Cantidad 🗡️ inicial',3,'Ítems'],
+  ['powerDefCount','Cantidad ◈ inicial',3,'Ítems'],
+  ['downCount','Cantidad × inicial',4,'Ítems'],
+  ['perfectScore','Puntaje PERFECTO',20,'Duelo'],
+  ['greenScore','Puntaje Verde',10,'Duelo'],
+  ['yellowScore','Puntaje Amarillo',6,'Duelo'],
+  ['orangeScore','Puntaje Naranja',4,'Duelo'],
+  ['redBaseScore','Puntaje Rojo (base)',2,'Duelo'],
+  ['duelCycleDuration','Velocidad aguja (seg/ciclo)',1.8,'Duelo'],
+  ['duelMaxPasses','Pases máximos',4,'Duelo'],
+];
+const DEFAULTS = Object.fromEntries(PARAMS.map(p=>[p[0],p[2]]));
+let isAdmin = false;
+let remote = {};   // config/ actual en la nube
+
+function show(logged){
+  $('login-card').style.display = logged ? 'none' : 'block';
+  $('panel').style.display = logged ? 'block' : 'none';
+}
+
+async function refreshSession(){
+  const cu = firebase.auth().currentUser;
+  if(!cu){ show(false); return; }
+  show(true);
+  let uname = '(sin usuario)';
+  try{ uname = (await db.ref('users/'+cu.uid+'/username').get()).val() || uname; }catch(e){}
+  $('s-who').textContent = '👤 '+uname;
+  $('s-uid').textContent = 'uid: '+cu.uid;
+  let admins = null;
+  try{ admins = (await db.ref('admins').get()).val(); }catch(e){}
+  isAdmin = !!(admins && admins[cu.uid] === true);
+  $('s-badge').textContent = isAdmin ? 'admin' : 'solo lectura';
+  $('s-badge').classList.toggle('is-off', !isAdmin);
+  $('claim-box').style.display = (!admins) ? 'block' : 'none';
+  $('st-save').disabled = !isAdmin;
+  $('st-reset').disabled = !isAdmin;
+  loadUsers();
+  loadStats();
+}
+
+// ---- Login / logout ----
+$('l-go').addEventListener('click', async ()=>{
+  const u = $('l-user').value.trim().toLowerCase(), p = $('l-pass').value;
+  $('l-err').textContent='';
+  if(!/^[a-z0-9_]{3,15}$/.test(u) || !p){ $('l-err').textContent='Usuario o contraseña incorrectos.'; return; }
+  $('l-go').disabled = true; $('l-go').textContent = 'Entrando…';
+  try{
+    await firebase.auth().signInWithEmailAndPassword(u+MAIL_SUFFIX, p);
+    await refreshSession();
+  }catch(e){
+    $('l-err').textContent = /user-not-found|wrong-password|invalid/.test((e&&e.code)||'')
+      ? 'Usuario o contraseña incorrectos.' : 'Error de conexión — probá de nuevo.';
+  }
+  $('l-go').disabled = false; $('l-go').textContent = 'Entrar';
+});
+$('s-out').addEventListener('click', async ()=>{ await firebase.auth().signOut(); show(false); });
+
+// ---- Reclamar admin (solo mientras admins/ esté vacío) ----
+$('claim-go').addEventListener('click', async ()=>{
+  const cu = firebase.auth().currentUser; if(!cu) return;
+  $('claim-err').textContent='';
+  try{
+    await db.ref('admins/'+cu.uid).set(true);
+    await refreshSession();
+  }catch(e){ $('claim-err').textContent='No se pudo reclamar (¿ya hay un admin?).'; }
+});
+
+// ---- Usuarios ----
+async function loadUsers(){
+  const tbody = $('u-rows');
+  try{
+    const all = (await db.ref('usernames').get()).val() || {};
+    const names = Object.keys(all).sort();
+    $('u-count').textContent = '· '+names.length;
+    tbody.innerHTML = names.length
+      ? names.map(n=>`<tr><td><b>${esc(n)}</b></td><td class="uid">${esc(all[n])}</td></tr>`).join('')
+      : '<tr><td colspan="2">Todavía no hay usuarios.</td></tr>';
+  }catch(e){ tbody.innerHTML = '<tr><td colspan="2">Error al leer (¿sesión válida?).</td></tr>'; }
+}
+$('u-refresh').addEventListener('click', loadUsers);
+
+// ---- Stats ----
+async function loadStats(){
+  try{ remote = (await db.ref('config').get()).val() || {}; }catch(e){ remote = {}; }
+  const card = $('stats-card'); card.innerHTML='';
+  let lastGroup='';
+  PARAMS.forEach(([key,label,def,group])=>{
+    if(group!==lastGroup){ const g=document.createElement('div'); g.className='group'; g.textContent=group; card.appendChild(g); lastGroup=group; }
+    const cur = (typeof remote[key]==='number') ? remote[key] : def;
+    const row=document.createElement('div'); row.className='stat';
+    row.innerHTML = `<span class="stat__label">${esc(label)}<span class="stat__def">default ${def}${typeof remote[key]==='number' ? ' · en la nube: <b>'+remote[key]+'</b>':''}</span></span>
+      <input type="number" step="any" id="st-${key}" value="${cur}" ${isAdmin?'':'disabled'} />`;
+    card.appendChild(row);
+    const inp = row.querySelector('input');
+    inp.classList.toggle('is-changed', cur!==def);
+    inp.addEventListener('input', ()=>{ inp.classList.toggle('is-changed', parseFloat(inp.value)!==def); });
+  });
+}
+$('st-save').addEventListener('click', async ()=>{
+  $('st-err').textContent=''; $('st-ok').textContent='';
+  const updates = {};
+  let bad = null;
+  PARAMS.forEach(([key,label,def])=>{
+    const raw = $('st-'+key).value.trim();
+    const v = parseFloat(raw);
+    if(raw==='' || !isFinite(v)){ bad = label; return; }
+    updates[key] = (v===def) ? null : v;   // volver al default = borrar override
+  });
+  if(bad){ $('st-err').textContent = 'Valor inválido en "'+bad+'".'; return; }
+  $('st-save').disabled = true;
+  try{
+    await db.ref('config').update(updates);
+    $('st-ok').textContent = 'Guardado ✓ — aplica a todos en la próxima carga del juego.';
+    await loadStats();
+  }catch(e){ $('st-err').textContent = 'No se pudo guardar (¿tu cuenta es admin?).'; }
+  $('st-save').disabled = !isAdmin;
+});
+$('st-reset').addEventListener('click', async ()=>{
+  $('st-err').textContent=''; $('st-ok').textContent='';
+  try{
+    await db.ref('config').remove();
+    $('st-ok').textContent = 'Defaults restaurados ✓';
+    await loadStats();
+  }catch(e){ $('st-err').textContent = 'No se pudo restaurar (¿tu cuenta es admin?).'; }
+});
+
+// Sesión persistida: esperar a que Auth restaure y decidir qué mostrar
+firebase.auth().onAuthStateChanged(u=>{
+  if(u && !u.isAnonymous) refreshSession(); else show(false);
+});
+</script>
+</body>
+</html>
