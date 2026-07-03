@@ -211,6 +211,21 @@
         ".write": "auth != null && !data.exists() && newData.val() === auth.uid",
         ".validate": "$uname.matches(/^[a-z0-9_]{3,15}$/) && newData.isString()"
       }
+    },
+
+    "config": {
+      ".read": true,
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$param": {
+        ".validate": "$param.matches(/^[A-Za-z]{1,40}$/) && newData.isNumber()"
+      }
+    },
+
+    "admins": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && newData.val() === true && !root.child('admins').exists()"
+      }
     }
   }
 }

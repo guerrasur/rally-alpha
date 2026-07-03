@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.82';
+const VERSION = 'v0.2.83';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -3734,6 +3734,24 @@ const LAB_PARAMS = [
   ['duelMaxPasses','Pases máximos',2,8,1,'Duelo'],
 ];
 const CFG_DEFAULTS = JSON.parse(JSON.stringify(CFG));  // copia original para restaurar
+
+// ===== ⚙️ Config remota (v0.2.83) =====
+// El panel de admin (/admin/) escribe overrides de balance en config/ (RTDB).
+// Se leen al cargar (sin auth: el nodo es de lectura pública) y pisan CFG.
+// Solo claves que ya existen en CFG y con valor numérico; lo demás se ignora.
+// Partidas ya empezadas no se tocan; aplica desde la próxima carga de página.
+function applyRemoteConfig(){
+  if(!fbDb) return;
+  fbDb.ref('config').get().then(s=>{
+    const c = s.val(); if(!c) return;
+    let n=0;
+    for(const k in c){
+      if(typeof CFG[k]==='number' && typeof c[k]==='number' && CFG[k]!==c[k]){ CFG[k]=c[k]; n++; }
+    }
+    if(n) console.log('[Rally] Config remota aplicada:', n, 'valores');
+  }).catch(()=>{});
+}
+applyRemoteConfig();
 
 function buildLab(){
   const body = $('lab-body'); body.innerHTML='';
