@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.75';
+const VERSION = 'v0.2.76';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1733,25 +1733,50 @@ function showDuelOutcome(o){
   }
   $('rescol-name-you').textContent=App.playerName;
   $('rescol-name-opp').textContent=App.oppName;
-  const col=(side, before, after)=>{
+  const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Réplica de la barra del HUD: misma escala que updateHud() (el rival puede
+  // tener maxHp distinto en campaña/torneo) y mismas clases de color.
+  const col=(side, before, after, maxHp)=>{
     const taken=Math.max(0, before-after);
     const dmgEl=$('rescol-dmg-'+side);
     dmgEl.textContent = taken>0 ? `−${taken}` : '0';
     dmgEl.classList.toggle('is-zero', taken===0);
-    $('rescol-hp-'+side).textContent=`${after} HP`;
+    const numEl=$('rescol-hp-'+side);
     const fill=$('rescol-fill-'+side);
-    const pct=(hp)=>Math.max(0, Math.min(100, hp/CFG.maxHp*100));
-    const pctAfter=pct(after);
-    fill.classList.toggle('is-low', pctAfter<25);
-    fill.classList.toggle('is-mid', pctAfter>=25 && pctAfter<55);
-    // La barra arranca en la vida que TENÍA (sin transición) y, ya visible,
-    // baja animada hasta la vida que le quedó.
+    const pct=(hp)=>Math.max(0, Math.min(100, hp/maxHp*100));
+    const setColor=(p)=>{
+      fill.classList.toggle('is-low', p<25);
+      fill.classList.toggle('is-mid', p>=25 && p<55);
+    };
+    if(reduceMotion){
+      setColor(pct(after));
+      fill.style.width=pct(after)+'%';
+      numEl.textContent=Math.max(0, after);
+      return;
+    }
+    // La barra arranca en la vida que TENÍA (sin transición, con el color de
+    // ese momento) y, ya visible, se vacía animada hasta la vida que le quedó.
+    // El número acompaña contando para abajo con el mismo easing.
+    setColor(pct(before));
     fill.style.transition='none';
     fill.style.width=pct(before)+'%';
-    setTimeout(()=>{ fill.style.transition=''; fill.style.width=pctAfter+'%'; }, 500);
+    numEl.textContent=Math.max(0, before);
+    setTimeout(()=>{
+      fill.style.transition='';
+      fill.style.width=pct(after)+'%';
+      setColor(pct(after));
+      const dur=900, t0=performance.now();
+      const ease=(t)=>1-Math.pow(1-t, 3);   // aprox del cubic-bezier de la barra
+      const tick=(now)=>{
+        const t=Math.min(1,(now-t0)/dur);
+        numEl.textContent=Math.max(0, Math.round(before+(after-before)*ease(t)));
+        if(t<1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }, 500);
   };
-  col('you', o.youBefore, G.you.hp);
-  col('opp', o.oppBefore, G.opp.hp);
+  col('you', o.youBefore, G.you.hp, CFG.maxHp);
+  col('opp', o.oppBefore, G.opp.hp, G.opp.maxHp || CFG.maxHp);
 }
 
 function resolveDuel(){
