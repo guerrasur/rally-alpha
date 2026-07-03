@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.79';
+const VERSION = 'v0.2.80';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -48,9 +48,16 @@ function ensureAuth(){
 // del nickname que se elige por partida. Se reclama una sola vez en
 // usernames/{usuario} → auth.uid (transacción: nadie puede pisarlo) y se
 // cachea en localStorage. En el HUD aparece abajo del nickname, chico y gris.
+// Contraseña (v0.2.80): Firebase Auth solo maneja email+contraseña, así que el
+// usuario se mapea a un email sintético usuario@MAIL_SUFFIX. La contraseña se
+// LINKEA a la cuenta anónima (mismo uid → conserva usuario y datos) y permite
+// iniciar sesión desde cualquier dispositivo. Sin recupero de contraseña por
+// ahora (no hay email real).
 const User = {
   name: null,
   RE: /^[a-z0-9_]{3,15}$/,
+  MAIL_SUFFIX: '@user.rallye-online.app',
+  mail(u){ return u + this.MAIL_SUFFIX; },
   load(){
     try{ this.name = localStorage.getItem('rally_user') || null; }catch(e){}
     this.updateUI();
@@ -61,30 +68,105 @@ const User = {
     this.updateUI();
   },
   normalize(raw){ return String(raw||'').trim().toLowerCase(); },
-  async create(raw){
+  current(){ return (HAS_FIREBASE && firebase.auth) ? firebase.auth().currentUser : null; },
+  hasPassword(){ const cu=this.current(); return !!(cu && !cu.isAnonymous); },
+
+  // Reclama el usuario para un uid (transacción; tolera que ya sea propio)
+  async claim(u, uid){
+    try{
+      const res = await fbDb.ref('usernames/'+u).transaction(cur=>{
+        if(cur === null) return uid;
+        return;   // ya existe → abortar
+      });
+      if(!res.committed){
+        if(res.snapshot && res.snapshot.val() === uid) return { ok:true };
+        return { ok:false, reason:'ocupado' };
+      }
+      return { ok:true };
+    }catch(e){
+      console.error('[Rally] Error reclamando usuario:', e);
+      return { ok:false, reason:'sin-conexion' };
+    }
+  },
+
+  // Registro: usuario + contraseña en un paso (reclama y linkea al uid anónimo)
+  async register(raw, pass){
     const u = this.normalize(raw);
     if(!this.RE.test(u)) return { ok:false, reason:'formato' };
+    if(!pass || pass.length < 6) return { ok:false, reason:'pass-corta' };
     if(DEMO || !fbDb) return { ok:false, reason:'sin-conexion' };
     let me;
     try{ me = await ensureAuth(); }catch(e){ return { ok:false, reason:'sin-conexion' }; }
     if(!me) return { ok:false, reason:'sin-conexion' };
+    if(!me.isAnonymous) return { ok:false, reason:'ya-logueado' };
+    const claim = await this.claim(u, me.uid);
+    if(!claim.ok) return claim;
     try{
-      const res = await fbDb.ref('usernames/'+u).transaction(cur=>{
-        if(cur === null) return me.uid;
-        return;   // ya existe → abortar
-      });
-      if(!res.committed){
-        // ¿Ya era mío? (mismo dispositivo, caché borrada)
-        if(res.snapshot && res.snapshot.val() === me.uid){ this.set(u); return { ok:true }; }
-        return { ok:false, reason:'ocupado' };
-      }
-      fbDb.ref('users/'+me.uid+'/username').set(u).catch(()=>{});
-      this.set(u);
+      const cred = firebase.auth.EmailAuthProvider.credential(this.mail(u), pass);
+      await me.linkWithCredential(cred);
+    }catch(e){
+      console.error('[Rally] Error linkeando contraseña:', e);
+      return { ok:false, reason: (e && e.code==='auth/weak-password') ? 'pass-corta' : 'sin-conexion' };
+    }
+    fbDb.ref('users/'+me.uid+'/username').set(u).catch(()=>{});
+    this.set(u);
+    return { ok:true };
+  },
+
+  // Agregar contraseña a un usuario ya creado sin ella (v0.2.79)
+  async addPassword(pass){
+    if(!this.name) return { ok:false, reason:'sin-usuario' };
+    if(!pass || pass.length < 6) return { ok:false, reason:'pass-corta' };
+    if(DEMO || !fbDb) return { ok:false, reason:'sin-conexion' };
+    const cu = this.current();
+    if(!cu) return { ok:false, reason:'sin-conexion' };
+    if(!cu.isAnonymous) return { ok:true };   // ya tenía credencial
+    try{
+      // El usuario local tiene que ser realmente de esta sesión
+      const owner = (await fbDb.ref('usernames/'+this.name).get()).val();
+      if(owner !== cu.uid) return { ok:false, reason:'sin-conexion' };
+      const cred = firebase.auth.EmailAuthProvider.credential(this.mail(this.name), pass);
+      await cu.linkWithCredential(cred);
+      fbDb.ref('users/'+cu.uid+'/username').set(this.name).catch(()=>{});
       return { ok:true };
     }catch(e){
-      console.error('[Rally] Error creando usuario:', e);
+      console.error('[Rally] Error creando contraseña:', e);
+      return { ok:false, reason: (e && e.code==='auth/weak-password') ? 'pass-corta' : 'sin-conexion' };
+    }
+  },
+
+  // Iniciar sesión con usuario + contraseña (p.ej. en otro dispositivo)
+  async login(raw, pass){
+    const u = this.normalize(raw);
+    if(!this.RE.test(u) || !pass) return { ok:false, reason:'credenciales' };
+    if(DEMO || !fbDb || !firebase.auth) return { ok:false, reason:'sin-conexion' };
+    try{
+      const cred = await firebase.auth().signInWithEmailAndPassword(this.mail(u), pass);
+      _authPromise = Promise.resolve(cred.user);
+      let confirmed = u;
+      try{ confirmed = (await fbDb.ref('users/'+cred.user.uid+'/username').get()).val() || u; }catch(e){}
+      this.set(confirmed);
+      return { ok:true };
+    }catch(e){
+      const code = (e && e.code) || '';
+      if(/user-not-found|wrong-password|invalid-credential|invalid-login-credentials/.test(code))
+        return { ok:false, reason:'credenciales' };
+      console.error('[Rally] Error de login:', e);
       return { ok:false, reason:'sin-conexion' };
     }
+  },
+
+  // Cerrar sesión. Un usuario SIN contraseña no puede cerrarla (lo perdería
+  // para siempre: la cuenta anónima no se puede recuperar).
+  async logout(){
+    const cu = this.current();
+    if(cu && cu.isAnonymous && this.name) return { ok:false, reason:'sin-pass' };
+    try{ if(HAS_FIREBASE && firebase.auth) await firebase.auth().signOut(); }catch(e){}
+    _authPromise = null;   // el próximo online vuelve a entrar anónimo
+    this.name = null;
+    try{ localStorage.removeItem('rally_user'); }catch(e){}
+    this.updateUI();
+    return { ok:true };
   },
   updateUI(){
     // El botón es un ícono (top-controls, junto al tema) — no tocar su SVG.
@@ -3290,36 +3372,93 @@ async function startCreateRoom(){
 $('btn-create').addEventListener('click', ()=>{ exitSpecialMode(); startCreateRoom(); });
 $('btn-join').addEventListener('click', ()=>{ readName(); $('join-name').value=App.playerName==='Jugador'?'':App.playerName; $('lobby-created').style.display='none'; $('lobby-join').style.display='flex'; $('code-in').value=''; show('lobby'); setTimeout(()=>$('code-in').focus(),200); });
 
-// ---- 👤 Usuario: overlay de creación ----
+// ---- 👤 Usuario: overlay de cuenta (registro / login / sesión) ----
 User.load();
-$('btn-user').addEventListener('click', ()=>{
-  if(User.name){ toast(`Tu usuario es "${User.name}" (permanente)`); return; }
-  $('user-err').textContent='';
-  $('user-input').value='';
-  $('user-overlay').hidden=false;
-  setTimeout(()=>$('user-input').focus(),150);
-});
+const USER_ERR = {
+  'formato':     'Usuario: de 3 a 15 caracteres, minúsculas, números o _',
+  'pass-corta':  'La contraseña debe tener al menos 6 caracteres.',
+  'ocupado':     'Ese usuario ya está tomado.',
+  'credenciales':'Usuario o contraseña incorrectos.',
+  'ya-logueado': 'Ya hay una sesión iniciada. Cerrala primero.',
+  'sin-pass':    'Antes de cerrar sesión creá una contraseña, si no tu usuario queda inaccesible.',
+  'sin-usuario': 'No hay usuario en este dispositivo.',
+  'sin-conexion':'Sin conexión — probá de nuevo.',
+};
+const UserUI = {
+  mode: 'register',   // 'register' | 'login' | 'session'
+  open(mode){
+    this.mode = mode || (User.name ? 'session' : 'register');
+    $('user-err').textContent='';
+    $('user-pass').value='';
+    if(this.mode!=='session') $('user-input').value='';
+    this.render();
+    $('user-overlay').hidden=false;
+    if(this.mode!=='session') setTimeout(()=>$('user-input').focus(),150);
+  },
+  render(){
+    const m=this.mode, primary=$('user-primary');
+    $('user-input').style.display = (m==='session') ? 'none' : 'block';
+    $('user-logout').hidden = (m!=='session');
+    primary.disabled=false;
+    if(m==='register'){
+      $('user-title').innerHTML='Creá tu <b>usuario</b>';
+      $('user-hint').textContent='Único y permanente, siempre en minúscula. Con la contraseña vas a poder entrar desde cualquier dispositivo. El nickname de cada partida se elige aparte, como siempre.';
+      $('user-pass').style.display='block';
+      primary.style.display='block'; primary.textContent='Crear cuenta';
+      $('user-switch').textContent='¿Ya tenés usuario? Iniciá sesión';
+    } else if(m==='login'){
+      $('user-title').innerHTML='Iniciar <b>sesión</b>';
+      $('user-hint').textContent='Entrá con tu usuario y contraseña.';
+      $('user-pass').style.display='block';
+      primary.style.display='block'; primary.textContent='Entrar';
+      $('user-switch').textContent='¿No tenés usuario? Creá uno';
+    } else {   // session
+      $('user-title').innerHTML='👤 <b>'+escHtml(User.name||'')+'</b>';
+      if(User.hasPassword()){
+        $('user-hint').textContent='Sesión iniciada. Podés entrar con este usuario desde cualquier dispositivo.';
+        $('user-pass').style.display='none';
+        primary.style.display='none';
+      } else {
+        $('user-hint').textContent='Tu usuario todavía no tiene contraseña. Creá una para poder entrar desde otro dispositivo (y para no perderlo).';
+        $('user-pass').style.display='block';
+        primary.style.display='block'; primary.textContent='Crear contraseña';
+      }
+      $('user-switch').textContent='Entrar con otro usuario';
+    }
+  },
+};
+$('btn-user').addEventListener('click', ()=>UserUI.open());
 $('user-cancel').addEventListener('click', ()=>{ $('user-overlay').hidden=true; });
+$('user-switch').addEventListener('click', ()=>{
+  UserUI.open(UserUI.mode==='login' ? 'register' : 'login');
+});
 $('user-input').addEventListener('input', e=>{
   // Estilizado en vivo: todo minúscula, solo [a-z0-9_]
   const v=e.target.value.toLowerCase().replace(/[^a-z0-9_]/g,'');
   if(v!==e.target.value) e.target.value=v;
 });
-$('user-create').addEventListener('click', async ()=>{
-  const btn=$('user-create'), err=$('user-err');
-  const u=User.normalize($('user-input').value);
-  if(!User.RE.test(u)){ err.textContent='De 3 a 15 caracteres: minúsculas, números o _'; return; }
-  btn.disabled=true; btn.textContent='Creando…'; err.textContent='';
-  const res=await User.create(u);
-  btn.disabled=false; btn.textContent='Crear';
+$('user-primary').addEventListener('click', async ()=>{
+  const btn=$('user-primary'), err=$('user-err'), m=UserUI.mode;
+  const pass=$('user-pass').value;
+  err.textContent=''; btn.disabled=true; btn.textContent='…';
+  let res;
+  if(m==='register')   res = await User.register($('user-input').value, pass);
+  else if(m==='login') res = await User.login($('user-input').value, pass);
+  else                 res = await User.addPassword(pass);
   if(res.ok){
     $('user-overlay').hidden=true;
-    toast(`Usuario "${u}" creado ✓`);
+    toast(m==='register' ? `Usuario "${User.name}" creado ✓` :
+          m==='login'    ? `Sesión iniciada: ${User.name} ✓` :
+                           'Contraseña creada ✓');
   } else {
-    err.textContent = res.reason==='ocupado' ? 'Ese usuario ya está tomado.' :
-                      res.reason==='formato' ? 'De 3 a 15 caracteres: minúsculas, números o _' :
-                      'Sin conexión — probá de nuevo.';
+    err.textContent = USER_ERR[res.reason] || USER_ERR['sin-conexion'];
   }
+  UserUI.render();   // restaura el botón (label/estado)
+});
+$('user-logout').addEventListener('click', async ()=>{
+  const res = await User.logout();
+  if(res.ok){ $('user-overlay').hidden=true; toast('Sesión cerrada'); }
+  else $('user-err').textContent = USER_ERR[res.reason] || USER_ERR['sin-conexion'];
 });
 function setModeUI(id){
   ['mode-single','mode-bo5','mode-t4'].forEach(m=>$(m).classList.toggle('is-on', m===id));

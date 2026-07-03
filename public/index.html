@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.79</title>
-<link rel="stylesheet" href="style.css?v=v0.2.79" />
+<title>Rally — duelo en tablero · v0.2.80</title>
+<link rel="stylesheet" href="style.css?v=v0.2.80" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -19,7 +19,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.79</div>
+  <div class="version-tag" id="version-tag">v0.2.80</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -392,14 +392,17 @@
   <div class="user-overlay" id="user-overlay" hidden>
     <div class="user-box">
       <span class="camp-eyebrow">Cuenta</span>
-      <h2 class="camp-title">Creá tu <b>usuario</b></h2>
-      <p class="user-hint">Es tu identidad permanente, única para todos. Siempre en minúscula. El nickname de cada partida se elige aparte, como siempre.</p>
+      <h2 class="camp-title" id="user-title">Creá tu <b>usuario</b></h2>
+      <p class="user-hint" id="user-hint"></p>
       <input class="input" id="user-input" type="text" placeholder="usuario" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="15" />
+      <input class="input" id="user-pass" type="password" placeholder="contraseña" autocomplete="off" maxlength="40" />
       <p class="user-err" id="user-err"></p>
       <div class="camp-actions">
-        <button class="btn btn--primary" id="user-create">Crear</button>
+        <button class="btn btn--primary" id="user-primary">Crear cuenta</button>
+        <button class="btn btn--outline" id="user-logout" hidden>Cerrar sesión</button>
         <button class="btn btn--ghost" id="user-cancel">Volver</button>
       </div>
+      <button class="user-switch" id="user-switch" type="button">¿Ya tenés usuario? Iniciá sesión</button>
     </div>
   </div>
 
@@ -441,6 +444,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.2.79" defer></script>
+<script src="game.js?v=v0.2.80" defer></script>
 </body>
 </html>
