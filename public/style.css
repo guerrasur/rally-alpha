@@ -1141,3 +1141,70 @@
 
   /* Entrada instantánea de pantalla (campaña: la partida aparece de golpe) */
   .screen.is-instant{ transition:none; }
+
+/* ===== 👤 Usuario (v0.2.79) ===== */
+/* Usuario permanente abajo del nickname en el HUD: chico y gris. */
+.hud-user{
+  font-family:var(--font-body);
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:.03em;
+  color:var(--muted);
+  line-height:1.2;
+  margin-top:1px;
+}
+.hud-user:empty{ display:none; }
+
+/* Usuario en la lista del lobby de torneo */
+.ot-user{
+  font-size:10.5px;
+  font-weight:500;
+  color:var(--muted);
+  letter-spacing:.02em;
+}
+
+/* Ícono de usuario (top-controls): punto de acento cuando ya hay usuario */
+.theme-toggle.has-user::after{
+  content:'';
+  position:absolute;
+  top:5px; right:5px;
+  width:6px; height:6px;
+  border-radius:50%;
+  background:var(--accent);
+}
+
+/* Overlay de creación de usuario (mismo patrón que camp-overlay) */
+.user-overlay[hidden]{ display:none; }  /* [hidden] pierde contra display:flex sin esto */
+.user-overlay{
+  position:absolute;
+  inset:0;
+  z-index:300;
+  background:var(--paper);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:28px;
+}
+.user-box{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:16px;
+  text-align:center;
+  max-width:320px;
+  width:100%;
+}
+.user-box .input{ text-align:center; text-transform:lowercase; }
+.user-hint{
+  font-family:var(--font-body);
+  font-size:12.5px;
+  color:var(--muted);
+  line-height:1.5;
+}
+.user-err{
+  font-family:var(--font-body);
+  font-size:12px;
+  color:var(--bad);
+  min-height:15px;
+  line-height:1.3;
+}
