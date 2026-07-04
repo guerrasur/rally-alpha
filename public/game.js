@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.98';
+const VERSION = 'v0.2.99';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -659,21 +659,21 @@ const TEXTS = {
   howtoHint: 'En el duelo: frená la aguja en la zona verde.',
 
   // --- Cómo se juega (pantalla larga de referencia) ---
-  infoIntro: 'Cada jugador se mueve por el tablero de a una casilla por turno (incluidas las diagonales). Los dos eligen a la vez y se mueven al mismo tiempo. El objetivo: llegar al duelo con ventaja y dejar al rival sin vida.',
-  infoItemDmg: '<b>Poder de daño.</b> Suma daño a tus golpes en los duelos. Se acumula con cada uno que juntes.',
-  infoItemDef: '<b>Poder de defensa.</b> Reduce el daño que te hace el rival en los duelos. También se acumula.',
-  infoItemTrap: '<b>Trampa.</b> Si la pisás, perdés algo de vida. Nunca te mata: como mucho te deja al borde. Conviene esquivarlas.',
-  infoItemRing: '<b>Anillo.</b> Raro y valioso. Cura vida: mucho de golpe si estás muy lastimado, o de a poco durante varias rondas si estás más entero. Mientras dura el goteo, verás su ícono junto a tus poderes.',
-  infoDuelIntro: 'Cuando los dos jugadores quedan en la misma casilla o pegados, se abre un duelo de reflejos. Una aguja recorre una barra de colores de ida y vuelta, y tenés que frenarla en la mejor zona posible.',
+  infoIntro: 'Movete una casilla por turno (incluidas diagonales). Los dos eligen y se mueven a la vez. Objetivo: llegar al duelo con ventaja y vaciar la vida del rival.',
+  infoItemDmg: '<b>Poder de daño.</b> Suma daño a tus golpes. Se acumula.',
+  infoItemDef: '<b>Poder de defensa.</b> Reduce el daño que recibís. También se acumula.',
+  infoItemTrap: '<b>Trampa.</b> Te resta vida al pisarla, pero nunca te mata. Mejor esquivarla.',
+  infoItemRing: '<b>Anillo.</b> Raro. Cura mucho de golpe si estás muy herido, o de a poco por varias rondas si no.',
+  infoDuelIntro: 'Al encontrarte con el rival arranca un duelo de reflejos: frená la aguja en la mejor zona posible.',
   infoZoneGreen: '<b>Verde</b> — buen golpe.',
   infoZoneYellow: '<b>Amarillo</b> — golpe medio.',
   infoZoneOrange: '<b>Naranja</b> — golpe flojo.',
   infoZoneRed: '<b>Rojo</b> — casi sin daño.',
-  infoPerfect: 'Justo en el centro del verde hay una franja fina: el <b>PERFECTO</b>. Vale el doble y duplica tus poderes de daño en ese golpe. Ojo: solo cuenta en la <b>primera pasada</b> de la aguja; después desaparece.',
-  infoPerfectCancels: 'Si tu golpe es perfecto y el del rival no, ese golpe <b>anula sus poderes</b> (su defensa no te tapa y su daño no cuenta). Si ambos hacen perfecto, los poderes valen normal.',
-  infoScoreDecay: 'Cuanto más tardás en frenar, más pasadas cuenta la aguja y menos vale la zona roja. El que hace más puntaje gana el duelo y le baja la vida al otro. El perdedor también araña algo de daño, proporcional a lo cerca que estuvo.',
-  infoMercy: 'Ganar un duelo nunca te mata a vos mismo, y las trampas tampoco: solo <b>perder</b> un duelo puede dejarte sin vida. Si los dos caen en la misma casilla con un ítem, un sorteo parejo decide quién se lo queda.',
-  infoWalls: 'En el <b>Modo Paredes</b> (beta), el mapa es más grande y hay paredes que cortan el paso recto. Podés bordearlas en diagonal, pero no cruzar una esquina cerrada. Lo encontrás en el menú offline, o con el toggle 🧱 al crear una sala online (no disponible en torneo x4).',
+  infoPerfect: 'En el centro del verde hay una franja fina: el <b>PERFECTO</b>. Vale doble y duplica tu poder de daño, pero solo en la <b>primera pasada</b>.',
+  infoPerfectCancels: 'Un PERFECTO <b>anula los poderes del rival</b> si él no hizo perfecto también.',
+  infoScoreDecay: 'Cuantas más pasadas tardes en frenar, menos vale el rojo. Gana quien saque más puntaje; el que pierde igual hace algo de daño.',
+  infoMercy: 'Ganar un duelo o pisar una trampa nunca te mata: solo <b>perder</b> un duelo puede. Ítem compartido: sorteo parejo.',
+  infoWalls: '<b>Modo Paredes</b> (beta): mapa más grande con paredes que bloquean el paso recto, bordeables en diagonal. En el menú offline o con el toggle 🧱 online (no en torneo x4).',
 
   // --- Toasts generales ---
   toastRingBig: '{ring} {who} +{heal} HP',
