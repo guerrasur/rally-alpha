@@ -72,8 +72,16 @@
           "ejects": {
             "$duelId": {
               ".validate": "$duelId.matches(/^d[0-9]+$/)",
-              "youPos": { ".validate": "newData.isNumber()" },
-              "oppPos": { ".validate": "newData.isNumber()" },
+              "youPos": {
+                "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                "$other": { ".validate": false }
+              },
+              "oppPos": {
+                "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                "$other": { ".validate": false }
+              },
               "$other": { ".validate": false }
             }
           },
@@ -87,7 +95,7 @@
             "color": { ".validate": "newData.isString() && newData.val().length <= 30" },
             "uid": { ".validate": "newData.isString() && newData.val().length <= 20" },
             "cpu": { ".validate": "newData.isBoolean()" },
-            "user": { ".validate": "newData.isString() && root.child('usernames').child(newData.val()).exists()" },
+            "user": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{3,15}$/) && root.child('usernames').child(newData.val()).val() === auth.uid" },
             "$other": { ".validate": false }
           }
         },
@@ -145,8 +153,16 @@
               "ejects": {
                 "$duelId": {
                   ".validate": "$duelId.matches(/^d[0-9]+$/)",
-                  "youPos": { ".validate": "newData.isNumber()" },
-                  "oppPos": { ".validate": "newData.isNumber()" },
+                  "youPos": {
+                    "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                    "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                    "$other": { ".validate": false }
+                  },
+                  "oppPos": {
+                    "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                    "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+                    "$other": { ".validate": false }
+                  },
                   "$other": { ".validate": false }
                 }
               },
