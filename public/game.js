@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.94';
+const VERSION = 'v0.2.95';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -694,13 +694,25 @@ function timeToPosition(time){
 function buildSpeedometer(){
   const ticksContainer = $('speedo-ticks');
   ticksContainer.innerHTML = '';
-  
+
   for(let i=0; i<=10; i++){
     const tick = document.createElement('div');
     tick.className = 'speedo-tick' + (i % 5 === 0 ? ' is-major' : '');
     tick.style.left = (i * 10) + '%';
     ticksContainer.appendChild(tick);
   }
+  // Ancho del track cacheado UNA vez por duelo (no en cada frame): las agujas
+  // se mueven con transform en updateNeedles() en vez de `left`, que forzaba
+  // layout en cada frame del duelo (~60/seg) y se veía trabado.
+  G.duel.trackWidth = ticksContainer.parentElement.getBoundingClientRect().width;
+}
+
+// Mueve una aguja a `pos` (0..1) del track sin tocar `left` (layout) — dos
+// translateX encadenados: el primero la ubica en píxeles, el segundo la
+// centra sobre ese punto (mismo resultado visual que left:X%+translateX(-50%),
+// pero compositado por GPU).
+function setNeedleX(el, pos, trackW){
+  el.style.transform = `translateX(${pos * trackW}px) translateX(-50%)`;
 }
 
 // Maneja ambas agujas. En online, la del rival aparece sólo cuando llega su
@@ -708,21 +720,22 @@ function buildSpeedometer(){
 function updateNeedles(currentPos){
   const needleYou = $('speedo-needle');
   const needleOpp = $('speedo-needle-opponent');
-  
+  const trackW = G.duel.trackWidth;
+
   // Aguja del jugador
   if(G.duel.yourStopped){
-    needleYou.style.left = (G.duel.yourStoppedPos * 100) + '%';
+    setNeedleX(needleYou, G.duel.yourStoppedPos, trackW);
     needleYou.style.opacity = '1';
   } else {
-    needleYou.style.left = (currentPos * 100) + '%';
+    setNeedleX(needleYou, currentPos, trackW);
     needleYou.style.opacity = '1';
   }
-  
+
   // Aguja del rival
   if(G.online){
     // Online: oculta hasta que el rival frenó (su dato llegó por Firebase).
     if(G.duel.oppStopped){
-      needleOpp.style.left = (G.duel.oppStoppedPos * 100) + '%';
+      setNeedleX(needleOpp, G.duel.oppStoppedPos, trackW);
       needleOpp.style.opacity = '0.45';
     } else {
       needleOpp.style.opacity = '0';   // todavía no sabemos dónde frenó
@@ -730,10 +743,10 @@ function updateNeedles(currentPos){
   } else {
     // Offline (vs CPU): la aguja acompaña hasta que la CPU frena.
     if(G.duel.oppStopped){
-      needleOpp.style.left = (G.duel.oppStoppedPos * 100) + '%';
+      setNeedleX(needleOpp, G.duel.oppStoppedPos, trackW);
       needleOpp.style.opacity = '0.45';
     } else {
-      needleOpp.style.left = (currentPos * 100) + '%';
+      setNeedleX(needleOpp, currentPos, trackW);
       needleOpp.style.opacity = '0.45';
     }
   }

@@ -735,7 +735,7 @@
     border-radius: 2px;
     transform: translateX(-50%);
     box-shadow: 0 0 0 2px var(--field), 0 0 0 3px var(--ink);
-    will-change: left;
+    will-change: transform;
   }
   .speedo-needle::after{
     content: '';
@@ -758,7 +758,7 @@
     border-radius: 2px;
     transform: translateX(-50%);
     box-shadow: 0 0 0 2px var(--field), 0 0 0 2px var(--muted);
-    will-change: left;
+    will-change: transform;
     opacity: 0.45;
   }
   .speedo-needle-opponent::after{
