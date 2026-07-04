@@ -49,5 +49,6 @@ jobs:
               }
               await db.ref("admins/" + uid).set(true);
               console.log("OK: " + uname + " (uid " + uid + ") ahora es admin del panel.");
+              process.exit(0);   // el Admin SDK deja la conexión de la DB abierta; sin esto el job nunca termina
             })().catch((e) => { console.error(e); process.exit(1); });
           '
