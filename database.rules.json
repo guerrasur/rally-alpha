@@ -184,6 +184,13 @@
                 "hp": { ".validate": "newData.isNumber()" },
                 "$other": { ".validate": false }
               },
+              "duel": {
+                "active": { ".validate": "newData.isBoolean()" },
+                "winner": { ".validate": "newData.isString() && (newData.val()==='A' || newData.val()==='B' || newData.val()==='tie')" },
+                "scoreA": { ".validate": "newData.isNumber()" },
+                "scoreB": { ".validate": "newData.isNumber()" },
+                "$other": { ".validate": false }
+              },
               "$other": { ".validate": false }
             },
             "result": {
