@@ -1,0 +1,28 @@
+# Deploy automático de las reglas de Realtime Database a Firebase cuando
+# cambia database.rules.json en un push/merge a main.
+# Usa el mismo secret FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE (JSON de cuenta
+# de servicio) que ya usan firebase-deploy.yml y grant-admin.yml.
+name: Deploy reglas de Realtime Database
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'database.rules.json'
+
+jobs:
+  deploy-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Autenticar cuenta de servicio
+        env:
+          FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE" > "$RUNNER_TEMP/service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/service-account.json" >> "$GITHUB_ENV"
+      - name: Deploy reglas
+        run: npx --yes firebase-tools@13 deploy --only database --project rallye-online --non-interactive
