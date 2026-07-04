@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.86';
+const VERSION = 'v0.2.87';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1860,13 +1860,14 @@ function onPlayerStop(e){
   if(e) e.preventDefault();
   if(G.online){ onPlayerStopOnline(); return; }
   if(G.phase!=='duel-play'||G.duel.yourStopped) return;
-  
-  const pos = timeToPosition(G.duel.time);
-  
-  G.duel.yourScore=computeScore(pos, G.duel.pass);
+
+  const pos = labForcePerfect ? (CFG.duelPerfectStart + CFG.duelPerfectEnd) / 2 : timeToPosition(G.duel.time);
+  const pass = labForcePerfect ? 1 : G.duel.pass;
+
+  G.duel.yourScore=computeScore(pos, pass);
   G.duel.yourStopped=true;
   G.duel.yourStoppedPos=pos;
-  G.duel.yourStoppedPass=G.duel.pass;
+  G.duel.yourStoppedPass=pass;
   Sound.stop(); haptic(10);
   const btn=$('duel-stop');
   btn.disabled=true;
@@ -1887,6 +1888,12 @@ if(window.PointerEvent){
 // Muestra, ARRIBA del velocímetro, dónde frenó cada uno (zona + color + puntaje)
 // y quién gana por cuánto (buffs incluidos). El velocímetro sigue visible con
 // las dos agujas congeladas. Dura ~2s antes del veredicto.
+// Reinicia el resplandor de PERFECTO en cada duelo, incluso si el anterior también lo fue.
+function flashPerfectHit(el, on){
+  el.classList.remove('is-perfect-hit');
+  if(on){ void el.offsetWidth; el.classList.add('is-perfect-hit'); }
+}
+
 function showDuelReveal(){
   const rawYou=G.duel.yourScore??0, rawOpp=G.duel.oppScore??0;
   // Pase de frenado; si falta (rival online) se infiere del score (determinista).
@@ -1903,8 +1910,8 @@ function showDuelReveal(){
   const bYou=$('reveal-big-you'); bYou.textContent=`+${rawYou}`; bYou.style.color=zYou.color;
   const bOpp=$('reveal-big-opp'); bOpp.textContent=`+${rawOpp}`; bOpp.style.color=zOpp.color;
   // Resaltar el número grande si fue súper golpe
-  bYou.classList.toggle('is-perfect-hit', youPerfect);
-  bOpp.classList.toggle('is-perfect-hit', oppPerfect);
+  flashPerfectHit(bYou, youPerfect);
+  flashPerfectHit(bOpp, oppPerfect);
 
   // Quién gana el duelo lo decide SOLO el puntaje crudo del minijuego (0-20),
   // nunca los buffs: eso mantiene el minijuego totalmente independiente.
@@ -2160,8 +2167,8 @@ function updateIndicatorOnline(dt){
 
 function onPlayerStopOnline(){
   if(G.phase!=='duel-play'||G.duel.yourStopped) return;
-  const pos = timeToPosition(G.duel.time);
-  const score = computeScore(pos, G.duel.pass);
+  const pos = labForcePerfect ? (CFG.duelPerfectStart + CFG.duelPerfectEnd) / 2 : timeToPosition(G.duel.time);
+  const score = computeScore(pos, labForcePerfect ? 1 : G.duel.pass);
   commitMyDuelScore(score, pos);
   Sound.stop(); haptic(10);
 }
@@ -3876,6 +3883,10 @@ $('btn-walls').addEventListener('click', ()=>{
   enterWallsMode();
   beginGame();
 });
+
+// 🧪 Testing: fuerza que TU frenada caiga siempre en la banda de PERFECTO.
+let labForcePerfect = false;
+$('lab-force-perfect').addEventListener('change', (e)=>{ labForcePerfect = e.target.checked; });
 
 $('lab-back').addEventListener('click',()=>{ show(G.running ? 'game' : 'home'); });
 $('lab-spawn-ring').addEventListener('click',()=>{
