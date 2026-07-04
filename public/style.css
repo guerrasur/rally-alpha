@@ -1067,13 +1067,22 @@
     background:var(--field); border:1px solid var(--line);
     margin: 2px 0;
   }
-  .howto-speedo__needle{
-    position:absolute; top:-4px; bottom:-4px; width:3px;
-    background:var(--ink); border-radius:2px; transform:translateX(-50%);
-    left:0%;
+  /* El barrido anima transform (compositado por GPU) en vez de left (dispara
+     layout en cada frame y se ve trabado) — el wrapper ocupa el 100% de la
+     franja para que translateX(%) (relativo a su propio ancho) recorra todo
+     el contenedor sin fijar píxeles. */
+  .howto-speedo__sweep{
+    position:absolute; top:0; bottom:0; left:0; width:100%;
     animation: howtoNeedleSweep .9s ease-in-out infinite alternate;
   }
-  @keyframes howtoNeedleSweep{ from{ left:0%; } to{ left:100%; } }
+  .howto-speedo__needle{
+    position:absolute; top:-4px; bottom:-4px; left:0; width:3px;
+    background:var(--ink); border-radius:2px;
+  }
+  @keyframes howtoNeedleSweep{
+    from{ transform:translateX(0); }
+    to{ transform:translateX(calc(100% - 3px)); }
+  }
 
   @media (prefers-reduced-motion: reduce){
     *{ animation-duration:.01ms !important; transition-duration:.05ms !important; }
