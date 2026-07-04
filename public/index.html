@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.90</title>
-<link rel="stylesheet" href="style.css?v=v0.2.90" />
+<title>Rally — duelo en tablero · v0.2.91</title>
+<link rel="stylesheet" href="style.css?v=v0.2.91" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -19,7 +19,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.90</div>
+  <div class="version-tag" id="version-tag">v0.2.91</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -72,7 +72,7 @@
     <div class="field-group">
       <div>
         <label class="label" for="name-input">Tu nombre</label>
-        <input class="input" id="name-input" type="text" placeholder="Jugador" autocomplete="off" />
+        <input class="input" id="name-input" type="text" placeholder="Jugador" autocomplete="off" maxlength="40" />
       </div>
     </div>
 
@@ -175,7 +175,7 @@
     <div id="lobby-join" style="display:none; flex-direction:column; align-items:center; gap:30px;">
       <div class="lobby-status">
         <label class="label" for="join-name" style="align-self:flex-start;">Tu nombre</label>
-        <input class="input" id="join-name" type="text" placeholder="Jugador" autocomplete="off" style="max-width:260px;" />
+        <input class="input" id="join-name" type="text" placeholder="Jugador" autocomplete="off" maxlength="40" style="max-width:260px;" />
         <span class="lobby-eyebrow" style="margin-top:14px;">Ingresá el código</span>
         <input class="input code-input" id="code-in" type="text" maxlength="4" placeholder="––––" autocomplete="off" />
       </div>
@@ -234,7 +234,9 @@
           <div class="speedo-zone is-orange" style="left:60%; width:5%"></div>
           <div class="speedo-zone is-orange2" style="left:65%; width:10%"></div>
           <div class="speedo-zone is-red" style="left:75%; width:25%"></div>
-          <div class="howto-speedo__needle"></div>
+          <div class="howto-speedo__sweep">
+            <div class="howto-speedo__needle"></div>
+          </div>
         </div>
         <button class="btn btn--ink" id="btn-howto-ok" style="max-width:200px;">Entendido</button>
       </div>
@@ -467,6 +469,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.2.90" defer></script>
+<script src="game.js?v=v0.2.91" defer></script>
 </body>
 </html>
