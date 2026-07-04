@@ -61,13 +61,16 @@
   .topline{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:22px; }
   .count{ color:var(--muted); font-size:12.5px; }
   #panel{ display:none; }
+  .table-scroll{ overflow-x:auto; }
+  .table-scroll table{ min-width:560px; }
+  .ach-soon{ color:var(--muted); opacity:.7; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="topline">
     <div><span class="eyebrow">Rally</span><h1>Panel de admin</h1></div>
-    <span class="count" id="ver">v0.2.83</span>
+    <span class="count" id="ver">v0.2.84</span>
   </div>
 
   <!-- Login -->
@@ -107,6 +110,18 @@
           <tbody id="u-rows"><tr><td colspan="2">Cargando…</td></tr></tbody>
         </table>
         <div class="row-actions"><button class="btn btn--ghost btn--small" id="u-refresh">Refrescar</button></div>
+      </div>
+
+      <h2>📊 Estadísticas de jugadores</h2>
+      <p class="hint">Solo cuentan partidas <b>online</b> (salas 1v1 y torneo x4) — la práctica offline no suma. PJ = partidas jugadas, PG = partidas ganadas.</p>
+      <div class="card">
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Usuario</th><th>PJ</th><th>PG</th><th>Kills</th><th>Torneos</th><th>Daño hecho</th><th>Daño recib.</th><th>Logros</th></tr></thead>
+            <tbody id="ps-rows"><tr><td colspan="8">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="row-actions"><button class="btn btn--ghost btn--small" id="ps-refresh">Refrescar</button></div>
       </div>
 
       <h2>⚙️ Stats del juego</h2>
@@ -204,6 +219,7 @@ async function refreshSession(){
   $('st-save').disabled = false;
   $('st-reset').disabled = false;
   loadUsers();
+  loadPlayerStats();
   loadStats();
   loadAdmins();
 }
@@ -286,6 +302,27 @@ async function loadUsers(){
   }catch(e){ tbody.innerHTML = '<tr><td colspan="2">Error al leer (¿sesión válida?).</td></tr>'; }
 }
 $('u-refresh').addEventListener('click', loadUsers);
+
+// ---- Estadísticas de jugadores (users/{uid}/stats, admin puede leer cualquier uid) ----
+async function loadPlayerStats(){
+  const tbody = $('ps-rows');
+  try{
+    const unames = (await db.ref('usernames').get()).val() || {};
+    const names = Object.keys(unames).sort();
+    if(!names.length){ tbody.innerHTML = '<tr><td colspan="8">Todavía no hay usuarios.</td></tr>'; return; }
+    const rows = await Promise.all(names.map(async n=>{
+      const uid = unames[n];
+      let s = {};
+      try{ s = (await db.ref('users/'+uid+'/stats').get()).val() || {}; }catch(e){}
+      const c = (v)=> v || 0;
+      return `<tr><td><b>${esc(n)}</b></td><td>${c(s.gamesPlayed)}</td><td>${c(s.gamesWon)}</td><td>${c(s.kills)}</td>`+
+             `<td>${c(s.tournamentsWon)}</td><td>${c(s.damageDealt)}</td><td>${c(s.damageReceived)}</td>`+
+             `<td class="ach-soon">Todavía no</td></tr>`;
+    }));
+    tbody.innerHTML = rows.join('');
+  }catch(e){ tbody.innerHTML = '<tr><td colspan="8">Error al leer (¿sesión válida?).</td></tr>'; }
+}
+$('ps-refresh').addEventListener('click', loadPlayerStats);
 
 // ---- Stats ----
 async function loadStats(){
