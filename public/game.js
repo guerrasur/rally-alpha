@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.95';
+const VERSION = 'v0.2.96';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1105,6 +1105,7 @@ function startGame(){
 function startOnlineGame(boardStr, role){
   G.online = true;
   G.flip = (role === 'guest');
+  G._idleAutoStreak = 0;   // racha de auto-movimientos por inactividad, por partida
   deserializeBoard(boardStr);        // esto define CFG.boardSize (7 normal, 9 paredes)
   const n = CFG.boardSize;           // leer DESPUÉS de deserializar
   document.documentElement.style.removeProperty('--opp-accent'); // rival neutro online
@@ -1199,11 +1200,18 @@ function startChoosePhase(){
       }
     };
     Net.listenMoves(G.turnCount);
+    // Auto-movimiento por inactividad: solo 1v1/torneo online contra un
+    // rival humano real (nunca en torneo x4 contra CPU de relleno, que
+    // igual ya deja G.online en false para esos casos).
+    if(!(OT.active && OT.inMatch)) startIdleTimer();
   }
 }
 
-function onPlayerMove(x, y){
+function onPlayerMove(x, y, isAuto){
   if(G.phase!=='choose') return;
+  clearIdleTimers();
+  // Elegiste vos a tiempo: corta la racha de auto-movimientos consecutivos.
+  if(G.online && !isAuto) G._idleAutoStreak = 0;
   G.yourMove={x,y};
   if(G.online){
     // Online: subir mi movimiento y esperar al rival
@@ -1216,6 +1224,107 @@ function onPlayerMove(x, y){
   // Offline: la CPU responde y se resuelve
   G.oppMove=cpuDecideMove();
   resolveMoves();
+}
+
+// ===== ⏱️ Auto-mover por inactividad (solo online, v0.2.96) =====
+// Si no elegís casillero en 6s, te mueve solo al más conveniente. Al
+// completarse 3 auto-movimientos seguidos (sin que elijas vos a tiempo en
+// el medio), se te da por desconectado y el rival gana — reusando el MISMO
+// flujo de abandono/presencia que ya existe (Net.leave() borra tu marca de
+// presencia; el rival ya tiene armado onOpponentLeft() para ese caso, con
+// su propio período de gracia), en vez de escribir una pantalla nueva.
+const IDLE_REVEAL_MS = 3000;   // recién a partir de acá se ve la barra
+const IDLE_TOTAL_MS = 6000;    // tiempo total antes del auto-movimiento
+const IDLE_MAX_STREAK = 3;
+
+function clearIdleTimers(){
+  if(G._idleTimers) G._idleTimers.forEach(t=>clearTimeout(t));
+  G._idleTimers = [];
+  hideIdleBar();
+}
+
+function startIdleTimer(){
+  clearIdleTimers();
+  G._idleTimers.push(setTimeout(showIdleBar, IDLE_REVEAL_MS));
+  G._idleTimers.push(setTimeout(()=>{
+    const fill=$('idle-timer-fill');
+    if(fill){ fill.classList.remove('is-green'); fill.classList.add('is-yellow'); }
+  }, IDLE_REVEAL_MS + 1000));
+  G._idleTimers.push(setTimeout(()=>{
+    const fill=$('idle-timer-fill');
+    if(fill){ fill.classList.remove('is-yellow'); fill.classList.add('is-red'); }
+    const bar=$('idle-timer');
+    if(bar) bar.classList.add('is-danger');
+  }, IDLE_REVEAL_MS + 2000));
+  G._idleTimers.push(setTimeout(autoMoveIdle, IDLE_TOTAL_MS));
+}
+
+function showIdleBar(){
+  const bar=$('idle-timer'), fill=$('idle-timer-fill');
+  if(!bar || !fill) return;
+  fill.className = 'idle-timer__fill is-green';
+  fill.style.transition = 'none';
+  fill.style.width = '100%';
+  bar.classList.add('is-show');
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      fill.style.transition = `width ${IDLE_TOTAL_MS - IDLE_REVEAL_MS}ms linear`;
+      fill.style.width = '0%';
+    });
+  });
+}
+
+function hideIdleBar(){
+  const bar=$('idle-timer'), fill=$('idle-timer-fill');
+  if(!bar || !fill) return;
+  bar.classList.remove('is-show','is-danger');
+  fill.style.transition = 'none';
+  fill.style.width = '100%';
+  fill.className = 'idle-timer__fill is-green';
+}
+
+// Heurística simple para el auto-movimiento por inactividad: no reusa
+// cpuDecideMove() porque esa está atada a conceptos de la IA offline
+// (skill, rasgos de personaje, historial anti-vaivén) que no aplican acá.
+function bestConvenientMove(me){
+  const reachable = getReachable(me.x, me.y);
+  const nonTrap = reachable.filter(p => cellAt(p.x,p.y).type !== 'down');
+  const boxedIn = nonTrap.length === 0;
+  const scored = reachable.map(p=>{
+    const t = cellAt(p.x,p.y).type;
+    let score = 0;
+    if(t==='power_dmg') score += 6;
+    else if(t==='power_def') score += 5;
+    else if(t==='ring') score += 8;
+    else if(t==='empty') score += 1;
+    else if(t==='down'){ score -= 14; if(boxedIn) score += 13; }
+    score += Math.random() * 0.5;   // desempate suave
+    return { x:p.x, y:p.y, score };
+  });
+  scored.sort((a,b)=>b.score-a.score);
+  return scored[0];
+}
+
+function autoMoveIdle(){
+  if(G.phase!=='choose' || !G.online) return;
+  G._idleAutoStreak = (G._idleAutoStreak||0) + 1;
+  const move = bestConvenientMove(G.you);
+  onPlayerMove(move.x, move.y, true);
+  if(G._idleAutoStreak >= IDLE_MAX_STREAK){
+    setTimeout(forfeitByIdle, 400);
+  } else {
+    toast(`Te moviste solo por inactividad (${G._idleAutoStreak}/${IDLE_MAX_STREAK})`);
+  }
+}
+
+function forfeitByIdle(){
+  if(!G.online) return;
+  Net.leave();
+  G.running=false; G.phase='idle'; G.online=false;
+  Chat.unmount();
+  if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
+  show('home');
+  toast('Te desconectamos por inactividad — perdiste la partida.');
 }
 
 // Online: llegaron ambos movimientos. Mapear según mi rol y resolver.
