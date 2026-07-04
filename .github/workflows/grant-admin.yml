@@ -1,0 +1,53 @@
+# Otorga el rol de admin del panel (/admin/) a un usuario de Rally ya
+# registrado. Se dispara a mano (workflow_dispatch) desde la pestaña Actions
+# de GitHub. Usa el mismo secret FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE del
+# deploy — el Admin SDK escribe directo en la base, sin pasar por las reglas
+# de seguridad (por eso este paso NO es self-service desde el panel: solo
+# quien puede correr un Action en este repo puede otorgar el primer admin o
+# recuperar el acceso si algo sale mal).
+name: Otorgar admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'Usuario de Rally (en minúscula) al que dar admin'
+        required: true
+        default: 'lucio'
+
+jobs:
+  grant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install firebase-admin@12
+      - name: Otorgar admin
+        env:
+          FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE }}
+          TARGET_USERNAME: ${{ github.event.inputs.username }}
+        run: |
+          node -e '
+            const admin = require("firebase-admin");
+            const svc = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_RALLYE_ONLINE);
+            admin.initializeApp({
+              credential: admin.credential.cert(svc),
+              databaseURL: "https://rallye-online-default-rtdb.firebaseio.com",
+            });
+            const db = admin.database();
+            (async () => {
+              const uname = String(process.env.TARGET_USERNAME || "").trim().toLowerCase();
+              if (!/^[a-z0-9_]{3,15}$/.test(uname)) {
+                console.error("Usuario invalido:", uname);
+                process.exit(1);
+              }
+              const uid = (await db.ref("usernames/" + uname).get()).val();
+              if (!uid) {
+                console.error("No existe ningun usuario de Rally con ese nombre:", uname);
+                process.exit(1);
+              }
+              await db.ref("admins/" + uid).set(true);
+              console.log("OK: " + uname + " (uid " + uid + ") ahora es admin del panel.");
+            })().catch((e) => { console.error(e); process.exit(1); });
+          '
