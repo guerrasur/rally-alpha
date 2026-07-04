@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.85';
+const VERSION = 'v0.2.86';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -2066,6 +2066,7 @@ function duelIdFor(){ return 'd'+G.turnCount; }
 
 function startDuelOnline(){
   G.phase='duel-countdown';
+  if(OT.active && OT.inMatch && OT.master) OT.pushSpec({ active:true });
   $('duel-overlay').classList.add('is-show');
   $('duel-result').style.display='none';
   $('duel-game').style.display='none';
@@ -2235,6 +2236,11 @@ function resolveDuelOnline(){
     Sound.lose(); haptic([20,60,20]);
   } else {
     isTie=true; showDuelOutcome({ tie:true, youBefore:youHpBefore, oppBefore:oppHpBefore }); Sound.tie();
+  }
+  if(OT.active && OT.inMatch && OT.master){
+    const meIsA = (OT.matchA===OT.mySeat);
+    const winner = isTie ? 'tie' : ((rawYou>rawOpp)===meIsA ? 'A' : 'B');
+    OT.pushSpec({ active:false, winner, scoreA: meIsA?rawYou:rawOpp, scoreB: meIsA?rawOpp:rawYou });
   }
   G.you.buffs={dmg:0,def:0}; G.opp.buffs={dmg:0,def:0};
   G.justDueled = true;
@@ -3178,16 +3184,22 @@ const OT = {
   },
 
   // ---- Estado para espectadores ----
-  pushSpec(){
+  // duelInfo (opcional): { active:true } al empezar el duelo, o
+  // { active:false, winner:'A'|'B'|'tie', scoreA, scoreB } al resolverse.
+  // Es un .set() completo (no merge) — por eso el "aviso de duelo" desaparece
+  // solo en el próximo pushSpec() normal (sin duelInfo) de startChoosePhase.
+  pushSpec(duelInfo){
     try{
       if(!this.active || !this.ref || !this.myMatchId || !this.master) return;
       let A,B;
       if(this.matchA===this.mySeat){ A=G.you; B=G.opp; } else { A=G.opp; B=G.you; }
-      this.ref.child('matches/'+this.myMatchId+'/spec').set({
+      const payload = {
         board: serializeBoard(), turn: G.turnCount,
         A:{ x:A.x, y:A.y, hp:Math.max(0,A.hp) },
         B:{ x:B.x, y:B.y, hp:Math.max(0,B.hp) },
-      }).catch(()=>{});
+      };
+      if(duelInfo) payload.duel = duelInfo;
+      this.ref.child('matches/'+this.myMatchId+'/spec').set(payload).catch(()=>{});
     }catch(e){}
   },
 
@@ -3285,14 +3297,23 @@ const OT = {
       return;
     }
     this.renderSpecHead(spec);
-    $('spec-note').textContent='Turno '+(spec.turn||0);
+    const st=this._specSeats||{};
+    if(spec.duel && spec.duel.active){
+      $('spec-note').textContent='⚔️ ¡Duelo en curso!';
+    } else if(spec.duel && spec.duel.active===false){
+      const pa=this.players[st.a]||{}, pb=this.players[st.b]||{};
+      $('spec-note').textContent = (spec.duel.winner==='tie')
+        ? `🤝 Empate (${spec.duel.scoreA}-${spec.duel.scoreB})`
+        : `⚔️ Ganó ${escHtml((spec.duel.winner==='A'?pa:pb).name||'?')} (${spec.duel.scoreA}-${spec.duel.scoreB})`;
+    } else {
+      $('spec-note').textContent='Turno '+(spec.turn||0);
+    }
     const cells=String(spec.board||'');
     const n=Math.round(Math.sqrt(cells.length))||7;
     const boardEl=$('spec-board');
     boardEl.innerHTML='';
     boardEl.style.gridTemplateColumns=`repeat(${n},1fr)`;
     boardEl.style.gridTemplateRows=`repeat(${n},1fr)`;
-    const st=this._specSeats||{};
     const colA=(this.players[st.a]||{}).color||CPU_GRAY;
     const colB=(this.players[st.b]||{}).color||CPU_GRAY;
     for(let y=0;y<n;y++) for(let x=0;x<n;x++){
