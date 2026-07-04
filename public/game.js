@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.87';
+const VERSION = 'v0.2.88';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -203,7 +203,8 @@ const User = {
 const Stats = {
   bump(uid, key, delta){
     if(!fbDb || !uid || !delta) return;
-    fbDb.ref('users/'+uid+'/stats/'+key).transaction(cur=>(cur||0)+delta).catch(()=>{});
+    fbDb.ref('users/'+uid+'/stats/'+key).transaction(cur=>(cur||0)+delta)
+      .catch(e=>console.error('[Rally] Stats.bump falló ('+key+'):', e));
   },
   bumpMany(uid, deltas){
     for(const k in deltas){ if(deltas[k]) this.bump(uid, k, deltas[k]); }
@@ -2224,13 +2225,15 @@ function resolveDuelOnline(){
   // Quién ganó el duelo lo decide el puntaje crudo del minijuego, no el daño
   // ya modificado por buffs.
   let isTie=false;
-  const _statsUid = User.current() && User.current().uid;   // stats: solo duelos online
+  // stats: solo duelos online — ensureAuth() espera a que la sesión (ya en
+  // curso) termine de resolverse en vez de asumir currentUser ya disponible
+  // (evita perder el guardado si la restauración de sesión todavía no terminó).
   if(rawYou>rawOpp){
     const rawChip=loserChipDamage(oppRealDmg, yourRealDmg);
     const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
     G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
     G.you.hp=Math.max(0,G.you.hp-chip);
-    if(_statsUid) Stats.bumpMany(_statsUid, { damageDealt:yourRealDmg, damageReceived:chip, kills:G.opp.hp<=0?1:0 });
+    ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { damageDealt:yourRealDmg, damageReceived:chip, kills:G.opp.hp<=0?1:0 }); });
     showDuelOutcome({ youWin:true, perfect:_dmgO.youPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
     Sound.win(); haptic([15,30,15]);
   } else if(rawOpp>rawYou){
@@ -2238,7 +2241,7 @@ function resolveDuelOnline(){
     const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
     G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
     G.opp.hp=Math.max(0,G.opp.hp-chip);
-    if(_statsUid) Stats.bumpMany(_statsUid, { damageDealt:chip, damageReceived:oppRealDmg });
+    ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { damageDealt:chip, damageReceived:oppRealDmg }); });
     showDuelOutcome({ youWin:false, perfect:_dmgO.oppPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
     Sound.lose(); haptic([20,60,20]);
   } else {
@@ -2434,8 +2437,7 @@ function endGame(){
       }
       if(won===true)  rt.classList.add('is-win');
       if(won===false) rt.classList.add('is-lose');
-      const _statsUid = User.current() && User.current().uid;
-      if(_statsUid) Stats.bumpMany(_statsUid, { gamesPlayed:1, gamesWon: won===true?1:0 });
+      ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { gamesPlayed:1, gamesWon: won===true?1:0 }); });
       App.scoreYou=0; App.scoreOpp=0;   // reset para futuras series
       setupOnlineEnd();
     } else {
@@ -3179,8 +3181,7 @@ const OT = {
       this.ref.child(path).set(winner).catch(()=>{});
     }catch(e){}
     if(wasOnline){   // partida vs humano real (no CPU de relleno) → cuenta para stats
-      const _statsUid = User.current() && User.current().uid;
-      if(_statsUid) Stats.bumpMany(_statsUid, { gamesPlayed:1, gamesWon: winner===this.mySeat?1:0 });
+      ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { gamesPlayed:1, gamesWon: winner===this.mySeat?1:0 }); });
     }
     if(G.online) Net.detachMatch();
     G.online=false; G.running=false;
@@ -3222,8 +3223,7 @@ const OT = {
         title.textContent='🏆 Ganaste el torneo'; title.classList.add('is-win');
         if(!this._champBumped){
           this._champBumped = true;
-          const _statsUid = User.current() && User.current().uid;
-          if(_statsUid) Stats.bump(_statsUid, 'tournamentsWon', 1);
+          ensureAuth().then(u=>{ if(u) Stats.bump(u.uid, 'tournamentsWon', 1); });
         }
       }
       else if((w0===this.mySeat||w1===this.mySeat)){ title.textContent='Perdiste la final'; title.classList.add('is-lose'); }
