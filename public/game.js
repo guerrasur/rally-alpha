@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.84';
+const VERSION = 'v0.2.85';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -209,6 +209,23 @@ const Stats = {
     for(const k in deltas){ if(deltas[k]) this.bump(uid, k, deltas[k]); }
   },
 };
+
+// ===== 📈 Visitas del sitio (v0.2.85) =====
+// A diferencia de Stats (que solo cuenta partidas online), esto cuenta CADA
+// carga de la página, juegue o no online — por eso dispara la auth anónima
+// de una vez al cargar (antes solo pasaba al ir online). Es seguro: ensureAuth
+// ya espera el primer onAuthStateChanged (fix #23), así que nunca pisa una
+// sesión con contraseña ya iniciada. "Visitante único" = mismo uid persistente
+// (mismo navegador/dispositivo), aunque nunca cree usuario ni juegue online.
+function trackVisit(){
+  if(DEMO || !fbDb) return;
+  ensureAuth().then(u=>{
+    if(!u) return;
+    fbDb.ref('siteStats/pageViews').transaction(cur=>(cur||0)+1).catch(()=>{});
+    fbDb.ref('siteStats/visitors/'+u.uid).set(true).catch(()=>{});
+  }).catch(()=>{});
+}
+trackVisit();
 
 // Primer estado de auth conocido (y cada cambio): marca la restauración como
 // lista para ensureAuth, re-sincroniza el usuario cacheado si hace falta y
