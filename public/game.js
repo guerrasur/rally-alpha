@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.92';
+const VERSION = 'v0.2.93';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1398,6 +1398,32 @@ function cpuDecideMove(){
   return { x: scored[0].x, y: scored[0].y };
 }
 
+// Desplazamiento fluido de casilla a casilla (FLIP: medir antes de redibujar,
+// dejar que renderBoard() salte a la posición nueva, invertir la diferencia
+// con un transform sin transición y soltarlo un frame después — .player-marker
+// ya trae su propia transition de transform, así que el navegador anima solo).
+// Sirve igual para ortogonal o diagonal (delta 2D genérico).
+function getMarkerRect(cls){
+  const el = document.querySelector('.player-marker.'+cls);
+  return el ? el.getBoundingClientRect() : null;
+}
+function flipMarker(cls, oldRect){
+  if(!oldRect) return;
+  const el = document.querySelector('.player-marker.'+cls);
+  if(!el) return;
+  const newRect = el.getBoundingClientRect();
+  const dx = oldRect.left - newRect.left, dy = oldRect.top - newRect.top;
+  if(!dx && !dy) return;
+  el.style.transition = 'none';
+  el.style.transform = `translate(${dx}px, ${dy}px)`;
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      el.style.transition = '';
+      el.style.transform = '';
+    });
+  });
+}
+
 function resolveMoves(){
   G.phase='moving'; setMsg('Moviendo…');
   G.you.prevX=G.you.x; G.you.prevY=G.you.y; G.opp.prevX=G.opp.x; G.opp.prevY=G.opp.y;
@@ -1407,6 +1433,12 @@ function resolveMoves(){
     G.opp.history.push(`${G.opp.x},${G.opp.y}`);
     if(G.opp.history.length>6) G.opp.history.shift();
   }
+  // Si ambos caen en la MISMA casilla, renderBoard() les aplica su propio
+  // transform de choque (.is-clash) — no animamos ese caso puntual para no
+  // pelear con ese offset ya afinado.
+  const willClash = (G.yourMove.x===G.oppMove.x && G.yourMove.y===G.oppMove.y);
+  const youOldRect = willClash ? null : getMarkerRect('is-you');
+  const oppOldRect = willClash ? null : getMarkerRect('is-opp');
   G.you.x=G.yourMove.x; G.you.y=G.yourMove.y; G.opp.x=G.oppMove.x; G.opp.y=G.oppMove.y;
   const sharedBuff = applySharedCellEffects();
   applyRingDrip(G.you); applyRingDrip(G.opp);
@@ -1415,6 +1447,8 @@ function resolveMoves(){
   const wasTruce = G.justDueled;
   G.justDueled = false;
   Sound.step(); haptic(10); renderBoard(); updateHud();
+  flipMarker('is-you', youOldRect);
+  flipMarker('is-opp', oppOldRect);
   if(G.you.hp<=0 || G.opp.hp<=0){ setTimeout(()=>endGame(), 800); return; }
   G.turnCount++;
 
