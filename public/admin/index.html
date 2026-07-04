@@ -89,29 +89,48 @@
       <button class="btn btn--ghost btn--small" id="s-out">Cerrar sesión</button>
     </div>
     <p class="hint" id="s-uid"></p>
-    <div id="claim-box" style="display:none;">
-      <p class="hint">Todavía no hay ningún admin. El primero que reclame, se queda con el control (después solo se agregan admins desde la consola de Firebase).</p>
+
+    <!-- Bloqueado: cuenta logueada pero sin permiso de admin -->
+    <div class="card" id="blocked-box" style="display:none;">
+      <p class="hint">Tu cuenta no es administradora. Pedile a un admin que te agregue desde la sección "Administradores" de este mismo panel.</p>
+      <p class="hint">Si todavía no existe ningún admin (primera vez que se usa el panel), podés reclamarlo vos:</p>
       <button class="btn btn--primary" id="claim-go">Reclamar admin</button>
       <p class="err" id="claim-err"></p>
     </div>
 
-    <h2>👥 Usuarios creados <span class="count" id="u-count"></span></h2>
-    <div class="card">
-      <table>
-        <thead><tr><th>Usuario</th><th>UID</th></tr></thead>
-        <tbody id="u-rows"><tr><td colspan="2">Cargando…</td></tr></tbody>
-      </table>
-      <div class="row-actions"><button class="btn btn--ghost btn--small" id="u-refresh">Refrescar</button></div>
-    </div>
+    <!-- Contenido solo para admins -->
+    <div id="admin-content" style="display:none;">
+      <h2>👥 Usuarios creados <span class="count" id="u-count"></span></h2>
+      <div class="card">
+        <table>
+          <thead><tr><th>Usuario</th><th>UID</th></tr></thead>
+          <tbody id="u-rows"><tr><td colspan="2">Cargando…</td></tr></tbody>
+        </table>
+        <div class="row-actions"><button class="btn btn--ghost btn--small" id="u-refresh">Refrescar</button></div>
+      </div>
 
-    <h2>⚙️ Stats del juego</h2>
-    <p class="hint">Los valores en <b>azul</b> difieren del default del juego. Los cambios se guardan en la nube y aplican a <b>todos los jugadores</b> en la próxima carga del juego (no hace falta deploy). Las partidas en curso no se tocan.</p>
-    <div class="card" id="stats-card">Cargando…</div>
-    <p class="err" id="st-err"></p>
-    <p class="okmsg" id="st-ok"></p>
-    <div class="row-actions">
-      <button class="btn btn--primary" id="st-save" disabled>Guardar cambios</button>
-      <button class="btn btn--ghost" id="st-reset">Restaurar defaults</button>
+      <h2>⚙️ Stats del juego</h2>
+      <p class="hint">Los valores en <b>azul</b> difieren del default del juego. Los cambios se guardan en la nube y aplican a <b>todos los jugadores</b> en la próxima carga del juego (no hace falta deploy). Las partidas en curso no se tocan.</p>
+      <div class="card" id="stats-card">Cargando…</div>
+      <p class="err" id="st-err"></p>
+      <p class="okmsg" id="st-ok"></p>
+      <div class="row-actions">
+        <button class="btn btn--primary" id="st-save" disabled>Guardar cambios</button>
+        <button class="btn btn--ghost" id="st-reset">Restaurar defaults</button>
+      </div>
+
+      <h2>🔑 Administradores</h2>
+      <p class="hint">Quienes pueden entrar a este panel. No se pueden quitar desde acá (por seguridad) — eso es solo desde la consola de Firebase.</p>
+      <div class="card">
+        <table>
+          <thead><tr><th>Usuario</th><th>UID</th></tr></thead>
+          <tbody id="a-rows"><tr><td colspan="2">Cargando…</td></tr></tbody>
+        </table>
+        <input class="input" id="a-input" type="text" placeholder="usuario a agregar" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="15" style="margin-top:14px;" />
+        <p class="err" id="a-err"></p>
+        <p class="okmsg" id="a-ok"></p>
+        <div class="row-actions"><button class="btn btn--primary" id="a-add">Agregar como admin</button></div>
+      </div>
     </div>
   </div>
 </div>
@@ -172,16 +191,21 @@ async function refreshSession(){
   try{ uname = (await db.ref('users/'+cu.uid+'/username').get()).val() || uname; }catch(e){}
   $('s-who').textContent = '👤 '+uname;
   $('s-uid').textContent = 'uid: '+cu.uid;
-  let admins = null;
-  try{ admins = (await db.ref('admins').get()).val(); }catch(e){}
-  isAdmin = !!(admins && admins[cu.uid] === true);
-  $('s-badge').textContent = isAdmin ? 'admin' : 'solo lectura';
+  // Se lee SOLO la propia clave (admins/{uid}) — listar admins/ entero está
+  // restringido a admins por las reglas, así que un no-admin nunca ve la lista.
+  let mine = null;
+  try{ mine = (await db.ref('admins/'+cu.uid).get()).val(); }catch(e){}
+  isAdmin = mine === true;
+  $('s-badge').textContent = isAdmin ? 'admin' : 'sin acceso';
   $('s-badge').classList.toggle('is-off', !isAdmin);
-  $('claim-box').style.display = (!admins) ? 'block' : 'none';
-  $('st-save').disabled = !isAdmin;
-  $('st-reset').disabled = !isAdmin;
+  $('blocked-box').style.display = isAdmin ? 'none' : 'block';
+  $('admin-content').style.display = isAdmin ? 'block' : 'none';
+  if(!isAdmin) return;   // el resto del panel es solo para admins
+  $('st-save').disabled = false;
+  $('st-reset').disabled = false;
   loadUsers();
   loadStats();
+  loadAdmins();
 }
 
 // ---- Login / logout ----
@@ -201,14 +225,52 @@ $('l-go').addEventListener('click', async ()=>{
 });
 $('s-out').addEventListener('click', async ()=>{ await firebase.auth().signOut(); show(false); });
 
-// ---- Reclamar admin (solo mientras admins/ esté vacío) ----
+// ---- Reclamar admin (solo funciona si admins/ está vacío del todo — las
+// reglas lo deciden server-side, no hace falta saberlo de antemano acá) ----
 $('claim-go').addEventListener('click', async ()=>{
   const cu = firebase.auth().currentUser; if(!cu) return;
   $('claim-err').textContent='';
   try{
     await db.ref('admins/'+cu.uid).set(true);
     await refreshSession();
-  }catch(e){ $('claim-err').textContent='No se pudo reclamar (¿ya hay un admin?).'; }
+  }catch(e){ $('claim-err').textContent='No se pudo reclamar — ya existe al menos un admin. Pedile que te agregue.'; }
+});
+
+// ---- Administradores (solo visible ya siendo admin) ----
+// Nota: users/{uid}/username es de lectura solo-dueño (privacidad), así que
+// para mostrar el usuario de OTROS admins usamos usernames/ (nombre→uid, ya
+// legible por cualquier autenticado) invertido en el cliente.
+async function loadAdmins(){
+  const tbody = $('a-rows');
+  try{
+    const [adminsVal, unamesVal] = await Promise.all([
+      db.ref('admins').get().then(s=>s.val()||{}),
+      db.ref('usernames').get().then(s=>s.val()||{}),
+    ]);
+    const uidToName = {};
+    for(const name in unamesVal) uidToName[unamesVal[name]] = name;
+    const uids = Object.keys(adminsVal);
+    const rows = uids.map(uid=>`<tr><td><b>${esc(uidToName[uid]||'(sin usuario)')}</b></td><td class="uid">${esc(uid)}</td></tr>`);
+    tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="2">Sin admins (no debería pasar).</td></tr>';
+  }catch(e){ tbody.innerHTML = '<tr><td colspan="2">Error al leer la lista.</td></tr>'; }
+}
+$('a-add').addEventListener('click', async ()=>{
+  const err=$('a-err'), ok=$('a-ok'), btn=$('a-add');
+  err.textContent=''; ok.textContent='';
+  const u = $('a-input').value.trim().toLowerCase();
+  if(!/^[a-z0-9_]{3,15}$/.test(u)){ err.textContent='Usuario inválido.'; return; }
+  btn.disabled=true; btn.textContent='Agregando…';
+  try{
+    const uid = (await db.ref('usernames/'+u).get()).val();
+    if(!uid){ err.textContent='No existe ningún usuario de Rally con ese nombre.'; }
+    else{
+      await db.ref('admins/'+uid).set(true);
+      ok.textContent = `"${u}" ahora es admin ✓`;
+      $('a-input').value='';
+      await loadAdmins();
+    }
+  }catch(e){ err.textContent='No se pudo agregar (¿sigue siendo tu cuenta admin?).'; }
+  btn.disabled=false; btn.textContent='Agregar como admin';
 });
 
 // ---- Usuarios ----
