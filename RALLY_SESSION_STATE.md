@@ -1,6 +1,6 @@
 # Rally — Session State & Learnings
 
-**Última actualización:** v0.2.89 — 2026-07-04, sesión remota (Claude Code on the web).
+**Última actualización:** v0.2.90 — 2026-07-04, sesión remota (Claude Code on the web).
 **Idioma:** todo con el usuario (Lucio) en español argentino.
 Memoria entre sesiones: mantener COMPACTO (el usuario cuida tokens — condensar/borrar lo viejo al agregar secciones nuevas).
 
@@ -77,7 +77,8 @@ Tablero 7x7 (9 paredes), movimientos simultáneos. Ítems: 🗡️ power_dmg, �
 - **Modo Paredes (beta):** toggle en lobby (solo host, partida única/bo5, no torneo x4). Serialización online con prefijo "W". Falta test online real.
 - **Modo oscuro (hecho ~v0.2.76-77):** toggle `btn-theme`, `data-theme`, localStorage `rally_theme`, claro por defecto. Anti-FOUC con script inline en `<head>`.
 - **Chat online (v0.2.62):** panel plegable + badge no leídos, objeto `Chat`. Cubre 2p y torneo. Confirmado en producción.
-- **🧪 Laboratorio:** `?lab=1` o 5 taps en version-tag. Sliders sobre CFG, export/import JSON, reset, spawnear anillo. Seguro de shippear.
+- **🧪 Laboratorio:** `?lab=1` o 5 taps en version-tag. Sliders sobre CFG, export/import JSON, reset, spawnear anillo. Seguro de shippear. Incluye checkbox "Forzar PERFECTO siempre" (testing) que fuerza tu frenada a la banda de PERFECTO (`labForcePerfect`, offline y online).
+- **Pantalla "Cómo se juega" (`#howto`, v0.2.90):** rediseño pedido por Lucio con mockup de referencia — párrafo acortado, mismo legend/hint, y **nueva franja mini de speedómetro decorativa** (`.howto-speedo`, reutiliza las clases `.speedo-zone.is-*` reales) con una aguja que barre sola en loop continuo vía CSS (`@keyframes howtoNeedleSweep`, 0.9s por tramo = mismo ritmo que `CFG.duelCycleDuration`). Es puramente ilustrativo, no hay duelo real corriendo detrás. Sin cambios en el trigger (`beginGame._seen`, una vez por sesión, Campaña/Torneo la siguen salteando).
 - Extras: easter egg "messi", nombre cacheado `rally_name`, invitación `?sala=CODE`, limpieza de salas >2hs, indicador "el rival ya eligió".
 
 ## LECCIONES (leer antes de tocar código)

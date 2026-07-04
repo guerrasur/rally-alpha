@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.89</title>
-<link rel="stylesheet" href="style.css?v=v0.2.89" />
+<title>Rally — duelo en tablero · v0.2.90</title>
+<link rel="stylesheet" href="style.css?v=v0.2.90" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -19,7 +19,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.89</div>
+  <div class="version-tag" id="version-tag">v0.2.90</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -217,13 +217,25 @@
       <div class="board" id="board"></div>
       <div class="howto" id="howto">
         <div class="howto__title">Cómo se juega</div>
-        <p class="howto__text">Cada turno elegís un casillero contiguo (incluyendo diagonales). Juntá power-ups y evitá las trampas. Cuando quedes contiguo al rival, se arma un duelo de reflejos.</p>
+        <p class="howto__text">Movete por el tablero. Agarrá espadas y escudos, y evitá las cruces. Al encontrarte con el rival, duelo.</p>
         <div class="howto__legend">
           <span><b class="sym-atk">🗡️</b> +daño próximo duelo</span>
           <span><b class="sym-def">◈</b> +defensa próximo duelo</span>
           <span><b class="sym-down">×</b> daño directo</span>
         </div>
         <p class="howto__hint">En el duelo: frená la aguja en la zona verde.</p>
+        <div class="howto-speedo">
+          <div class="speedo-zone is-red" style="left:0; width:25%"></div>
+          <div class="speedo-zone is-orange2" style="left:25%; width:10%"></div>
+          <div class="speedo-zone is-orange" style="left:35%; width:5%"></div>
+          <div class="speedo-zone is-yellow" style="left:40%; width:6%"></div>
+          <div class="speedo-zone is-green" style="left:46%; width:8%"></div>
+          <div class="speedo-zone is-yellow" style="left:54%; width:6%"></div>
+          <div class="speedo-zone is-orange" style="left:60%; width:5%"></div>
+          <div class="speedo-zone is-orange2" style="left:65%; width:10%"></div>
+          <div class="speedo-zone is-red" style="left:75%; width:25%"></div>
+          <div class="howto-speedo__needle"></div>
+        </div>
         <button class="btn btn--ink" id="btn-howto-ok" style="max-width:200px;">Entendido</button>
       </div>
     </div>
@@ -455,6 +467,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.2.89" defer></script>
+<script src="game.js?v=v0.2.90" defer></script>
 </body>
 </html>
