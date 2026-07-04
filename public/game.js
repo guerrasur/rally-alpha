@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.96';
+const VERSION = 'v0.2.97';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -395,7 +395,7 @@ const Campaign = {
   // se agreguen nodos nuevos, "Continuar campaña" sigue desde este punto.
   toBeContinued(){
     this.active=false;
-    playScene(['Continuará…'], ()=>show('home'));
+    playScene([TEXTS.campaignToBeContinued], ()=>show('home'));
   },
 };
 
@@ -627,6 +627,203 @@ const CFG = {
   cpuDesperateTrapRatio: 0.6,
   cpuDesperateHpMin: 30,
 };
+
+// ===== 📝 Textos del juego (editables desde /admin/, v0.2.97) =====
+// Todo el texto que ve un jugador (mensajes, toasts, pantallas de resultado,
+// nombres de personajes) vive acá — nunca hardcodeado en el resto del
+// archivo. Mismo patrón que CFG/config/: defaults acá, overrides opcionales
+// en Firebase (nodo `texts/`, sparse), aplicados una vez al cargar por
+// applyRemoteTexts(). Los `{placeholder}` se rellenan en runtime con fillText().
+const TEXTS = {
+  // --- Desconexión / abandono / inactividad ---
+  abandonFlavorPool: 'Al parecer sos intimidante\nTe tuvieron miedo\nLo llamaron a comer',
+  toastOpponentWaiting: 'Rival desconectado… esperando reconexión',
+  msgOpponentWaiting: '⚠️ Rival desconectado — esperando…',
+  toastOpponentBack: 'Rival reconectado ✓',
+  toastTourneyOppLeft: 'Tu rival abandonó — pasás de ronda',
+  resultAbandonNote: '(por abandono…)',
+  resultVictoryTitle: 'VICTORIA',
+  toastSeriesOppLeft: 'El rival abandonó la serie.',
+  toastRoomOppLeft: 'El rival abandonó la sala.',
+  toastRoomClosed: 'La sala se cerró.',
+  toastIdleAutoMove: 'Te moviste solo por inactividad ({streak}/{max})',
+  toastIdleForfeit: 'Te desconectamos por inactividad — perdiste la partida.',
+  toastMoveError: 'Error al enviar movimiento.',
+
+  // --- Cómo se juega (overlay corto antes de la partida) ---
+  howtoTitle: 'Cómo se juega',
+  howtoText: 'Movete por el tablero. Agarrá espadas y escudos, y evitá las cruces. Al encontrarte con el rival, duelo.',
+  howtoLegendAtk: '+daño próximo duelo',
+  howtoLegendDef: '+defensa próximo duelo',
+  howtoLegendDown: 'daño directo',
+  howtoHint: 'En el duelo: frená la aguja en la zona verde.',
+
+  // --- Cómo se juega (pantalla larga de referencia) ---
+  infoIntro: 'Cada jugador se mueve por el tablero de a una casilla por turno (incluidas las diagonales). Los dos eligen a la vez y se mueven al mismo tiempo. El objetivo: llegar al duelo con ventaja y dejar al rival sin vida.',
+  infoItemDmg: '<b>Poder de daño.</b> Suma daño a tus golpes en los duelos. Se acumula con cada uno que juntes.',
+  infoItemDef: '<b>Poder de defensa.</b> Reduce el daño que te hace el rival en los duelos. También se acumula.',
+  infoItemTrap: '<b>Trampa.</b> Si la pisás, perdés algo de vida. Nunca te mata: como mucho te deja al borde. Conviene esquivarlas.',
+  infoItemRing: '<b>Anillo.</b> Raro y valioso. Cura vida: mucho de golpe si estás muy lastimado, o de a poco durante varias rondas si estás más entero. Mientras dura el goteo, verás su ícono junto a tus poderes.',
+  infoDuelIntro: 'Cuando los dos jugadores quedan en la misma casilla o pegados, se abre un duelo de reflejos. Una aguja recorre una barra de colores de ida y vuelta, y tenés que frenarla en la mejor zona posible.',
+  infoZoneGreen: '<b>Verde</b> — buen golpe.',
+  infoZoneYellow: '<b>Amarillo</b> — golpe medio.',
+  infoZoneOrange: '<b>Naranja</b> — golpe flojo.',
+  infoZoneRed: '<b>Rojo</b> — casi sin daño.',
+  infoPerfect: 'Justo en el centro del verde hay una franja fina: el <b>PERFECTO</b>. Vale el doble y duplica tus poderes de daño en ese golpe. Ojo: solo cuenta en la <b>primera pasada</b> de la aguja; después desaparece.',
+  infoPerfectCancels: 'Si tu golpe es perfecto y el del rival no, ese golpe <b>anula sus poderes</b> (su defensa no te tapa y su daño no cuenta). Si ambos hacen perfecto, los poderes valen normal.',
+  infoScoreDecay: 'Cuanto más tardás en frenar, más pasadas cuenta la aguja y menos vale la zona roja. El que hace más puntaje gana el duelo y le baja la vida al otro. El perdedor también araña algo de daño, proporcional a lo cerca que estuvo.',
+  infoMercy: 'Ganar un duelo nunca te mata a vos mismo, y las trampas tampoco: solo <b>perder</b> un duelo puede dejarte sin vida. Si los dos caen en la misma casilla con un ítem, un sorteo parejo decide quién se lo queda.',
+  infoWalls: 'En el <b>Modo Paredes</b> (beta), el mapa es más grande y hay paredes que cortan el paso recto. Podés bordearlas en diagonal, pero no cruzar una esquina cerrada. Lo encontrás en el menú offline, o con el toggle 🧱 al crear una sala online (no disponible en torneo x4).',
+
+  // --- Toasts generales ---
+  toastRingBig: '{ring} {who} +{heal} HP',
+  toastRingDrip: '{ring} {who} +{heal} HP x{rounds}',
+  toastTourneyFinal: '¡A la final! ⚔️',
+  toastNeedConnection: 'El torneo online necesita conexión.',
+  toastCreateRoomFirst: 'Primero creá la sala.',
+  toastChangeModeBeforeJoin: 'Cambiá el modo antes de que entre tu rival.',
+  toastTourneyFull: 'Ya hay jugadores en el torneo.',
+  toastTourneyStartFail: 'No se pudo iniciar el torneo.',
+  toastCreateRoomFail: 'No se pudo crear la sala. Revisá tu conexión.',
+  waitTextWaitingOpp: 'Esperando rival…',
+  waitTextOppLeft: 'El rival se fue — esperando otro…',
+  waitTextPracticeAvailable: 'Modo práctica disponible',
+  userHintRegister: 'Único y permanente, siempre en minúscula. Con la contraseña vas a poder entrar desde cualquier dispositivo. El nickname de cada partida se elige aparte, como siempre.',
+  userHintLogin: 'Entrá con tu usuario y contraseña.',
+  userHintSession: 'Sesión iniciada. Podés entrar con este usuario desde cualquier dispositivo.',
+  userHintNoPassword: 'Tu usuario todavía no tiene contraseña. Creá una para poder entrar desde otro dispositivo (y para no perderlo).',
+  toastWallsNotOnlineTourney: 'El Modo Paredes no está disponible en el torneo online.',
+  toastCodeLength: 'El código tiene 4 caracteres.',
+  toastPracticeMode: 'Modo práctica: jugás contra la CPU.',
+  toastRoomNotFound: 'Esa sala no existe.',
+  toastRoomFull: 'La sala ya está llena.',
+  toastJoinFail: 'No se pudo unir a la sala.',
+  toastConnectionError: 'Error de conexión.',
+  toastWaitForCode: 'Esperá a que se genere el código.',
+  toastLinkCopiedClipboard: 'Link copiado al portapapeles ✓',
+  toastLinkCopied: 'Link copiado ✓',
+  toastYourLink: 'Tu link: {url}',
+  toastInviteDetected: 'Invitación detectada · elegí tu nombre y entrá',
+  toastUserCreated: 'Usuario "{user}" creado ✓',
+  toastSessionStarted: 'Sesión iniciada: {user} ✓',
+  toastPasswordCreated: 'Contraseña creada ✓',
+  toastSessionClosed: 'Sesión cerrada',
+
+  // --- Errores de cuenta (creación/login) ---
+  errUserFormat: 'Usuario: de 3 a 15 caracteres, minúsculas, números o _',
+  errPassShort: 'La contraseña necesita al menos 6 caracteres.',
+  errUserTaken: 'Ese usuario ya existe.',
+  errCredentials: 'Usuario o contraseña incorrectos.',
+  errAlreadyLoggedIn: 'Ya iniciaste sesión con contraseña.',
+  errNoPassword: 'Todavía no tenés contraseña — creala primero.',
+  errNoUser: 'Primero creá tu usuario.',
+  errNoConnection: 'Error de conexión. Probá de nuevo.',
+
+  // --- Mensajes del pie de turno (setMsg) ---
+  msgTruce: 'Tregua 🛡️ — elegí a dónde moverte',
+  msgChooseCell: 'Elegí un casillero contiguo para moverte',
+  msgOppChoseFirst: 'El rival ya eligió — te toca mover',
+  msgWaitingOpp: 'Esperando al rival…',
+  msgMoving: 'Moviendo…',
+  msgDuelImminent: 'Duelo inminente…',
+  msgRepositioning: 'Reposicionando…',
+
+  // --- Nombres de personajes ---
+  oppNamePractice: 'Cachito',
+  campaignOpp1Name: 'Tarata',
+  rosterName0: 'Maurice',
+  rosterName1: 'Mort',
+  rosterName2: 'Clover',
+  rosterName3: 'Skipper',
+  rosterName4: 'Kowalski',
+  rosterName5: 'Marlene',
+  rosterName6: 'Alex',
+  rosterName7: 'Rey Julian',
+  cpuNamesPool: 'Beto\nRulo\nCacho\nPipa\nTato\nCoco\nPocho\nTurco\nChino\nFlaco\nNino\nQuique',
+
+  // --- Duelo: veredicto y resultado ---
+  duelPerfectPrefix: '<b style="color:var(--perfect)">PERFECTO</b> · ',
+  duelVerdictWin: '{perfectPrefix}<b style="color:var(--good)">GANA</b> {name}',
+  duelVerdictLose: '{perfectPrefix}<b style="color:var(--bad)">GANA</b> {name}',
+  duelVerdictTie: '<b style="color:var(--warn)">EMPATE</b>',
+  duelTitleEncounter: '¡Encuentro!',
+  duelTitleStopGreen: 'Frená en verde',
+  duelCountdownGo: '¡YA!',
+  duelResultTitle: 'Resultado',
+  duelTieTitle: 'Empate',
+  duelTieSub: 'Nadie pierde vida — ambos salen expulsados',
+  duelWinTitle: 'Ganaste el duelo',
+  duelLoseTitle: 'Perdiste el duelo',
+  duelPerfectSub: '⭐ PERFECTO de {name}',
+  duelPassLabel: 'pase {pass}/{max}',
+  duelLastPassLabel: 'último pase',
+  zoneNamePerfect: 'PERFECTO',
+  zoneNameGreen: 'Verde',
+  zoneNameYellow: 'Amarillo',
+  zoneNameOrange: 'Naranja',
+  zoneNameRed: 'Rojo',
+
+  // --- Fin de partida (online 1v1/bo5, campaña, torneo offline) ---
+  resultFinalEyebrow: 'Final',
+  resultBo5Eyebrow: 'Mejor de 5 · {scoreYou}–{scoreOpp}',
+  resultTieTitle: 'Empate',
+  resultWinTitle: 'Ganaste',
+  resultLoseTitle: 'Perdiste',
+  resultWinRoundTitle: 'Ganaste la ronda',
+  resultLoseRoundTitle: 'Perdiste la ronda',
+  resultWinSeriesTitle: '🏆 Ganaste la serie',
+  resultLoseSeriesTitle: 'Perdiste la serie',
+  resultScoreRounds: 'Rondas: <b>{scoreYou}</b> – <b>{scoreOpp}</b>',
+  resultScoreHp: '<b>{youHp}</b> HP vs <b>{oppHp}</b> HP',
+  campaignRetryLabel: 'Reintentar',
+  tourneyChampionTitle: '¡Campeón!',
+  tourneyChampionScore: 'Venciste a <b>{name}</b> y ganaste el torneo con <b>{hp}</b> HP restante.',
+  tourneyRoundEyebrow: 'Rival {i}/{n}',
+  tourneyBeatOpp: 'Venciste a {name}',
+  tourneyHpLeft: 'Te quedan <b>{hp}</b> HP. Próximo rival con más vida y más astuto.',
+  tourneyEliminatedTitle: 'Eliminado',
+  tourneyEliminatedScore: 'Llegaste hasta el rival <b>{i}/{n}</b> ({name}).',
+  tourneyRetryLabel: 'Reintentar rival',
+  tourneyChampionEyebrow: '🏆 Torneo',
+  tourneyEyebrow: 'Torneo',
+
+  // --- Torneo online x4: hub y espectador ---
+  otChampionTitle: '🏆 Ganaste el torneo',
+  otLostFinalTitle: 'Perdiste la final',
+  otFinishedTitle: 'Torneo terminado',
+  otInProgressTitle: 'Torneo',
+  otEliminatedSub: 'Podés espectar las otras partidas',
+  otSemiWonTitle: 'Semifinal ganada',
+  otWaitingFinalist: 'Esperando al otro finalista…',
+  otChampionSub: 'Campeón: {dot} <b>{name}</b>',
+  otSemi1Label: 'Semifinal 1',
+  otSemi2Label: 'Semifinal 2',
+  otFinalLabel: 'Final',
+  otSpectateBtn: '👁 Espectar',
+  specConnecting: 'Conectando…',
+  specMatchWon: '🏁 Ganó {name}',
+  specCpuVsCpu: '🤖 Partida entre CPUs — se resuelve sola…',
+  specDuelInProgress: '⚔️ ¡Duelo en curso!',
+  specDuelTie: '🤝 Empate ({scoreA}-{scoreB})',
+  specDuelWon: '⚔️ Ganó {name} ({scoreA}-{scoreB})',
+  specTurn: 'Turno {n}',
+  specWaitingData: 'Esperando datos…',
+  otTagYou: 'vos',
+  otTagHost: 'anfitrión',
+  otTagCpu: 'CPU',
+  otSlotFree: '— libre —',
+  otSlotFreeTag: 'CPU al iniciar',
+  campaignStartConfirm: '¿Comenzar campaña como <b>{name}</b>?',
+  campaignToBeContinued: 'Continuará…',
+  waitTextCpuFill: 'Los lugares libres se completan con CPUs',
+  waitTextHostWillStart: 'Esperando que el anfitrión inicie…',
+};
+// Rellena {placeholders} de un texto con los valores dados: fillText('Hola {name}', {name:'Lucio'}) → 'Hola Lucio'.
+function fillText(key, vars){
+  let s = TEXTS[key] != null ? TEXTS[key] : key;
+  if(vars) for(const k in vars) s = s.replace(new RegExp('\\{'+k+'\\}','g'), vars[k]);
+  return s;
+}
 // ---- Diseño del duelo: minijuego vs. daño ----
 // El puntaje crudo del minijuego (0-20, ver computeScore) decide QUIÉN gana el
 // duelo — es independiente de los buffs. Los buffs solo escalan el DAÑO que el
@@ -1141,8 +1338,8 @@ function startOnlineGame(boardStr, role){
 
   // Vigilar abandono/desconexión del rival, con gracia de reconexión (#5)
   Net.onOpponentLeft = onOpponentLeft;
-  Net.onOpponentWaiting = ()=>{ toast('Rival desconectado… esperando reconexión'); setMsg('⚠️ Rival desconectado — esperando…', true); };
-  Net.onOpponentBack = ()=>{ toast('Rival reconectado ✓'); };
+  Net.onOpponentWaiting = ()=>{ toast(TEXTS.toastOpponentWaiting); setMsg(TEXTS.msgOpponentWaiting, true); };
+  Net.onOpponentBack = ()=>{ toast(TEXTS.toastOpponentBack); };
   Net.startPresence();
 
   // Chat en vivo (solo online): monta el panel y escucha mensajes.
@@ -1154,26 +1351,22 @@ function startOnlineGame(boardStr, role){
 }
 
 // El rival se desconectó o salió → victoria por abandono.
-const ABANDON_MSGS = [
-  'Al parecer sos intimidante',
-  'Te tuvieron miedo',
-  'Lo llamaron a comer',
-];
 function onOpponentLeft(){
   if(!G.online || G.phase==='gameover') return;
   G.running=false; G.phase='gameover'; G.online=false;
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
   $('duel-overlay').classList.remove('is-show');
   if(OT.active && OT.inMatch){
-    toast('Tu rival abandonó — pasás de ronda');
+    toast(TEXTS.toastTourneyOppLeft);
     OT.onMyMatchEnd(Math.max(1, G.you.hp), 0);
     return;
   }
-  const msg = ABANDON_MSGS[Math.floor(Math.random()*ABANDON_MSGS.length)];
-  $('result-eyebrow').textContent='Final';
-  $('result-title').textContent='VICTORIA';
+  const abandonFlavors = TEXTS.abandonFlavorPool.split('\n').map(s=>s.trim()).filter(Boolean);
+  const msg = abandonFlavors[Math.floor(Math.random()*abandonFlavors.length)];
+  $('result-eyebrow').textContent=TEXTS.resultFinalEyebrow;
+  $('result-title').textContent=TEXTS.resultVictoryTitle;
   $('result-title').classList.remove('is-lose'); $('result-title').classList.add('is-win');
-  $('result-score').innerHTML=`<span style="color:var(--muted)">(por abandono…)</span><br><br>${msg}`;
+  $('result-score').innerHTML=`<span style="color:var(--muted)">${TEXTS.resultAbandonNote}</span><br><br>${msg}`;
   $('btn-tourney-next').style.display='none';
   $('btn-to-room').style.display='none';
   $('btn-again').style.display='none';   // no hay revancha en abandono online
@@ -1183,9 +1376,9 @@ function startChoosePhase(){
   G.phase='choose'; G.yourMove=null; G.oppMove=null;
   if(OT.active && OT.inMatch && OT.master) OT.pushSpec();
   if(G.justDueled && areAdjacentOrSame(G.you, G.opp)){
-    setMsg('Tregua 🛡️ — elegí a dónde moverte', true);
+    setMsg(TEXTS.msgTruce, true);
   } else {
-    setMsg('Elegí un casillero contiguo para moverte', true);
+    setMsg(TEXTS.msgChooseCell, true);
   }
   renderBoard();
   if(G.online){
@@ -1196,7 +1389,7 @@ function startChoosePhase(){
       G._oppMovedThisTurn = true;
       // Si todavía no elegí, mostrar que el rival ya está listo
       if(G.phase==='choose'){
-        setMsg('El rival ya eligió — te toca mover', true);
+        setMsg(TEXTS.msgOppChoseFirst, true);
       }
     };
     Net.listenMoves(G.turnCount);
@@ -1216,9 +1409,9 @@ function onPlayerMove(x, y, isAuto){
   if(G.online){
     // Online: subir mi movimiento y esperar al rival
     G.phase='waiting-opp';
-    setMsg('Esperando al rival…', true);
+    setMsg(TEXTS.msgWaitingOpp, true);
     renderBoard();
-    Net.pushMove(G.turnCount, x, y).catch(e=>{ console.error(e); toast('Error al enviar movimiento.'); });
+    Net.pushMove(G.turnCount, x, y).catch(e=>{ console.error(e); toast(TEXTS.toastMoveError); });
     return;
   }
   // Offline: la CPU responde y se resuelve
@@ -1313,7 +1506,7 @@ function autoMoveIdle(){
   if(G._idleAutoStreak >= IDLE_MAX_STREAK){
     setTimeout(forfeitByIdle, 400);
   } else {
-    toast(`Te moviste solo por inactividad (${G._idleAutoStreak}/${IDLE_MAX_STREAK})`);
+    toast(fillText('toastIdleAutoMove', { streak:G._idleAutoStreak, max:IDLE_MAX_STREAK }));
   }
 }
 
@@ -1324,7 +1517,7 @@ function forfeitByIdle(){
   Chat.unmount();
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
   show('home');
-  toast('Te desconectamos por inactividad — perdiste la partida.');
+  toast(TEXTS.toastIdleForfeit);
 }
 
 // Online: llegaron ambos movimientos. Mapear según mi rol y resolver.
@@ -1552,7 +1745,7 @@ function flipMarker(cls, oldRect){
 }
 
 function resolveMoves(){
-  G.phase='moving'; setMsg('Moviendo…');
+  G.phase='moving'; setMsg(TEXTS.msgMoving);
   G.you.prevX=G.you.x; G.you.prevY=G.you.y; G.opp.prevX=G.opp.x; G.opp.prevY=G.opp.y;
   // Historial de las últimas casillas de la CPU (solo offline; evita vaivén)
   if(!G.online){
@@ -1748,13 +1941,13 @@ function startDuel(){
   $('duel-result').style.display='none';
   $('duel-game').style.display='none';
   $('duel-countdown').style.display='block';
-  $('duel-title').textContent='¡Encuentro!';
-  Sound.duelStart(); setMsg('Duelo inminente…');
+  $('duel-title').textContent=TEXTS.duelTitleEncounter;
+  Sound.duelStart(); setMsg(TEXTS.msgDuelImminent);
   const btn = $('duel-stop');
   btn.classList.remove('is-active','is-pressed');
   btn.classList.add('is-visible');
   btn.disabled = true;
-  const steps=[3,2,1,'¡YA!']; let i=0; const cd=$('duel-countdown');
+  const steps=[3,2,1,TEXTS.duelCountdownGo]; let i=0; const cd=$('duel-countdown');
   const tick=()=>{
     if(G.phase!=='duel-countdown') return;   // se salió/terminó: abortar
     if(i>=steps.length){ beginDuelPlay(); return; }
@@ -1772,7 +1965,7 @@ function beginDuelPlay(){
   $('duel-game').style.display='flex';
   hideDuelReveal(); G._revealShown=false; G._duelResolved=false;
   if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; }
-  $('duel-title').textContent='Frená en verde';
+  $('duel-title').textContent=TEXTS.duelTitleStopGreen;
   buildSpeedometer();
   G.duel.time=0;
   G.duel.pass=1;
@@ -1858,15 +2051,15 @@ function updateDuelPassLabel(){
     }
   }
   if(G.duel.pass>CFG.duelMaxPasses){
-    el.textContent='último pase';
+    el.textContent=TEXTS.duelLastPassLabel;
     el.classList.add('is-danger');
     el.classList.remove('is-warn');
   } else if(G.duel.pass>=3){
-    el.textContent=`pase ${G.duel.pass}/${CFG.duelMaxPasses}`;
+    el.textContent=fillText('duelPassLabel', {pass:G.duel.pass, max:CFG.duelMaxPasses});
     el.classList.add('is-warn');
     el.classList.remove('is-danger');
   } else {
-    el.textContent=`pase ${G.duel.pass}/${CFG.duelMaxPasses}`;
+    el.textContent=fillText('duelPassLabel', {pass:G.duel.pass, max:CFG.duelMaxPasses});
     el.classList.remove('is-warn','is-danger');
   }
 }
@@ -2042,12 +2235,12 @@ function chipWithMercy(playerHp, chip){
 
 // Devuelve la zona (nombre + color CSS) según la posición de frenado.
 function zoneInfo(pos, pass){
-  if(isPerfect(pos, pass))                                   return { name:'PERFECTO', color:'var(--perfect)', perfect:true };
-  if(pos >= CFG.duelGreenStart && pos <= CFG.duelGreenEnd)   return { name:'Verde',   color:'var(--good)' };
-  if(pos >= CFG.duelYellowStart && pos <= CFG.duelYellowEnd) return { name:'Amarillo',color:'var(--warn)' };
-  if(pos >= CFG.duelOrangeStart && pos <= CFG.duelOrangeEnd) return { name:'Naranja', color:'var(--orange)' };
-  if(pos >= CFG.duelOrange2Start && pos <= CFG.duelOrange2End) return { name:'Naranja', color:'var(--orange)' };
-  return { name:'Rojo', color:'var(--bad)' };
+  if(isPerfect(pos, pass))                                   return { name:TEXTS.zoneNamePerfect, color:'var(--perfect)', perfect:true };
+  if(pos >= CFG.duelGreenStart && pos <= CFG.duelGreenEnd)   return { name:TEXTS.zoneNameGreen,   color:'var(--good)' };
+  if(pos >= CFG.duelYellowStart && pos <= CFG.duelYellowEnd) return { name:TEXTS.zoneNameYellow,color:'var(--warn)' };
+  if(pos >= CFG.duelOrangeStart && pos <= CFG.duelOrangeEnd) return { name:TEXTS.zoneNameOrange, color:'var(--orange)' };
+  if(pos >= CFG.duelOrange2Start && pos <= CFG.duelOrange2End) return { name:TEXTS.zoneNameOrange, color:'var(--orange)' };
+  return { name:TEXTS.zoneNameRed, color:'var(--bad)' };
 }
 
 function onPlayerStop(e){
@@ -2113,13 +2306,13 @@ function showDuelReveal(){
   // rojo si ganó el rival. Debajo, los puntajes chicos en gris: "(6v3)".
   const vEl=$('reveal-verdict');
   if(rawYou>rawOpp){
-    const sup = youPerfect ? '<b style="color:var(--perfect)">PERFECTO</b> · ' : '';
-    vEl.innerHTML=`${sup}<b style="color:var(--good)">GANA</b> ${App.playerName}`;
+    const sup = youPerfect ? TEXTS.duelPerfectPrefix : '';
+    vEl.innerHTML=fillText('duelVerdictWin', { perfectPrefix:sup, name:App.playerName });
   } else if(rawOpp>rawYou){
-    const sup = oppPerfect ? '<b style="color:var(--perfect)">PERFECTO</b> · ' : '';
-    vEl.innerHTML=`${sup}<b style="color:var(--bad)">GANA</b> ${App.oppName}`;
+    const sup = oppPerfect ? TEXTS.duelPerfectPrefix : '';
+    vEl.innerHTML=fillText('duelVerdictLose', { perfectPrefix:sup, name:App.oppName });
   } else {
-    vEl.innerHTML=`<b style="color:var(--warn)">EMPATE</b>`;
+    vEl.innerHTML=TEXTS.duelVerdictTie;
   }
   const sEl=$('reveal-scoreline');
   if(sEl) sEl.textContent=`(${rawYou}v${rawOpp})`;
@@ -2133,7 +2326,7 @@ function showDuelReveal(){
   // El velocímetro (duel-game) sigue visible; solo añadimos el panel arriba.
   $('duel-stop').classList.remove('is-active');
   $('duel-reveal').style.display='flex';
-  $('duel-title').textContent='Resultado';
+  $('duel-title').textContent=TEXTS.duelResultTitle;
   updateNeedles(G.duel.yourStoppedPos); // congelar agujas en su posición final
 }
 function hideDuelReveal(){ $('duel-reveal').style.display='none'; }
@@ -2151,13 +2344,13 @@ function showDuelOutcome(o){
   titleEl.classList.remove('is-win','is-lose','is-tie');
   const sub=$('duel-result-sub');
   if(o.tie){
-    titleEl.textContent='Empate'; titleEl.classList.add('is-tie');
-    sub.textContent='Nadie pierde vida — ambos salen expulsados';
+    titleEl.textContent=TEXTS.duelTieTitle; titleEl.classList.add('is-tie');
+    sub.textContent=TEXTS.duelTieSub;
   } else {
     const winName = o.youWin ? App.playerName : App.oppName;
-    titleEl.textContent = o.youWin ? 'Ganaste el duelo' : 'Perdiste el duelo';
+    titleEl.textContent = o.youWin ? TEXTS.duelWinTitle : TEXTS.duelLoseTitle;
     titleEl.classList.add(o.youWin ? 'is-win' : 'is-lose');
-    sub.textContent = o.perfect ? `⭐ PERFECTO de ${winName}` : '';
+    sub.textContent = o.perfect ? fillText('duelPerfectSub', {name:winName}) : '';
   }
   $('rescol-name-you').textContent=App.playerName;
   $('rescol-name-opp').textContent=App.oppName;
@@ -2272,8 +2465,8 @@ function startDuelOnline(){
   $('duel-result').style.display='none';
   $('duel-game').style.display='none';
   $('duel-countdown').style.display='block';
-  $('duel-title').textContent='¡Encuentro!';
-  Sound.duelStart(); setMsg('Duelo inminente…');
+  $('duel-title').textContent=TEXTS.duelTitleEncounter;
+  Sound.duelStart(); setMsg(TEXTS.msgDuelImminent);
   const btn = $('duel-stop');
   btn.classList.remove('is-active','is-pressed');
   btn.classList.add('is-visible');
@@ -2292,7 +2485,7 @@ function startDuelOnline(){
   };
   Net.listenDuelScores(duelId);
 
-  const steps=[3,2,1,'¡YA!']; let i=0; const cd=$('duel-countdown');
+  const steps=[3,2,1,TEXTS.duelCountdownGo]; let i=0; const cd=$('duel-countdown');
   const tick=()=>{
     if(G.phase!=='duel-countdown') return;   // se salió/desconectó: abortar
     if(i>=steps.length){ beginDuelPlayOnline(); return; }
@@ -2309,7 +2502,7 @@ function beginDuelPlayOnline(){
   $('duel-countdown').style.display='none';
   $('duel-game').style.display='flex';
   hideDuelReveal(); G._revealShown=false; G._duelResolved=false;
-  $('duel-title').textContent='Frená en verde';
+  $('duel-title').textContent=TEXTS.duelTitleStopGreen;
   buildSpeedometer();
   G.duel.time=0;
   G.duel.pass=1;
@@ -2474,7 +2667,7 @@ function finishDuelOnline(){
         renderBoard(); updateHud(); startChoosePhase();
       } else {
         // El guest espera las posiciones del host
-        setMsg('Reposicionando…', true);
+        setMsg(TEXTS.msgRepositioning, true);
         Net.onEject = (e)=>{
           // e.youPos/oppPos están en perspectiva del HOST → para el guest se cruzan
           G.you.x=e.oppPos.x; G.you.y=e.oppPos.y;
@@ -2555,7 +2748,7 @@ function setupNextRound(){
     $('result-score').innerHTML += '<br><span style="color:var(--muted)">Siguiente ronda…</span>';
   }
   // Si el rival se va entre rondas
-  Net.onOpponentLeft = ()=>{ toast('El rival abandonó la serie.'); };
+  Net.onOpponentLeft = ()=>{ toast(TEXTS.toastSeriesOppLeft); };
 }
 
 // Fin de partida online: en vez de "revancha", ambos pueden volver a la sala.
@@ -2577,7 +2770,7 @@ function setupOnlineEnd(){
   // Si el rival se va en la pantalla de fin, avisar y ocultar la opción
   Net.onOpponentLeft = ()=>{
     roomBtn.style.display='none';
-    toast('El rival abandonó la sala.');
+    toast(TEXTS.toastRoomOppLeft);
   };
 }
 
@@ -2617,16 +2810,16 @@ function endGame(){
                       App.scoreYou>=BO5_TARGET || App.scoreOpp>=BO5_TARGET;
 
     $('result-eyebrow').textContent = (App.matchMode==='bo5')
-      ? `Mejor de 5 · ${App.scoreYou}–${App.scoreOpp}` : 'Final';
+      ? fillText('resultBo5Eyebrow', {scoreYou:App.scoreYou, scoreOpp:App.scoreOpp}) : TEXTS.resultFinalEyebrow;
 
-    if(isTie)              $('result-title').textContent='Empate';
-    else if(youHp>oppHp)   $('result-title').textContent= matchOver ? 'Ganaste' : 'Ganaste la ronda';
-    else                   $('result-title').textContent= matchOver ? 'Perdiste' : 'Perdiste la ronda';
+    if(isTie)              $('result-title').textContent=TEXTS.resultTieTitle;
+    else if(youHp>oppHp)   $('result-title').textContent= matchOver ? TEXTS.resultWinTitle : TEXTS.resultWinRoundTitle;
+    else                   $('result-title').textContent= matchOver ? TEXTS.resultLoseTitle : TEXTS.resultLoseRoundTitle;
 
     if(App.matchMode==='bo5'){
-      $('result-score').innerHTML=`Rondas: <b>${App.scoreYou}</b> – <b>${App.scoreOpp}</b><br><span style="color:var(--muted)">${youHp} HP vs ${oppHp} HP</span>`;
+      $('result-score').innerHTML=`${fillText('resultScoreRounds',{scoreYou:App.scoreYou, scoreOpp:App.scoreOpp})}<br><span style="color:var(--muted)">${youHp} HP vs ${oppHp} HP</span>`;
     } else {
-      $('result-score').innerHTML=`<b>${youHp}</b> HP vs <b>${oppHp}</b> HP`;
+      $('result-score').innerHTML=fillText('resultScoreHp', {youHp, oppHp});
     }
     againBtn.style.display='none';
 
@@ -2634,7 +2827,7 @@ function endGame(){
       let won = isTie ? null : (youHp>oppHp);
       if(App.matchMode==='bo5'){
         const champ = App.scoreYou>App.scoreOpp;
-        $('result-title').textContent = champ ? '🏆 Ganaste la serie' : 'Perdiste la serie';
+        $('result-title').textContent = champ ? TEXTS.resultWinSeriesTitle : TEXTS.resultLoseSeriesTitle;
         won = champ;
       }
       if(won===true)  rt.classList.add('is-win');
@@ -2653,18 +2846,18 @@ function endGame(){
   // --- Fin de partida en CAMPAÑA (offline): se ve como un final normal, pero
   //     al ganar se cachea el progreso y "Continuar ▸" avanza al próximo nodo.
   if(Campaign.active){
-    $('result-eyebrow').textContent='Final';
-    $('result-score').innerHTML=`<b>${youHp}</b> HP vs <b>${oppHp}</b> HP`;
+    $('result-eyebrow').textContent=TEXTS.resultFinalEyebrow;
+    $('result-score').innerHTML=fillText('resultScoreHp', {youHp, oppHp});
     if(youWon){
-      $('result-title').textContent='Ganaste';
+      $('result-title').textContent=TEXTS.resultWinTitle;
       rt.classList.add('is-win');
       Campaign.completeCurrent();      // cachea el avance YA (aunque cierre la app)
       againBtn.style.display='none';
       campBtn.style.display='block';
     } else {
-      $('result-title').textContent = (youHp===oppHp) ? 'Empate' : 'Perdiste';
+      $('result-title').textContent = (youHp===oppHp) ? TEXTS.resultTieTitle : TEXTS.resultLoseTitle;
       if(youHp<oppHp) rt.classList.add('is-lose');
-      againBtn.textContent='Reintentar';   // vuelve a jugar el mismo nodo
+      againBtn.textContent=TEXTS.campaignRetryLabel;   // vuelve a jugar el mismo nodo
     }
     show('result');
     return;
@@ -2675,9 +2868,9 @@ function endGame(){
     const isLast = Tourney.index >= TOURNEY_ROSTER.length-1;
     if(youWon && isLast){
       Tourney._carryHp = youHp;
-      $('result-eyebrow').textContent='🏆 Torneo';
-      $('result-title').textContent='¡Campeón!';
-      $('result-score').innerHTML=`Venciste a <b>${r.name}</b> y ganaste el torneo con <b>${youHp}</b> HP restante.`;
+      $('result-eyebrow').textContent=TEXTS.tourneyChampionEyebrow;
+      $('result-title').textContent=TEXTS.tourneyChampionTitle;
+      $('result-score').innerHTML=fillText('tourneyChampionScore', {name:r.name, hp:youHp});
       againBtn.style.display='none';
       Tourney._beaten = Tourney.index;   // venció a todos
       Tourney.active=false;
@@ -2685,27 +2878,27 @@ function endGame(){
     } else if(youWon){
       Tourney._carryHp = youHp;          // conserva la vida para la próxima ronda
       Tourney._beaten = Tourney.index;   // último vencido
-      $('result-eyebrow').textContent=`Rival ${Tourney.index+1}/${TOURNEY_ROSTER.length}`;
-      $('result-title').textContent=`Venciste a ${r.name}`;
-      $('result-score').innerHTML=`Te quedan <b>${youHp}</b> HP. Próximo rival con más vida y más astuto.`;
+      $('result-eyebrow').textContent=fillText('tourneyRoundEyebrow', {i:Tourney.index+1, n:TOURNEY_ROSTER.length});
+      $('result-title').textContent=fillText('tourneyBeatOpp', {name:r.name});
+      $('result-score').innerHTML=fillText('tourneyHpLeft', {hp:youHp});
       againBtn.style.display='none';
       nextBtn.style.display='block';
     } else {
-      $('result-eyebrow').textContent='Torneo';
-      $('result-title').textContent='Eliminado';
-      $('result-score').innerHTML=`Llegaste hasta el rival <b>${Tourney.index+1}/${TOURNEY_ROSTER.length}</b> (${r.name}).`;
-      againBtn.textContent='Reintentar rival';
+      $('result-eyebrow').textContent=TEXTS.tourneyEyebrow;
+      $('result-title').textContent=TEXTS.tourneyEliminatedTitle;
+      $('result-score').innerHTML=fillText('tourneyEliminatedScore', {i:Tourney.index+1, n:TOURNEY_ROSTER.length, name:r.name});
+      againBtn.textContent=TEXTS.tourneyRetryLabel;
       Tourney.active=true; // permitir reintentar el mismo (conserva _carryHp de la ronda anterior)
     }
     show('result');
     return;
   }
 
-  $('result-eyebrow').textContent='Final';
-  if(youHp===oppHp)      $('result-title').textContent='Empate';
-  else if(youHp>oppHp)   $('result-title').textContent='Ganaste';
-  else                   $('result-title').textContent='Perdiste';
-  $('result-score').innerHTML=`<b>${youHp}</b> HP vs <b>${oppHp}</b> HP`;
+  $('result-eyebrow').textContent=TEXTS.resultFinalEyebrow;
+  if(youHp===oppHp)      $('result-title').textContent=TEXTS.resultTieTitle;
+  else if(youHp>oppHp)   $('result-title').textContent=TEXTS.resultWinTitle;
+  else                   $('result-title').textContent=TEXTS.resultLoseTitle;
+  $('result-score').innerHTML=fillText('resultScoreHp', {youHp, oppHp});
   show('result');
 }
 
@@ -3120,7 +3313,7 @@ function readName(){
 // ============================================================
 const SEAT_COLORS = { s0:'#2B4DE0', s1:'#C92A2A', s2:'#2B8C4E', s3:'#8A3FC9' };
 const CPU_GRAY = '#8A8A90';
-const CPU_NAMES = ['Beto','Rulo','Cacho','Pipa','Tato','Coco','Pocho','Turco','Chino','Flaco','Nino','Quique'];
+const CPU_NAMES = TEXTS.cpuNamesPool.split('\n').map(s=>s.trim()).filter(Boolean);
 
 const OT = {
   active:false, ref:null, code:null, mySeat:null,
@@ -3164,7 +3357,7 @@ const OT = {
     ref.child('players').on('value', s=>{
       const v=s.val();
       if(v===null){
-        if(this.active && !this._leaving){ toast('La sala se cerró.'); this.cleanupLocal(); G.running=false; show('home'); }
+        if(this.active && !this._leaving){ toast(TEXTS.toastRoomClosed); this.cleanupLocal(); G.running=false; show('home'); }
         return;
       }
       this.players=v;
@@ -3187,7 +3380,7 @@ const OT = {
         if(w0 && w1 && !fw && !this._finalHandled && this._phase==='playing'){
           this._finalHandled=true;
           if(w0===this.mySeat || w1===this.mySeat){
-            toast('¡A la final! ⚔️');
+            toast(TEXTS.toastTourneyFinal);
             setTimeout(()=>{ if(this.active && this._phase==='playing') this.beginMatch('f', w0, w1); }, 2500);
           } else if(this.mySeat==='s0' && this.players[w0] && this.players[w0].cpu && this.players[w1] && this.players[w1].cpu){
             this.simulate('f', w0, w1);
@@ -3200,11 +3393,11 @@ const OT = {
   },
 
   async enableTourney(){
-    if(DEMO || !fbDb){ toast('El torneo online necesita conexión.'); return false; }
-    if(!Net.ref || Net.role!=='host'){ toast('Primero creá la sala.'); return false; }
+    if(DEMO || !fbDb){ toast(TEXTS.toastNeedConnection); return false; }
+    if(!Net.ref || Net.role!=='host'){ toast(TEXTS.toastCreateRoomFirst); return false; }
     try{
       const g=(await Net.ref.child('guest').get()).val();
-      if(g && g.name){ toast('Cambiá el modo antes de que entre tu rival.'); return false; }
+      if(g && g.name){ toast(TEXTS.toastChangeModeBeforeJoin); return false; }
     }catch(e){}
     const players={ s0:{ name:App.playerName||'Jugador', color:SEAT_COLORS.s0, uid:this.uid, user:User.name||null } };
     await Net.ref.update({ type:'tourney', players, guest:null, status:'waiting' });
@@ -3216,14 +3409,14 @@ const OT = {
   // Volver de torneo a sala 2p (solo si no entró nadie más)
   disableTourney(){
     const others=Object.keys(this.players||{}).filter(k=>k!=='s0');
-    if(others.length){ toast('Ya hay jugadores en el torneo.'); return false; }
+    if(others.length){ toast(TEXTS.toastTourneyFull); return false; }
     const ref=this.ref, code=this.code;
     this._leaving=true;                    // evita el aviso de "sala cerrada"
     this.cleanupLocal();
     ref.update({ type:null, players:null, status:'waiting' });
     Net.ref=ref; Net.code=code; Net.role='host';
     $('ot-box').style.display='none';
-    $('wait-text').textContent='Esperando rival…';
+    $('wait-text').textContent=TEXTS.waitTextWaitingOpp;
     return true;
   },
 
@@ -3257,7 +3450,7 @@ const OT = {
     $('ot-box').style.display='flex';
     $('btn-ot-start').style.display= host?'block':'none';
     const go=$('btn-online-start'); if(go) go.style.display='none';
-    $('wait-text').textContent= host ? 'Los lugares libres se completan con CPUs' : 'Esperando que el anfitrión inicie…';
+    $('wait-text').textContent= host ? TEXTS.waitTextCpuFill : TEXTS.waitTextHostWillStart;
     this.renderLobby();
     show('lobby');
   },
@@ -3270,12 +3463,12 @@ const OT = {
       const row=document.createElement('div');
       if(p){
         row.className='ot-row';
-        const tag = (s===this.mySeat) ? 'vos' : (s==='s0' ? 'anfitrión' : (p.cpu?'CPU':''));
+        const tag = (s===this.mySeat) ? TEXTS.otTagYou : (s==='s0' ? TEXTS.otTagHost : (p.cpu?TEXTS.otTagCpu:''));
         const userTxt = p.user ? ` <span class="ot-user">${escHtml(p.user)}</span>` : '';
         row.innerHTML=`<span class="p-dot" style="background:${p.color||CPU_GRAY}"></span><span>${escHtml(p.name)}${userTxt}</span><span class="ot-tag">${tag}</span>`;
       } else {
         row.className='ot-row is-free';
-        row.innerHTML=`<span class="p-dot" style="background:${CPU_GRAY}"></span><span>— libre —</span><span class="ot-tag">CPU al iniciar</span>`;
+        row.innerHTML=`<span class="p-dot" style="background:${CPU_GRAY}"></span><span>${TEXTS.otSlotFree}</span><span class="ot-tag">${TEXTS.otSlotFreeTag}</span>`;
       }
       box.appendChild(row);
     }
@@ -3298,7 +3491,7 @@ const OT = {
       }
       const bracket={ r1:{ m0:{a:'s0', b:'s3'}, m1:{a:'s1', b:'s2'} } };
       await this.ref.update({ players:ps, bracket, matches:null, status:'playing' });
-    }catch(e){ console.warn(e); toast('No se pudo iniciar el torneo.'); }
+    }catch(e){ console.warn(e); toast(TEXTS.toastTourneyStartFail); }
     btn.disabled=false; btn.textContent='▸ Iniciar torneo';
   },
 
@@ -3422,23 +3615,26 @@ const OT = {
     if(this.finished && fw){
       const champ=this.players[fw]||{};
       if(fw===this.mySeat){
-        title.textContent='🏆 Ganaste el torneo'; title.classList.add('is-win');
+        title.textContent=TEXTS.otChampionTitle; title.classList.add('is-win');
         if(!this._champBumped){
           this._champBumped = true;
           ensureAuth().then(u=>{ if(u) Stats.bump(u.uid, 'tournamentsWon', 1); });
         }
       }
-      else if((w0===this.mySeat||w1===this.mySeat)){ title.textContent='Perdiste la final'; title.classList.add('is-lose'); }
-      else { title.textContent='Torneo terminado'; }
-      sub.innerHTML=`Campeón: <span class="p-dot" style="background:${champ.color||CPU_GRAY}"></span> <b>${escHtml(champ.name||'?')}</b>`;
+      else if((w0===this.mySeat||w1===this.mySeat)){ title.textContent=TEXTS.otLostFinalTitle; title.classList.add('is-lose'); }
+      else { title.textContent=TEXTS.otFinishedTitle; }
+      sub.innerHTML=fillText('otChampionSub', {
+        dot:`<span class="p-dot" style="background:${champ.color||CPU_GRAY}"></span>`,
+        name:escHtml(champ.name||'?')
+      });
     } else if(this.eliminated){
-      title.textContent='Eliminado'; title.classList.add('is-lose');
-      sub.textContent='Podés espectar las otras partidas';
+      title.textContent=TEXTS.tourneyEliminatedTitle; title.classList.add('is-lose');
+      sub.textContent=TEXTS.otEliminatedSub;
     } else if(this.myDone){
-      title.textContent='Semifinal ganada'; title.classList.add('is-win');
-      sub.textContent='Esperando al otro finalista…';
+      title.textContent=TEXTS.otSemiWonTitle; title.classList.add('is-win');
+      sub.textContent=TEXTS.otWaitingFinalist;
     } else {
-      title.textContent='Torneo'; sub.textContent='';
+      title.textContent=TEXTS.otInProgressTitle; sub.textContent='';
     }
     $('btn-ot-room').style.display=(this.finished&&fw)?'block':'none';
 
@@ -3453,15 +3649,15 @@ const OT = {
       box.innerHTML=`<span class="ot-vs">${label}</span>${mk(a)}${mk(bSeat)}`;
       if(running){
         const btn=document.createElement('button');
-        btn.className='btn btn--outline'; btn.textContent='👁 Espectar';
+        btn.className='btn btn--outline'; btn.textContent=TEXTS.otSpectateBtn;
         btn.addEventListener('click', ()=>OT.spectate(mid, a, bSeat));
         box.appendChild(btn);
       }
       list.appendChild(box);
     };
-    if(r1.m0) addMatch('Semifinal 1','m0', r1.m0.a, r1.m0.b, w0, !w0);
-    if(r1.m1) addMatch('Semifinal 2','m1', r1.m1.a, r1.m1.b, w1, !w1);
-    if(w0 && w1) addMatch('Final','f', w0, w1, fw, !fw);
+    if(r1.m0) addMatch(TEXTS.otSemi1Label,'m0', r1.m0.a, r1.m0.b, w0, !w0);
+    if(r1.m1) addMatch(TEXTS.otSemi2Label,'m1', r1.m1.a, r1.m1.b, w1, !w1);
+    if(w0 && w1) addMatch(TEXTS.otFinalLabel,'f', w0, w1, fw, !fw);
   },
 
   // ---- Espectador ----
@@ -3469,7 +3665,7 @@ const OT = {
     this.stopSpec();
     this.specId=mid; this._specSeats={a,b};
     this._specRef=this.ref.child('matches/'+mid);
-    $('spec-board').innerHTML=''; $('spec-note').textContent='Conectando…';
+    $('spec-board').innerHTML=''; $('spec-note').textContent=TEXTS.specConnecting;
     this.renderSpecHead(null);
     show('spectate');
     this._specRef.child('spec').on('value', s=>this.renderSpec(s.val()));
@@ -3477,7 +3673,7 @@ const OT = {
       const r=s.val();
       if(r && r.winner){
         const p=this.players[r.winner]||{};
-        $('spec-note').textContent='🏁 Ganó '+(p.name||'?');
+        $('spec-note').textContent=fillText('specMatchWon', {name:p.name||'?'});
         setTimeout(()=>{ if(App.screen==='spectate'){ OT.stopSpec(); show('othub'); OT.renderHub(); } }, 2800);
       }
     });
@@ -3498,24 +3694,24 @@ const OT = {
       `<b>${hpB}</b> ${escHtml(pb.name||'?')}<span class="p-dot" style="background:${pb.color||CPU_GRAY}"></span>`;
   },
   renderSpec(spec){
-    if(!spec){ $('spec-note').textContent='Esperando datos…'; return; }
+    if(!spec){ $('spec-note').textContent=TEXTS.specWaitingData; return; }
     if(spec.note==='cpu'){
       $('spec-board').innerHTML='';
-      $('spec-note').textContent='🤖 Partida entre CPUs — se resuelve sola…';
+      $('spec-note').textContent=TEXTS.specCpuVsCpu;
       this.renderSpecHead(null);
       return;
     }
     this.renderSpecHead(spec);
     const st=this._specSeats||{};
     if(spec.duel && spec.duel.active){
-      $('spec-note').textContent='⚔️ ¡Duelo en curso!';
+      $('spec-note').textContent=TEXTS.specDuelInProgress;
     } else if(spec.duel && spec.duel.active===false){
       const pa=this.players[st.a]||{}, pb=this.players[st.b]||{};
       $('spec-note').textContent = (spec.duel.winner==='tie')
-        ? `🤝 Empate (${spec.duel.scoreA}-${spec.duel.scoreB})`
-        : `⚔️ Ganó ${escHtml((spec.duel.winner==='A'?pa:pb).name||'?')} (${spec.duel.scoreA}-${spec.duel.scoreB})`;
+        ? fillText('specDuelTie', {scoreA:spec.duel.scoreA, scoreB:spec.duel.scoreB})
+        : fillText('specDuelWon', {name:escHtml((spec.duel.winner==='A'?pa:pb).name||'?'), scoreA:spec.duel.scoreA, scoreB:spec.duel.scoreB});
     } else {
-      $('spec-note').textContent='Turno '+(spec.turn||0);
+      $('spec-note').textContent=fillText('specTurn', {n:spec.turn||0});
     }
     const cells=String(spec.board||'');
     const n=Math.round(Math.sqrt(cells.length))||7;
@@ -3635,7 +3831,7 @@ function showTourneyBracket(onGo){
 function startTournament(){
   Tourney.active=true; Tourney.index=0;
   Tourney._carryHp=null; Tourney._beaten=-1; Tourney._duelCount=0;
-  $('btn-again').textContent='Reintentar rival';
+  $('btn-again').textContent=TEXTS.tourneyRetryLabel;
   applyOppCosmetic();
   showTourneyBracket(()=>{ show('game'); startGame(); });
 }
@@ -3696,38 +3892,41 @@ async function startCreateRoom(){
   $('ot-box').style.display='none'; setModeUI(App.matchMode==='bo5'?'mode-bo5':'mode-single');
   updateWallsToggle();
   const goBtn = $('btn-online-start'); if(goBtn) goBtn.style.display='none';
-  $('wait-text').textContent='Esperando rival…';
+  $('wait-text').textContent=TEXTS.waitTextWaitingOpp;
   $('code-out').textContent='····';
   Net.onReady = onBothReady;
   // Si el invitado se va del lobby antes de empezar, volver a esperar (#22)
   Net.onGuestLeft = ()=>{
     App.oppName=null; App.oppUser=null;
-    $('wait-text').textContent='El rival se fue — esperando otro…';
+    $('wait-text').textContent=TEXTS.waitTextOppLeft;
     const go=$('btn-online-start'); if(go) go.style.display='none';
   };
   try {
     const code=await Net.createRoom(); App.roomCode=code; $('code-out').textContent=code;
   } catch(e){
-    console.error(e); toast('No se pudo crear la sala. Revisá tu conexión.');
+    console.error(e); toast(TEXTS.toastCreateRoomFail);
     $('code-out').textContent='––––'; return;
   }
-  if(DEMO){ $('btn-demo-start').style.display='block'; $('wait-text').textContent='Modo práctica disponible'; }
+  if(DEMO){ $('btn-demo-start').style.display='block'; $('wait-text').textContent=TEXTS.waitTextPracticeAvailable; }
 }
 $('btn-create').addEventListener('click', ()=>{ exitSpecialMode(); startCreateRoom(); });
 $('btn-join').addEventListener('click', ()=>{ readName(); $('join-name').value=App.playerName==='Jugador'?'':App.playerName; $('lobby-created').style.display='none'; $('lobby-join').style.display='flex'; $('code-in').value=''; show('lobby'); setTimeout(()=>$('code-in').focus(),200); });
 
 // ---- 👤 Usuario: overlay de cuenta (registro / login / sesión) ----
 User.load();
-const USER_ERR = {
-  'formato':     'Usuario: de 3 a 15 caracteres, minúsculas, números o _',
-  'pass-corta':  'La contraseña debe tener al menos 6 caracteres.',
-  'ocupado':     'Ese usuario ya está tomado.',
-  'credenciales':'Usuario o contraseña incorrectos.',
-  'ya-logueado': 'Ya hay una sesión iniciada. Cerrala primero.',
-  'sin-pass':    'Antes de cerrar sesión creá una contraseña, si no tu usuario queda inaccesible.',
-  'sin-usuario': 'No hay usuario en este dispositivo.',
-  'sin-conexion':'Sin conexión — probá de nuevo.',
+const USER_ERR_KEY = {
+  'formato':     'errUserFormat',
+  'pass-corta':  'errPassShort',
+  'ocupado':     'errUserTaken',
+  'credenciales':'errCredentials',
+  'ya-logueado': 'errAlreadyLoggedIn',
+  'sin-pass':    'errNoPassword',
+  'sin-usuario': 'errNoUser',
+  'sin-conexion':'errNoConnection',
 };
+function userErrText(reason){
+  return TEXTS[USER_ERR_KEY[reason]] || TEXTS.errNoConnection;
+}
 // Trae las stats propias (users/{uid}/stats, lectura solo-dueño) para el
 // bloque "Mi perfil" del overlay de cuenta.
 async function loadProfileStats(){
@@ -3759,24 +3958,24 @@ const UserUI = {
     primary.disabled=false;
     if(m==='register'){
       $('user-title').innerHTML='Creá tu <b>usuario</b>';
-      $('user-hint').textContent='Único y permanente, siempre en minúscula. Con la contraseña vas a poder entrar desde cualquier dispositivo. El nickname de cada partida se elige aparte, como siempre.';
+      $('user-hint').textContent=TEXTS.userHintRegister;
       $('user-pass').style.display='block';
       primary.style.display='block'; primary.textContent='Crear cuenta';
       $('user-switch').textContent='¿Ya tenés usuario? Iniciá sesión';
     } else if(m==='login'){
       $('user-title').innerHTML='Iniciar <b>sesión</b>';
-      $('user-hint').textContent='Entrá con tu usuario y contraseña.';
+      $('user-hint').textContent=TEXTS.userHintLogin;
       $('user-pass').style.display='block';
       primary.style.display='block'; primary.textContent='Entrar';
       $('user-switch').textContent='¿No tenés usuario? Creá uno';
     } else {   // session
       $('user-title').innerHTML='👤 <b>'+escHtml(User.name||'')+'</b>';
       if(User.hasPassword()){
-        $('user-hint').textContent='Sesión iniciada. Podés entrar con este usuario desde cualquier dispositivo.';
+        $('user-hint').textContent=TEXTS.userHintSession;
         $('user-pass').style.display='none';
         primary.style.display='none';
       } else {
-        $('user-hint').textContent='Tu usuario todavía no tiene contraseña. Creá una para poder entrar desde otro dispositivo (y para no perderlo).';
+        $('user-hint').textContent=TEXTS.userHintNoPassword;
         $('user-pass').style.display='block';
         primary.style.display='block'; primary.textContent='Crear contraseña';
       }
@@ -3805,17 +4004,17 @@ $('user-primary').addEventListener('click', async ()=>{
   else                 res = await User.addPassword(pass);
   if(res.ok){
     $('user-overlay').hidden=true;
-    toast(m==='register' ? `Usuario "${User.name}" creado ✓` :
-          m==='login'    ? `Sesión iniciada: ${User.name} ✓` :
-                           'Contraseña creada ✓');
+    toast(m==='register' ? fillText('toastUserCreated', {user:User.name}) :
+          m==='login'    ? fillText('toastSessionStarted', {user:User.name}) :
+                           TEXTS.toastPasswordCreated);
   } else {
-    err.textContent = USER_ERR[res.reason] || USER_ERR['sin-conexion'];
+    err.textContent = userErrText(res.reason);
   }
   UserUI.render();   // restaura el botón (label/estado)
 });
 $('user-logout').addEventListener('click', async ()=>{
   const res = await User.logout();
-  if(res.ok){ $('user-overlay').hidden=true; toast('Sesión cerrada'); }
+  if(res.ok){ $('user-overlay').hidden=true; toast(TEXTS.toastSessionClosed); }
   else $('user-err').textContent = USER_ERR[res.reason] || USER_ERR['sin-conexion'];
 });
 function setModeUI(id){
@@ -3847,7 +4046,7 @@ function updateWallsToggle(){
   $('walls-state').textContent = App.wallsMode ? 'on' : 'off';
 }
 $('walls-toggle').addEventListener('click', ()=>{
-  if(OT.active){ toast('El Modo Paredes no está disponible en el torneo online.'); return; }
+  if(OT.active){ toast(TEXTS.toastWallsNotOnlineTourney); return; }
   if(App.wallsMode) exitSpecialMode(); else enterWallsMode();
   updateWallsToggle();
 });
@@ -3868,7 +4067,7 @@ $('btn-campaign').addEventListener('click', ()=>{
   readName(); exitSpecialMode(); App.online=false; Tourney.active=false;
   if(Campaign.hasProgress()){ Campaign.resume(); return; }
   // Primera vez: menú de confirmación con el nombre del jugador
-  $('camp-title').innerHTML = `¿Comenzar campaña como <b>${escapeHtml(App.playerName)}</b>?`;
+  $('camp-title').innerHTML = fillText('campaignStartConfirm', {name:escapeHtml(App.playerName)});
   $('camp-box').classList.remove('is-fading');
   $('camp-overlay').hidden = false;
 });
@@ -3884,15 +4083,15 @@ $('camp-yes').addEventListener('click', ()=>{
 });
 $('btn-camp-next').addEventListener('click', ()=>{ Campaign.enter(Campaign.node); });
 $('btn-offline-back').addEventListener('click', ()=>{ show('home'); });
-$('btn-quick').addEventListener('click', ()=>{ readName(); Tourney.active=false; applyOppCosmetic(); App.online=false; App.oppName='Cachito'; beginGame(); });
-$('btn-demo-start').addEventListener('click', ()=>{ Tourney.active=false; applyOppCosmetic(); App.online=false; App.oppName='Cachito'; beginGame(); });
+$('btn-quick').addEventListener('click', ()=>{ readName(); Tourney.active=false; applyOppCosmetic(); App.online=false; App.oppName=TEXTS.oppNamePractice; beginGame(); });
+$('btn-demo-start').addEventListener('click', ()=>{ Tourney.active=false; applyOppCosmetic(); App.online=false; App.oppName=TEXTS.oppNamePractice; beginGame(); });
 $('btn-join-go').addEventListener('click', async ()=>{
   const jn=$('join-name').value.trim();
   if(jn) $('name-input').value=jn;
   readName();
   const code=$('code-in').value.trim().toUpperCase();
-  if(code.length!==4){ toast('El código tiene 4 caracteres.'); return; }
-  if(DEMO){ App.online=false; App.oppName='Cachito'; App.roomCode=code; toast('Modo práctica: jugás contra la CPU.'); beginGame(); return; }
+  if(code.length!==4){ toast(TEXTS.toastCodeLength); return; }
+  if(DEMO){ App.online=false; App.oppName=TEXTS.oppNamePractice; App.roomCode=code; toast(TEXTS.toastPracticeMode); beginGame(); return; }
 
   App.online=true; App.isHost=false; App.roomCode=code;
   App.scoreYou=0; App.scoreOpp=0;   // nueva serie
@@ -3901,9 +4100,9 @@ $('btn-join-go').addEventListener('click', async ()=>{
   try {
     const res = await Net.joinRoom(code);
     if(!res.ok){
-      const msg = res.reason==='no-existe' ? 'Esa sala no existe.' :
-                  res.reason==='llena'     ? 'La sala ya está llena.' :
-                  'No se pudo unir a la sala.';
+      const msg = res.reason==='no-existe' ? TEXTS.toastRoomNotFound :
+                  res.reason==='llena'     ? TEXTS.toastRoomFull :
+                  TEXTS.toastJoinFail;
       toast(msg); goBtn.disabled=false; goBtn.textContent='Entrar'; return;
     }
     // Unido OK: pasar a la vista de sala con el aviso de conexión
@@ -3916,7 +4115,7 @@ $('btn-join-go').addEventListener('click', async ()=>{
     $('btn-share').style.display='none';
     $('ot-box').style.display='none';
   } catch(e){
-    console.error(e); toast('Error de conexión.'); goBtn.disabled=false; goBtn.textContent='Entrar';
+    console.error(e); toast(TEXTS.toastConnectionError); goBtn.disabled=false; goBtn.textContent='Entrar';
   }
 });
 $('btn-lobby-back').addEventListener('click', ()=>{ if(OT.active){ OT.leaveTournament(); return; } Net.leave(); show('home'); });
@@ -3934,16 +4133,16 @@ $('chat-form').addEventListener('submit', e=>{ e.preventDefault(); Chat.send(); 
 // #15 — Compartir invitación: arma un link con ?sala=CODIGO y lo comparte/copia
 $('btn-share').addEventListener('click', async ()=>{
   const code = App.roomCode;
-  if(!code || code==='····' || code==='––––'){ toast('Esperá a que se genere el código.'); return; }
+  if(!code || code==='····' || code==='––––'){ toast(TEXTS.toastWaitForCode); return; }
   const url = `${location.origin}${location.pathname}?sala=${code}`;
   const shareData = { title:'Rally', text:`Te invito a jugar Rally. Código: ${code}`, url };
   try {
     if(navigator.share){ await navigator.share(shareData); }
-    else { await navigator.clipboard.writeText(url); toast('Link copiado al portapapeles ✓'); }
+    else { await navigator.clipboard.writeText(url); toast(TEXTS.toastLinkCopiedClipboard); }
   } catch(e){
     // Cancelado o sin permiso: intentar copiar como respaldo
-    try { await navigator.clipboard.writeText(url); toast('Link copiado ✓'); }
-    catch(_){ toast('Tu link: '+url); }
+    try { await navigator.clipboard.writeText(url); toast(TEXTS.toastLinkCopied); }
+    catch(_){ toast(fillText('toastYourLink', {url})); }
   }
 });
 
@@ -3961,7 +4160,7 @@ $('btn-share').addEventListener('click', async ()=>{
     const cached=$('name-input').value||'';
     $('join-name').value = cached==='Jugador' ? '' : cached;
     show('lobby');
-    toast('Invitación detectada · elegí tu nombre y entrá');
+    toast(TEXTS.toastInviteDetected);
     setTimeout(()=>$('join-name').focus(), 250);
   }, 300);
 })();
@@ -4047,6 +4246,55 @@ function applyRemoteConfig(){
 }
 applyRemoteConfig();
 
+// ===== 📝 Textos remotos (v0.2.97) =====
+// Mismo patrón que applyRemoteConfig(): el panel de admin escribe overrides
+// de texto en texts/ (RTDB), lectura pública, solo strings ya existentes en
+// TEXTS. Se aplica al cargar (defaults, sin esperar a la red) y de nuevo si
+// llega algún override, para no dejar el HTML estático en blanco mientras
+// se espera a Firebase.
+function applyRemoteTexts(){
+  applyTextsToDom();
+  if(!fbDb) return;
+  fbDb.ref('texts').get().then(s=>{
+    const t = s.val(); if(!t) return;
+    let n=0;
+    for(const k in t){
+      if(typeof TEXTS[k]==='string' && typeof t[k]==='string' && TEXTS[k]!==t[k]){ TEXTS[k]=t[k]; n++; }
+    }
+    if(n){ console.log('[Rally] Textos remotos aplicados:', n, 'valores'); applyTextsToDom(); }
+  }).catch(()=>{});
+}
+applyRemoteTexts();
+
+// Vuelca los textos estáticos (overlay howto + pantalla larga "Cómo se juega") al DOM.
+function applyTextsToDom(){
+  $('howto-title').textContent = TEXTS.howtoTitle;
+  $('howto-text').textContent = TEXTS.howtoText;
+  $('howto-legend-atk').textContent = TEXTS.howtoLegendAtk;
+  $('howto-legend-def').textContent = TEXTS.howtoLegendDef;
+  $('howto-legend-down').textContent = TEXTS.howtoLegendDown;
+  $('howto-hint').textContent = TEXTS.howtoHint;
+  $('info-intro').textContent = TEXTS.infoIntro;
+  $('info-item-dmg').innerHTML = TEXTS.infoItemDmg;
+  $('info-item-def').innerHTML = TEXTS.infoItemDef;
+  $('info-item-trap').innerHTML = TEXTS.infoItemTrap;
+  $('info-item-ring').innerHTML = TEXTS.infoItemRing;
+  $('info-duel-intro').textContent = TEXTS.infoDuelIntro;
+  $('info-zone-green').innerHTML = TEXTS.infoZoneGreen;
+  $('info-zone-yellow').innerHTML = TEXTS.infoZoneYellow;
+  $('info-zone-orange').innerHTML = TEXTS.infoZoneOrange;
+  $('info-zone-red').innerHTML = TEXTS.infoZoneRed;
+  $('info-perfect').innerHTML = TEXTS.infoPerfect;
+  $('info-perfect-cancels').innerHTML = TEXTS.infoPerfectCancels;
+  $('info-score-decay').textContent = TEXTS.infoScoreDecay;
+  $('info-mercy').innerHTML = TEXTS.infoMercy;
+  $('info-walls').innerHTML = TEXTS.infoWalls;
+  TOURNEY_ROSTER.forEach((r,i)=>{ r.name = TEXTS['rosterName'+i] || r.name; });
+  CAMPAIGN_SCRIPT[0].opp.name = TEXTS.campaignOpp1Name;
+  CPU_NAMES.length = 0;
+  CPU_NAMES.push(...TEXTS.cpuNamesPool.split('\n').map(s=>s.trim()).filter(Boolean));
+}
+
 function buildLab(){
   const body = $('lab-body'); body.innerHTML='';
   let lastGroup='';
@@ -4081,7 +4329,7 @@ function openLab(){ buildLab(); show('lab'); }
 // paredes y lo sincroniza (prefijo "W" en el board).
 $('btn-walls').addEventListener('click', ()=>{
   readName(); Tourney.active=false; applyOppCosmetic();
-  App.online=false; App.oppName='Cachito';
+  App.online=false; App.oppName=TEXTS.oppNamePractice;
   enterWallsMode();
   beginGame();
 });
