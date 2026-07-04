@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.93';
+const VERSION = 'v0.2.94';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1418,8 +1418,13 @@ function flipMarker(cls, oldRect){
   el.style.transform = `translate(${dx}px, ${dy}px)`;
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      el.style.transition = '';
+      // Curva propia para el deslizamiento (carga y llegada, sin rebote):
+      // la de .player-marker en CSS es "back-out" (se usa para el pop de
+      // choque, .is-clash) y pasa de largo antes de asentar. Al terminar,
+      // se limpia la transition inline para no pisar esa otra animación.
+      el.style.transition = 'transform .35s ease-in-out';
       el.style.transform = '';
+      el.addEventListener('transitionend', ()=>{ el.style.transition = ''; }, {once:true});
     });
   });
 }
