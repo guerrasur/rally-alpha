@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.91';
+const VERSION = 'v0.2.92';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1039,6 +1039,36 @@ function wallSeparates(a, b){
   return Walls.blocks(a.x, a.y, b.x, b.y);
 }
 
+// Globos "Vos"/rival al arrancar la partida: se llama UNA sola vez, justo
+// después del primer renderBoard() de startGame()/startOnlineGame() — nunca
+// desde adentro de renderBoard() mismo (si no, reaparecerían en cada
+// movimiento, ya que esa función se llama muchas veces durante la partida).
+function showStartBubbles(){
+  // "Rival" genérico solo en práctica rápida/demo y Campaña; en torneo
+  // offline, online 1v1 y torneo online x4 (rival humano o CPU de relleno)
+  // se muestra el nombre real (App.oppName ya lo trae siempre bien puesto).
+  const showGenericRival = Campaign.active || (!G.online && !Tourney.active && !OT.active);
+  spawnStartBubble('.player-marker.is-you', 'Vos', 'is-you');
+  spawnStartBubble('.player-marker.is-opp', showGenericRival ? 'Rival' : App.oppName, 'is-opp');
+}
+function spawnStartBubble(selector, text, cls){
+  const piece = document.querySelector(selector);
+  const wrap = document.querySelector('.board-wrap');
+  if(!piece || !wrap) return;
+  const pr = piece.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+  const b = document.createElement('div');
+  b.className = 'start-bubble ' + cls;
+  b.textContent = text;
+  b.style.left = (pr.left - wr.left + pr.width/2) + 'px';
+  b.style.top = (pr.top - wr.top) + 'px';
+  wrap.appendChild(b);
+  requestAnimationFrame(()=>b.classList.add('is-show'));
+  setTimeout(()=>{
+    b.classList.add('is-gone');
+    setTimeout(()=>b.remove(), 350);
+  }, 1000);
+}
+
 function startGame(){
   G.online=false; G.flip=false;
   Chat.unmount();   // sin chat en offline/local
@@ -1054,6 +1084,7 @@ function startGame(){
   G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0;
   resolveSkins();   // easter egg Messi (offline: solo aplica tu propia skin)
   updateHud(); renderBoard(); startChoosePhase();
+  showStartBubbles();
 }
 
 // Etapa 2: arranque sincronizado. Ambos clientes comparten el mismo board.
@@ -1105,6 +1136,7 @@ function startOnlineGame(boardStr, role){
 
   // Etapa 3A: arrancamos la fase de elección con movimientos sincronizados.
   startChoosePhase();
+  showStartBubbles();
 }
 
 // El rival se desconectó o salió → victoria por abandono.

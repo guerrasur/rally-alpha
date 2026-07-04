@@ -1084,6 +1084,28 @@
     to{ transform:translateX(calc(100% - 3px)); }
   }
 
+  /* Globos "Vos"/rival al arrancar la partida (game.js: showStartBubbles) */
+  .start-bubble{
+    position:absolute; z-index:30; pointer-events:none;
+    padding:6px 14px; border-radius:999px;
+    font-family:var(--font-display); font-weight:700; font-size:14px; white-space:nowrap;
+    opacity:0; transform:translate(-50%, calc(-100% - 14px)) scale(.85);
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  .start-bubble::after{
+    content:''; position:absolute; left:50%; bottom:-5px; transform:translateX(-50%);
+    width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:6px solid;
+  }
+  .start-bubble.is-you{ background:var(--accent); color:var(--field); }
+  .start-bubble.is-you::after{ border-top-color:var(--accent); }
+  .start-bubble.is-opp{ background:var(--ink); color:var(--field); }
+  .start-bubble.is-opp::after{ border-top-color:var(--ink); }
+  .start-bubble.is-show{ opacity:1; transform:translate(-50%, calc(-100% - 14px)) scale(1); }
+  .start-bubble.is-gone{
+    transition: opacity .35s ease, transform .35s ease;
+    opacity:0; transform:translate(-50%, calc(-100% - 26px)) scale(.92);
+  }
+
   @media (prefers-reduced-motion: reduce){
     *{ animation-duration:.01ms !important; transition-duration:.05ms !important; }
   }
