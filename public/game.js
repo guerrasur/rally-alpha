@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.97';
+const VERSION = 'v0.2.98';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -477,14 +477,14 @@ function show(screen){
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', screen !== 'home');
 }
-function escapeHtml(s){
+function escHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 let toastT;
 function toast(msg, ms=2600){
   const t = $('toast');
   // escapa el texto y luego reemplaza el marcador {ring} por el mini-anillo
-  const esc = escapeHtml(msg);
+  const esc = escHtml(msg);
   t.innerHTML = esc.replace(/\{ring\}/g, '<span class="ring-ic"></span>');
   t.classList.add('is-show');
   clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('is-show'), ms);
@@ -1073,6 +1073,14 @@ function resolveSkins(){
   }
 }
 
+// Ícono de ítem de una celda (compartido por el tablero real y el del espectador de OT).
+function appendCellItemIcon(div, type){
+  if(type === 'power_dmg'){ const s=document.createElement('span'); s.className='item-atk'; s.textContent='🗡️'; div.appendChild(s); }
+  else if(type === 'power_def'){ const s=document.createElement('span'); s.className='item-def'; s.textContent='◈'; div.appendChild(s); }
+  else if(type === 'down'){ const s=document.createElement('span'); s.className='down'; s.textContent='×'; div.appendChild(s); }
+  else if(type === 'ring'){ const s=document.createElement('span'); s.className='item-ring'; div.appendChild(s); }
+}
+
 function renderBoard(){
   const boardEl = $('board'); boardEl.innerHTML = '';
   const n = CFG.boardSize;
@@ -1088,10 +1096,7 @@ function renderBoard(){
       const x = cn.x, y = cn.y;
       const cell = cellAt(x,y);
       const div = document.createElement('div'); div.className = 'cell'; div.dataset.x = x; div.dataset.y = y;
-      if(cell.type === 'power_dmg'){ const s=document.createElement('span'); s.className='item-atk'; s.textContent='🗡️'; div.appendChild(s); }
-      else if(cell.type === 'power_def'){ const s=document.createElement('span'); s.className='item-def'; s.textContent='◈'; div.appendChild(s); }
-      else if(cell.type === 'down'){ const s=document.createElement('span'); s.className='down'; s.textContent='×'; div.appendChild(s); }
-      else if(cell.type === 'ring'){ const s=document.createElement('span'); s.className='item-ring'; div.appendChild(s); }
+      appendCellItemIcon(div, cell.type);
       const youHere = (G.you.x === x && G.you.y === y);
       const oppHere = (G.opp.x === x && G.opp.y === y);
       const shielded = G.justDueled;   // tregua post-duelo: burbuja visible
@@ -1935,8 +1940,8 @@ function ejectPlayers(){
   Sound.eject(); haptic([15,30,15,30,15]);
 }
 
-function startDuel(){
-  G.phase='duel-countdown';
+// DOM/estado compartido por el countdown del duelo, offline y online.
+function showDuelCountdownUI(){
   $('duel-overlay').classList.add('is-show');
   $('duel-result').style.display='none';
   $('duel-game').style.display='none';
@@ -1947,10 +1952,14 @@ function startDuel(){
   btn.classList.remove('is-active','is-pressed');
   btn.classList.add('is-visible');
   btn.disabled = true;
+}
+
+// Corre "3, 2, 1, ¡YA!" y llama onDone() al terminar (offline y online usan el mismo timing).
+function runDuelCountdown(onDone){
   const steps=[3,2,1,TEXTS.duelCountdownGo]; let i=0; const cd=$('duel-countdown');
   const tick=()=>{
     if(G.phase!=='duel-countdown') return;   // se salió/terminó: abortar
-    if(i>=steps.length){ beginDuelPlay(); return; }
+    if(i>=steps.length){ onDone(); return; }
     cd.textContent=steps[i]; cd.classList.add('is-pop');
     Sound.countdown(); haptic(12);
     setTimeout(()=>cd.classList.remove('is-pop'),200);
@@ -1959,17 +1968,21 @@ function startDuel(){
   tick();
 }
 
-function beginDuelPlay(){
-  G.phase='duel-play';
+function startDuel(){
+  G.phase='duel-countdown';
+  showDuelCountdownUI();
+  runDuelCountdown(beginDuelPlay);
+}
+
+// Reseteo de estado compartido por offline/online al arrancar el minijuego de reflejos.
+function resetDuelPlayState(){
   $('duel-countdown').style.display='none';
   $('duel-game').style.display='flex';
   hideDuelReveal(); G._revealShown=false; G._duelResolved=false;
-  if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; }
   $('duel-title').textContent=TEXTS.duelTitleStopGreen;
   buildSpeedometer();
   G.duel.time=0;
   G.duel.pass=1;
-  G.duel.stopped=false;
   G.duel.yourScore=null;
   G.duel.oppScore=null;
   G.duel.yourStopped=false;
@@ -1985,15 +1998,27 @@ function beginDuelPlay(){
   btn.disabled=false;
   updateDuelPassLabel();
   G.duel.lastTs=performance.now();
+}
+
+// Arranca el rAF loop del duelo; updateFn hace avanzar tiempo/pases (distinto offline/online).
+function startDuelRaf(updateFn){
   const loop=(ts)=>{
     if(G.phase!=='duel-play') return;
     const dt=Math.min(0.05,(ts-G.duel.lastTs)/1000);
     G.duel.lastTs=ts;
-    updateIndicator(dt);
+    updateFn(dt);
     renderIndicator();
     G.duel.raf=requestAnimationFrame(loop);
   };
   G.duel.raf=requestAnimationFrame(loop);
+}
+
+function beginDuelPlay(){
+  G.phase='duel-play';
+  if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; }
+  resetDuelPlayState();
+  G.duel.stopped=false;
+  startDuelRaf(updateIndicator);
   scheduleCpuStop();
 }
 
@@ -2365,10 +2390,7 @@ function showDuelOutcome(o){
     const numEl=$('rescol-hp-'+side);
     const fill=$('rescol-fill-'+side);
     const pct=(hp)=>Math.max(0, Math.min(100, hp/maxHp*100));
-    const setColor=(p)=>{
-      fill.classList.toggle('is-low', p<25);
-      fill.classList.toggle('is-mid', p>=25 && p<55);
-    };
+    const setColor=(p)=>setHpBarColor(fill, p);
     if(reduceMotion){
       setColor(pct(after));
       fill.style.width=pct(after)+'%';
@@ -2400,6 +2422,37 @@ function showDuelOutcome(o){
   col('opp', o.oppBefore, G.opp.hp, G.opp.maxHp || CFG.maxHp);
 }
 
+// Aplica el resultado del duelo (según puntaje crudo, no el daño ya modificado
+// por buffs) a la vida de ambos, muestra showDuelOutcome()+sonido, y devuelve
+// los números para que el caller (offline/online) haga su propio post-proceso
+// (stats, sync de eject, espectador, etc — eso SÍ difiere entre los dos).
+function applyDuelOutcome(){
+  const rawYou=G.duel.yourScore??0, rawOpp=G.duel.oppScore??0;
+  const dmg=computeDuelDamages();
+  const yourRealDmg=dmg.yourDmg, oppRealDmg=dmg.oppDmg;
+  const youHpBefore=G.you.hp, oppHpBefore=G.opp.hp;
+  let isTie=false, youWin=false, chip=0;
+  if(rawYou>rawOpp){
+    youWin=true;
+    const rawChip=loserChipDamage(oppRealDmg, yourRealDmg);
+    chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
+    G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
+    G.you.hp=Math.max(0,G.you.hp-chip);
+    showDuelOutcome({ youWin:true, perfect:dmg.youPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
+    Sound.win(); haptic([15,30,15]);
+  } else if(rawOpp>rawYou){
+    const rawChip=loserChipDamage(yourRealDmg, oppRealDmg);
+    chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
+    G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
+    G.opp.hp=Math.max(0,G.opp.hp-chip);
+    showDuelOutcome({ youWin:false, perfect:dmg.oppPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
+    Sound.lose(); haptic([20,60,20]);
+  } else {
+    isTie=true; showDuelOutcome({ tie:true, youBefore:youHpBefore, oppBefore:oppHpBefore }); Sound.tie();
+  }
+  return { isTie, youWin, rawYou, rawOpp, yourRealDmg, oppRealDmg, chip };
+}
+
 function resolveDuel(){
   if(G._duelResolved) return;        // ya resuelto: ignorar llamadas repetidas
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
@@ -2414,30 +2467,7 @@ function resolveDuel(){
   G._duelResolved=true;              // a partir de acá, no re-entrar
   $('duel-reveal').style.display='none';
   G.phase='duel-result';
-  const rawYou=G.duel.yourScore??0, rawOpp=G.duel.oppScore??0;
-  const _dmg=computeDuelDamages();
-  const yourRealDmg=_dmg.yourDmg, oppRealDmg=_dmg.oppDmg;
-  const youHpBefore=G.you.hp, oppHpBefore=G.opp.hp;
-  // Quién ganó el duelo lo decide el puntaje crudo del minijuego, no el daño
-  // ya modificado por buffs.
-  let isTie=false;
-  if(rawYou>rawOpp){
-    const rawChip=loserChipDamage(oppRealDmg, yourRealDmg);
-    const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
-    G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
-    G.you.hp=Math.max(0,G.you.hp-chip);
-    showDuelOutcome({ youWin:true, perfect:_dmg.youPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
-    Sound.win(); haptic([15,30,15]);
-  } else if(rawOpp>rawYou){
-    const rawChip=loserChipDamage(yourRealDmg, oppRealDmg);
-    const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
-    G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
-    G.opp.hp=Math.max(0,G.opp.hp-chip);
-    showDuelOutcome({ youWin:false, perfect:_dmg.oppPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
-    Sound.lose(); haptic([20,60,20]);
-  } else {
-    isTie=true; showDuelOutcome({ tie:true, youBefore:youHpBefore, oppBefore:oppHpBefore }); Sound.tie();
-  }
+  const { isTie } = applyDuelOutcome();
   G.you.buffs={dmg:0,def:0}; G.opp.buffs={dmg:0,def:0};
   G.justDueled = true;
   hideDuelReveal();
@@ -2461,16 +2491,7 @@ function duelIdFor(){ return 'd'+G.turnCount; }
 function startDuelOnline(){
   G.phase='duel-countdown';
   if(OT.active && OT.inMatch && OT.master) OT.pushSpec({ active:true });
-  $('duel-overlay').classList.add('is-show');
-  $('duel-result').style.display='none';
-  $('duel-game').style.display='none';
-  $('duel-countdown').style.display='block';
-  $('duel-title').textContent=TEXTS.duelTitleEncounter;
-  Sound.duelStart(); setMsg(TEXTS.msgDuelImminent);
-  const btn = $('duel-stop');
-  btn.classList.remove('is-active','is-pressed');
-  btn.classList.add('is-visible');
-  btn.disabled = true;
+  showDuelCountdownUI();
 
   // Preparar escucha de scores del rival para este duelo
   const duelId = duelIdFor();
@@ -2485,51 +2506,14 @@ function startDuelOnline(){
   };
   Net.listenDuelScores(duelId);
 
-  const steps=[3,2,1,TEXTS.duelCountdownGo]; let i=0; const cd=$('duel-countdown');
-  const tick=()=>{
-    if(G.phase!=='duel-countdown') return;   // se salió/desconectó: abortar
-    if(i>=steps.length){ beginDuelPlayOnline(); return; }
-    cd.textContent=steps[i]; cd.classList.add('is-pop');
-    Sound.countdown(); haptic(12);
-    setTimeout(()=>cd.classList.remove('is-pop'),200);
-    i++; setTimeout(tick, CFG.duelCountdownMs);
-  };
-  tick();
+  runDuelCountdown(beginDuelPlayOnline);
 }
 
 function beginDuelPlayOnline(){
   G.phase='duel-play';
-  $('duel-countdown').style.display='none';
-  $('duel-game').style.display='flex';
-  hideDuelReveal(); G._revealShown=false; G._duelResolved=false;
-  $('duel-title').textContent=TEXTS.duelTitleStopGreen;
-  buildSpeedometer();
-  G.duel.time=0;
-  G.duel.pass=1;
-  G.duel.yourScore=null;
-  G.duel.oppScore=null;       // en online lo llena Firebase
-  G.duel.yourStopped=false;
-  G.duel.oppStopped=false;    // marcará true cuando llegue el score del rival
-  G.duel.yourStoppedPos=0;
-  G.duel.oppStoppedPos=0;
-  G.duel.yourStoppedPass=undefined;
-  G.duel.oppStoppedPass=undefined;
-  updateNeedles(0);
-  const btn=$('duel-stop');
-  btn.classList.remove('is-visible','is-pressed');
-  btn.classList.add('is-active');
-  btn.disabled=false;
-  updateDuelPassLabel();
-  G.duel.lastTs=performance.now();
-  const loop=(ts)=>{
-    if(G.phase!=='duel-play') return;
-    const dt=Math.min(0.05,(ts-G.duel.lastTs)/1000);
-    G.duel.lastTs=ts;
-    updateIndicatorOnline(dt);
-    renderIndicator();
-    G.duel.raf=requestAnimationFrame(loop);
-  };
-  G.duel.raf=requestAnimationFrame(loop);
+  resetDuelPlayState();
+  // G.duel.oppScore/oppStopped: en online los llena Firebase, no acá.
+  startDuelRaf(updateIndicatorOnline);
   // No hay CPU: el rival es humano. Sus scores llegan por Firebase.
 }
 
@@ -2613,38 +2597,17 @@ function finishDuelOnline(){
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
   G.phase='duel-result';
 
-  const rawYou=G.duel.yourScore??0, rawOpp=G.duel.oppScore??0;
-  const _dmgO=computeDuelDamages();
-  const yourRealDmg=_dmgO.yourDmg, oppRealDmg=_dmgO.oppDmg;
-  const youHpBefore=G.you.hp, oppHpBefore=G.opp.hp;
-  // Quién ganó el duelo lo decide el puntaje crudo del minijuego, no el daño
-  // ya modificado por buffs.
-  let isTie=false;
   // stats: solo duelos online — ensureAuth() espera a que la sesión (ya en
   // curso) termine de resolverse en vez de asumir currentUser ya disponible
   // (evita perder el guardado si la restauración de sesión todavía no terminó).
-  if(rawYou>rawOpp){
-    const rawChip=loserChipDamage(oppRealDmg, yourRealDmg);
-    const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
-    G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
-    G.you.hp=Math.max(0,G.you.hp-chip);
-    ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { damageDealt:yourRealDmg, damageReceived:chip, kills:G.opp.hp<=0?1:0 }); });
-    showDuelOutcome({ youWin:true, perfect:_dmgO.youPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
-    Sound.win(); haptic([15,30,15]);
-  } else if(rawOpp>rawYou){
-    const rawChip=loserChipDamage(yourRealDmg, oppRealDmg);
-    const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
-    G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
-    G.opp.hp=Math.max(0,G.opp.hp-chip);
-    ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { damageDealt:chip, damageReceived:oppRealDmg }); });
-    showDuelOutcome({ youWin:false, perfect:_dmgO.oppPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
-    Sound.lose(); haptic([20,60,20]);
-  } else {
-    isTie=true; showDuelOutcome({ tie:true, youBefore:youHpBefore, oppBefore:oppHpBefore }); Sound.tie();
+  const { isTie, youWin, rawYou, rawOpp, yourRealDmg, oppRealDmg, chip } = applyDuelOutcome();
+  if(!isTie){
+    if(youWin) ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { damageDealt:yourRealDmg, damageReceived:chip, kills:G.opp.hp<=0?1:0 }); });
+    else ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { damageDealt:chip, damageReceived:oppRealDmg }); });
   }
   if(OT.active && OT.inMatch && OT.master){
     const meIsA = (OT.matchA===OT.mySeat);
-    const winner = isTie ? 'tie' : ((rawYou>rawOpp)===meIsA ? 'A' : 'B');
+    const winner = isTie ? 'tie' : (youWin===meIsA ? 'A' : 'B');
     OT.pushSpec({ active:false, winner, scoreA: meIsA?rawYou:rawOpp, scoreB: meIsA?rawOpp:rawYou });
   }
   G.you.buffs={dmg:0,def:0}; G.opp.buffs={dmg:0,def:0};
@@ -2682,14 +2645,20 @@ function finishDuelOnline(){
   }, 2600);
 }
 
+// Clases de color de una barra de HP (compartido por el HUD y las columnas de resultado del duelo).
+function setHpBarColor(fillEl, pct){
+  fillEl.classList.toggle('is-low', pct<25);
+  fillEl.classList.toggle('is-mid', pct>=25 && pct<55);
+}
+
 function updateHud(){
   const oppMax = G.opp.maxHp || CFG.maxHp;
   const youPct=Math.max(0,Math.min(100,(G.you.hp/CFG.maxHp)*100));
   const oppPct=Math.max(0,Math.min(100,(G.opp.hp/oppMax)*100));
   $('hp-fill-you').style.width=youPct+'%'; $('hp-fill-opp').style.width=oppPct+'%';
   $('hp-num-you').textContent=Math.max(0,G.you.hp); $('hp-num-opp').textContent=Math.max(0,G.opp.hp);
-  $('hp-fill-you').classList.toggle('is-low',youPct<25); $('hp-fill-you').classList.toggle('is-mid',youPct>=25&&youPct<55);
-  $('hp-fill-opp').classList.toggle('is-low',oppPct<25); $('hp-fill-opp').classList.toggle('is-mid',oppPct>=25&&oppPct<55);
+  setHpBarColor($('hp-fill-you'), youPct);
+  setHpBarColor($('hp-fill-opp'), oppPct);
   $('hud-name-you').textContent=App.playerName;
   // Usuario permanente abajo del nickname (chico y gris). El del rival solo online.
   $('hud-user-you').textContent = User.name || '';
@@ -3040,21 +3009,6 @@ const Net = {
   },
 
   // ---- Revancha online (#6) ----
-  onRematchState: null,  // callback({host,guest}) con quién aceptó la revancha
-  // Marca que yo quiero revancha
-  async pushRematch(){
-    if(!this.ref) return;
-    await this.ref.child('rematch/'+this.role).set(true);
-  },
-  // Escucha el estado de revancha de ambos
-  listenRematch(){
-    if(!this.ref) return;
-    this.ref.child('rematch').on('value', s=>{
-      const r = s.val() || {};
-      if(this.onRematchState) this.onRematchState(r);
-    });
-  },
-  stopListenRematch(){ if(this.ref) this.ref.child('rematch').off(); },
   // Limpia el estado de revancha y los datos de la partida anterior (host)
   async resetForRematch(){
     if(!this.ref) return;
@@ -3109,9 +3063,6 @@ const Net = {
       const b = s.val();
       if(b && this.onBoardUpdate) this.onBoardUpdate(b);
     });
-  },
-  stopListenBoard(){
-    if(this.ref) this.ref.child('game/board').off();
   },
 
   // ---- Duelo sincronizado (Etapa 3B) ----
@@ -3502,8 +3453,9 @@ const OT = {
     try{ this.ref.child('players/'+this.mySeat).onDisconnect().cancel(); }catch(e){}
     let r1=null;
     try{
-      this.players=(await this.ref.child('players').get()).val()||this.players;
-      r1=(await this.ref.child('bracket/r1').get()).val();
+      const snap = await this.ref.get();   // un solo viaje de red: players + bracket/r1 vienen del mismo snapshot
+      this.players = snap.child('players').val() || this.players;
+      r1 = snap.child('bracket/r1').val();
     }catch(e){}
     if(!r1) return;
     const mine=(r1.m0.a===this.mySeat||r1.m0.b===this.mySeat) ? ['m0',r1.m0] : ['m1',r1.m1];
@@ -3724,10 +3676,7 @@ const OT = {
     for(let y=0;y<n;y++) for(let x=0;x<n;x++){
       const div=document.createElement('div'); div.className='cell';
       const t=CODE_CELL[cells[y*n+x]]||'empty';
-      if(t==='power_dmg'){ const s=document.createElement('span'); s.className='item-atk'; s.textContent='🗡️'; div.appendChild(s); }
-      else if(t==='power_def'){ const s=document.createElement('span'); s.className='item-def'; s.textContent='◈'; div.appendChild(s); }
-      else if(t==='down'){ const s=document.createElement('span'); s.className='down'; s.textContent='×'; div.appendChild(s); }
-      else if(t==='ring'){ const s=document.createElement('span'); s.className='item-ring'; div.appendChild(s); }
+      appendCellItemIcon(div, t);
       const here=[];
       if(spec.A && spec.A.x===x && spec.A.y===y) here.push(colA);
       if(spec.B && spec.B.x===x && spec.B.y===y) here.push(colB);
@@ -3774,7 +3723,6 @@ const OT = {
     show('home');
   },
 };
-function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function beginGame(){
   updateHud(); show('game');
@@ -4067,7 +4015,7 @@ $('btn-campaign').addEventListener('click', ()=>{
   readName(); exitSpecialMode(); App.online=false; Tourney.active=false;
   if(Campaign.hasProgress()){ Campaign.resume(); return; }
   // Primera vez: menú de confirmación con el nombre del jugador
-  $('camp-title').innerHTML = fillText('campaignStartConfirm', {name:escapeHtml(App.playerName)});
+  $('camp-title').innerHTML = fillText('campaignStartConfirm', {name:escHtml(App.playerName)});
   $('camp-box').classList.remove('is-fading');
   $('camp-overlay').hidden = false;
 });
