@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.83';
+const VERSION = 'v0.2.84';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -192,6 +192,21 @@ const User = {
                         : 'Online activo · creá una sala y pasá el código.';
       foot.textContent = this.name ? ('👤 '+this.name+' · '+base) : base;
     }
+  },
+};
+
+// ===== 📊 Estadísticas de jugador (online, v0.2.84) =====
+// Se acumulan SOLO en partidas online (salas 1v1 y torneo x4) — la práctica
+// offline y el torneo offline no cuentan. Viven en users/{uid}/stats (mismo
+// nodo reservado para perfil). Escritura vía transaction() para que sumar
+// desde duelos/partidas seguidas no pise valores por una carrera de escrituras.
+const Stats = {
+  bump(uid, key, delta){
+    if(!fbDb || !uid || !delta) return;
+    fbDb.ref('users/'+uid+'/stats/'+key).transaction(cur=>(cur||0)+delta).catch(()=>{});
+  },
+  bumpMany(uid, deltas){
+    for(const k in deltas){ if(deltas[k]) this.bump(uid, k, deltas[k]); }
   },
 };
 
@@ -2184,11 +2199,13 @@ function resolveDuelOnline(){
   // Quién ganó el duelo lo decide el puntaje crudo del minijuego, no el daño
   // ya modificado por buffs.
   let isTie=false;
+  const _statsUid = User.current() && User.current().uid;   // stats: solo duelos online
   if(rawYou>rawOpp){
     const rawChip=loserChipDamage(oppRealDmg, yourRealDmg);
     const chip=chipWithMercy(G.you.hp, rawChip);   // tiro de gracia: ganar no te mata
     G.opp.hp=Math.max(0,G.opp.hp-yourRealDmg);
     G.you.hp=Math.max(0,G.you.hp-chip);
+    if(_statsUid) Stats.bumpMany(_statsUid, { damageDealt:yourRealDmg, damageReceived:chip, kills:G.opp.hp<=0?1:0 });
     showDuelOutcome({ youWin:true, perfect:_dmgO.youPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
     Sound.win(); haptic([15,30,15]);
   } else if(rawOpp>rawYou){
@@ -2196,6 +2213,7 @@ function resolveDuelOnline(){
     const chip=chipWithMercy(G.opp.hp, rawChip);   // tiro de gracia: el rival ganador no muere por chip
     G.you.hp=Math.max(0,G.you.hp-oppRealDmg);
     G.opp.hp=Math.max(0,G.opp.hp-chip);
+    if(_statsUid) Stats.bumpMany(_statsUid, { damageDealt:chip, damageReceived:oppRealDmg });
     showDuelOutcome({ youWin:false, perfect:_dmgO.oppPerfect, youBefore:youHpBefore, oppBefore:oppHpBefore });
     Sound.lose(); haptic([20,60,20]);
   } else {
@@ -2386,6 +2404,8 @@ function endGame(){
       }
       if(won===true)  rt.classList.add('is-win');
       if(won===false) rt.classList.add('is-lose');
+      const _statsUid = User.current() && User.current().uid;
+      if(_statsUid) Stats.bumpMany(_statsUid, { gamesPlayed:1, gamesWon: won===true?1:0 });
       App.scoreYou=0; App.scoreOpp=0;   // reset para futuras series
       setupOnlineEnd();
     } else {
@@ -2875,11 +2895,12 @@ const OT = {
   inMatch:false, myMatchId:null, matchA:null, matchB:null, master:false,
   myDone:false, eliminated:false, finished:false, _finalHandled:false,
   specId:null, _specRef:null, _specSeats:null,
+  _champBumped:false,   // evita sumar "torneos ganados" más de una vez por torneo
 
   resetRunFlags(){
     this.inMatch=false; this.myMatchId=null; this.matchA=null; this.matchB=null;
     this.master=false; this.myDone=false; this.eliminated=false;
-    this.finished=false; this._finalHandled=false; this.stopSpec();
+    this.finished=false; this._finalHandled=false; this._champBumped=false; this.stopSpec();
   },
   detachRoom(){
     try{ if(this.ref){ this.ref.child('players').off(); this.ref.child('status').off(); this.ref.child('bracket').off(); } }catch(e){}
@@ -3050,7 +3071,7 @@ const OT = {
   // ---- Ruteo de partidas ----
   async route(){
     this._phase='playing';
-    this.myDone=false; this.eliminated=false; this.finished=false; this._finalHandled=false;
+    this.myDone=false; this.eliminated=false; this.finished=false; this._finalHandled=false; this._champBumped=false;
     try{ this.ref.child('players/'+this.mySeat).onDisconnect().cancel(); }catch(e){}
     let r1=null;
     try{
@@ -3115,6 +3136,7 @@ const OT = {
 
   // ---- Fin de mi partida (lo llama endGame / abandono) ----
   onMyMatchEnd(youHp, oppHp){
+    const wasOnline = G.online;   // se resetea abajo; capturar antes para las stats
     const meIsA=(this.matchA===this.mySeat);
     let winner;
     if(youHp!==oppHp) winner=(youHp>oppHp) ? this.mySeat : (meIsA?this.matchB:this.matchA);
@@ -3126,6 +3148,10 @@ const OT = {
       this.ref.child('matches/'+mid+'/result').set({ winner }).catch(()=>{});
       this.ref.child(path).set(winner).catch(()=>{});
     }catch(e){}
+    if(wasOnline){   // partida vs humano real (no CPU de relleno) → cuenta para stats
+      const _statsUid = User.current() && User.current().uid;
+      if(_statsUid) Stats.bumpMany(_statsUid, { gamesPlayed:1, gamesWon: winner===this.mySeat?1:0 });
+    }
     if(G.online) Net.detachMatch();
     G.online=false; G.running=false;
     this.inMatch=false; this.myDone=true;
@@ -3156,7 +3182,14 @@ const OT = {
     title.classList.remove('is-win','is-lose');
     if(this.finished && fw){
       const champ=this.players[fw]||{};
-      if(fw===this.mySeat){ title.textContent='🏆 Ganaste el torneo'; title.classList.add('is-win'); }
+      if(fw===this.mySeat){
+        title.textContent='🏆 Ganaste el torneo'; title.classList.add('is-win');
+        if(!this._champBumped){
+          this._champBumped = true;
+          const _statsUid = User.current() && User.current().uid;
+          if(_statsUid) Stats.bump(_statsUid, 'tournamentsWon', 1);
+        }
+      }
       else if((w0===this.mySeat||w1===this.mySeat)){ title.textContent='Perdiste la final'; title.classList.add('is-lose'); }
       else { title.textContent='Torneo terminado'; }
       sub.innerHTML=`Campeón: <span class="p-dot" style="background:${champ.color||CPU_GRAY}"></span> <b>${escHtml(champ.name||'?')}</b>`;
@@ -3448,6 +3481,18 @@ const USER_ERR = {
   'sin-usuario': 'No hay usuario en este dispositivo.',
   'sin-conexion':'Sin conexión — probá de nuevo.',
 };
+// Trae las stats propias (users/{uid}/stats, lectura solo-dueño) para el
+// bloque "Mi perfil" del overlay de cuenta.
+async function loadProfileStats(){
+  const cu = User.current();
+  if(!cu || !fbDb) return;
+  let s = {};
+  try{ s = (await fbDb.ref('users/'+cu.uid+'/stats').get()).val() || {}; }catch(e){}
+  $('us-gamesWon').textContent = s.gamesWon || 0;
+  $('us-kills').textContent = s.kills || 0;
+  $('us-tournamentsWon').textContent = s.tournamentsWon || 0;
+}
+
 const UserUI = {
   mode: 'register',   // 'register' | 'login' | 'session'
   open(mode){
@@ -3463,6 +3508,7 @@ const UserUI = {
     const m=this.mode, primary=$('user-primary');
     $('user-input').style.display = (m==='session') ? 'none' : 'block';
     $('user-logout').hidden = (m!=='session');
+    $('user-stats').style.display = (m==='session') ? 'block' : 'none';
     primary.disabled=false;
     if(m==='register'){
       $('user-title').innerHTML='Creá tu <b>usuario</b>';
@@ -3488,6 +3534,7 @@ const UserUI = {
         primary.style.display='block'; primary.textContent='Crear contraseña';
       }
       $('user-switch').textContent='Entrar con otro usuario';
+      loadProfileStats();
     }
   },
 };
