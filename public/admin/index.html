@@ -55,6 +55,7 @@
   .stat input{ width:86px; padding:7px 8px; text-align:center; border:1px solid var(--line); border-radius:8px;
                background:var(--paper); color:var(--ink); font:inherit; font-size:14px; }
   .stat input.is-changed{ border-color:var(--accent); color:var(--accent); font-weight:700; }
+  .stat b{ font-size:16px; color:var(--accent); }
   .group{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:14px 0 2px; }
   .row-actions{ display:flex; gap:10px; margin-top:14px; }
   .row-actions .btn{ flex:1; }
@@ -70,7 +71,7 @@
 <div class="wrap">
   <div class="topline">
     <div><span class="eyebrow">Rally</span><h1>Panel de admin</h1></div>
-    <span class="count" id="ver">v0.2.84</span>
+    <span class="count" id="ver">v0.2.85</span>
   </div>
 
   <!-- Login -->
@@ -103,6 +104,13 @@
 
     <!-- Contenido solo para admins -->
     <div id="admin-content" style="display:none;">
+      <h2>📈 Visitas</h2>
+      <div class="card">
+        <div class="stat"><span class="stat__label">Visitas totales</span><b id="ss-pageviews">…</b></div>
+        <div class="stat"><span class="stat__label">Visitantes únicos</span><b id="ss-unique">…</b></div>
+        <div class="row-actions"><button class="btn btn--ghost btn--small" id="ss-refresh">Refrescar</button></div>
+      </div>
+
       <h2>👥 Usuarios creados <span class="count" id="u-count"></span></h2>
       <div class="card">
         <table>
@@ -218,6 +226,7 @@ async function refreshSession(){
   if(!isAdmin) return;   // el resto del panel es solo para admins
   $('st-save').disabled = false;
   $('st-reset').disabled = false;
+  loadSiteStats();
   loadUsers();
   loadPlayerStats();
   loadStats();
@@ -288,6 +297,19 @@ $('a-add').addEventListener('click', async ()=>{
   }catch(e){ err.textContent='No se pudo agregar (¿sigue siendo tu cuenta admin?).'; }
   btn.disabled=false; btn.textContent='Agregar como admin';
 });
+
+// ---- Visitas del sitio (siteStats/, cuenta cada carga de index.html) ----
+async function loadSiteStats(){
+  try{
+    const [pv, visitors] = await Promise.all([
+      db.ref('siteStats/pageViews').get().then(s=>s.val()||0),
+      db.ref('siteStats/visitors').get().then(s=>s.val()||{}),
+    ]);
+    $('ss-pageviews').textContent = pv;
+    $('ss-unique').textContent = Object.keys(visitors).length;
+  }catch(e){ $('ss-pageviews').textContent = '—'; $('ss-unique').textContent = '—'; }
+}
+$('ss-refresh').addEventListener('click', loadSiteStats);
 
 // ---- Usuarios ----
 async function loadUsers(){
