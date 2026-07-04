@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.88';
+const VERSION = 'v0.2.89';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -2201,18 +2201,27 @@ function onDuelScoresReady(scores){
   resolveDuelOnline();
 }
 
+// Se llama tanto al frenar mi aguja (commitMyDuelScore) como al enterarme del
+// score del rival por Firebase (onDuelScoresReady) — ambos caminos pueden
+// disparar casi simultáneos cuando frenás segundo (ya conocías el score
+// rival, y tu propio push recién "rebota" un instante después por la
+// escucha). El guard de `_revealShown` asegura que solo el PRIMER trigger
+// arranque el paso 1 (revelado); el paso 2 (veredicto) SOLO lo dispara su
+// propio setTimeout vía finishDuelOnline — así un segundo trigger externo no
+// puede adelantar el veredicto y cortar el revelado a la mitad.
 function resolveDuelOnline(){
   if(G._duelResolved) return;     // evitar doble resolución
   if(!(G.duel.yourStopped && G.duel.oppStopped)) return;
-  // Paso 1: pantalla de revelado. Paso 2: veredicto.
-  if(!G._revealShown){
-    G._revealShown=true;
-    if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
-    G.phase='duel-reveal';
-    showDuelReveal();
-    setTimeout(()=>{ resolveDuelOnline(); }, 2200);
-    return;
-  }
+  if(G._revealShown) return;      // el paso 1 ya arrancó; su propio setTimeout dispara el paso 2
+  G._revealShown=true;
+  if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
+  G.phase='duel-reveal';
+  showDuelReveal();
+  setTimeout(finishDuelOnline, 2200);
+}
+
+function finishDuelOnline(){
+  if(G._duelResolved) return;
   G._duelResolved = true;
   $('duel-reveal').style.display='none';
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
