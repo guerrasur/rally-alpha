@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.2.96</title>
-<link rel="stylesheet" href="style.css?v=v0.2.96" />
+<title>Rally — duelo en tablero · v0.2.97</title>
+<link rel="stylesheet" href="style.css?v=v0.2.97" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -19,7 +19,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.2.96</div>
+  <div class="version-tag" id="version-tag">v0.2.97</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -89,27 +89,27 @@
   <section class="screen screen--info" id="screen-info">
     <div class="info-wrap">
       <h2>Cómo se juega</h2>
-      <p>Cada jugador se mueve por el tablero de a una casilla por turno (incluidas las diagonales). Los dos eligen a la vez y se mueven al mismo tiempo. El objetivo: llegar al duelo con ventaja y dejar al rival sin vida.</p>
+      <p id="info-intro"></p>
 
       <h3>Elementos del tablero</h3>
-      <div class="info-item"><span class="ico">🗡️</span><span class="txt"><b>Poder de daño.</b> Suma daño a tus golpes en los duelos. Se acumula con cada uno que juntes.</span></div>
-      <div class="info-item"><span class="ico">◈</span><span class="txt"><b>Poder de defensa.</b> Reduce el daño que te hace el rival en los duelos. También se acumula.</span></div>
-      <div class="info-item"><span class="ico">✖️</span><span class="txt"><b>Trampa.</b> Si la pisás, perdés algo de vida. Nunca te mata: como mucho te deja al borde. Conviene esquivarlas.</span></div>
-      <div class="info-item"><span class="ico"><span class="ring-ic"></span></span><span class="txt"><b>Anillo.</b> Raro y valioso. Cura vida: mucho de golpe si estás muy lastimado, o de a poco durante varias rondas si estás más entero. Mientras dura el goteo, verás su ícono junto a tus poderes.</span></div>
+      <div class="info-item"><span class="ico">🗡️</span><span class="txt" id="info-item-dmg"></span></div>
+      <div class="info-item"><span class="ico">◈</span><span class="txt" id="info-item-def"></span></div>
+      <div class="info-item"><span class="ico">✖️</span><span class="txt" id="info-item-trap"></span></div>
+      <div class="info-item"><span class="ico"><span class="ring-ic"></span></span><span class="txt" id="info-item-ring"></span></div>
 
       <h3>El duelo</h3>
-      <p>Cuando los dos jugadores quedan en la misma casilla o pegados, se abre un duelo de reflejos. Una aguja recorre una barra de colores de ida y vuelta, y tenés que frenarla en la mejor zona posible.</p>
-      <div class="info-zone-row"><span class="swatch" style="background:var(--good)"></span> <span><b>Verde</b> — buen golpe.</span></div>
-      <div class="info-zone-row"><span class="swatch" style="background:var(--warn)"></span> <span><b>Amarillo</b> — golpe medio.</span></div>
-      <div class="info-zone-row"><span class="swatch" style="background:var(--orange)"></span> <span><b>Naranja</b> — golpe flojo.</span></div>
-      <div class="info-zone-row"><span class="swatch" style="background:var(--bad)"></span> <span><b>Rojo</b> — casi sin daño.</span></div>
-      <p>Justo en el centro del verde hay una franja fina: el <b>PERFECTO</b>. Vale el doble y duplica tus poderes de daño en ese golpe. Ojo: solo cuenta en la <b>primera pasada</b> de la aguja; después desaparece.</p>
-      <p>Si tu golpe es perfecto y el del rival no, ese golpe <b>anula sus poderes</b> (su defensa no te tapa y su daño no cuenta). Si ambos hacen perfecto, los poderes valen normal.</p>
-      <p>Cuanto más tardás en frenar, más pasadas cuenta la aguja y menos vale la zona roja. El que hace más puntaje gana el duelo y le baja la vida al otro. El perdedor también araña algo de daño, proporcional a lo cerca que estuvo.</p>
+      <p id="info-duel-intro"></p>
+      <div class="info-zone-row"><span class="swatch" style="background:var(--good)"></span> <span id="info-zone-green"></span></div>
+      <div class="info-zone-row"><span class="swatch" style="background:var(--warn)"></span> <span id="info-zone-yellow"></span></div>
+      <div class="info-zone-row"><span class="swatch" style="background:var(--orange)"></span> <span id="info-zone-orange"></span></div>
+      <div class="info-zone-row"><span class="swatch" style="background:var(--bad)"></span> <span id="info-zone-red"></span></div>
+      <p id="info-perfect"></p>
+      <p id="info-perfect-cancels"></p>
+      <p id="info-score-decay"></p>
 
       <h3>Detalles</h3>
-      <p>Ganar un duelo nunca te mata a vos mismo, y las trampas tampoco: solo <b>perder</b> un duelo puede dejarte sin vida. Si los dos caen en la misma casilla con un ítem, un sorteo parejo decide quién se lo queda.</p>
-      <p>En el <b>Modo Paredes</b> (beta), el mapa es más grande y hay paredes que cortan el paso recto. Podés bordearlas en diagonal, pero no cruzar una esquina cerrada. Lo encontrás en el menú offline, o con el toggle 🧱 al crear una sala online (no disponible en torneo x4).</p>
+      <p id="info-mercy"></p>
+      <p id="info-walls"></p>
 
       <div class="info-ver" id="info-ver"></div>
 
@@ -216,14 +216,14 @@
     <div class="board-wrap">
       <div class="board" id="board"></div>
       <div class="howto" id="howto">
-        <div class="howto__title">Cómo se juega</div>
-        <p class="howto__text">Movete por el tablero. Agarrá espadas y escudos, y evitá las cruces. Al encontrarte con el rival, duelo.</p>
+        <div class="howto__title" id="howto-title"></div>
+        <p class="howto__text" id="howto-text"></p>
         <div class="howto__legend">
-          <span><b class="sym-atk">🗡️</b> +daño próximo duelo</span>
-          <span><b class="sym-def">◈</b> +defensa próximo duelo</span>
-          <span><b class="sym-down">×</b> daño directo</span>
+          <span><b class="sym-atk">🗡️</b> <span id="howto-legend-atk"></span></span>
+          <span><b class="sym-def">◈</b> <span id="howto-legend-def"></span></span>
+          <span><b class="sym-down">×</b> <span id="howto-legend-down"></span></span>
         </div>
-        <p class="howto__hint">En el duelo: frená la aguja en la zona verde.</p>
+        <p class="howto__hint" id="howto-hint"></p>
         <div class="howto-speedo">
           <div class="speedo-zone is-red" style="left:0; width:25%"></div>
           <div class="speedo-zone is-orange2" style="left:25%; width:10%"></div>
@@ -475,6 +475,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.2.96" defer></script>
+<script src="game.js?v=v0.2.97" defer></script>
 </body>
 </html>

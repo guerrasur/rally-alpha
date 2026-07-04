@@ -249,6 +249,14 @@
       }
     },
 
+    "texts": {
+      ".read": true,
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$key": {
+        ".validate": "$key.matches(/^[A-Za-z0-9]{1,40}$/) && newData.isString() && newData.val().length <= 2000"
+      }
+    },
+
     "admins": {
       ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
       "$uid": {

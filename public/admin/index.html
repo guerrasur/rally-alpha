@@ -57,6 +57,13 @@
   .stat input.is-changed{ border-color:var(--accent); color:var(--accent); font-weight:700; }
   .stat b{ font-size:16px; color:var(--accent); }
   .group{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:14px 0 2px; }
+  .txt{ padding:10px 0; border-bottom:1px solid var(--line); }
+  .txt:last-child{ border-bottom:none; }
+  .txt__label{ font-size:12px; color:var(--muted); display:block; margin-bottom:6px; font-family:monospace; }
+  .txt textarea{ width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px;
+                 background:var(--paper); color:var(--ink); font:inherit; font-size:13.5px; resize:vertical;
+                 min-height:38px; line-height:1.4; }
+  .txt textarea.is-changed{ border-color:var(--accent); }
   .row-actions{ display:flex; gap:10px; margin-top:14px; }
   .row-actions .btn{ flex:1; }
   .topline{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:22px; }
@@ -71,7 +78,7 @@
 <div class="wrap">
   <div class="topline">
     <div><span class="eyebrow">Rally</span><h1>Panel de admin</h1></div>
-    <span class="count" id="ver">v0.2.85</span>
+    <span class="count" id="ver">v0.2.97</span>
   </div>
 
   <!-- Login -->
@@ -142,6 +149,16 @@
         <button class="btn btn--ghost" id="st-reset">Restaurar defaults</button>
       </div>
 
+      <h2>📝 Textos del juego</h2>
+      <p class="hint">Mensajes de desconexión, info del juego, toasts, nombres, etc. Los que tengan <code>{llave}</code> son valores que el juego completa solo (nombre, HP, puntaje…) — no los borres. Los cambios aplican a <b>todos los jugadores</b> en la próxima carga del juego.</p>
+      <div class="card" id="texts-card">Cargando…</div>
+      <p class="err" id="tx-err"></p>
+      <p class="okmsg" id="tx-ok"></p>
+      <div class="row-actions">
+        <button class="btn btn--primary" id="tx-save" disabled>Guardar cambios</button>
+        <button class="btn btn--ghost" id="tx-reset">Restaurar defaults</button>
+      </div>
+
       <h2>🔑 Administradores</h2>
       <p class="hint">Quienes pueden entrar a este panel. No se pueden quitar desde acá (por seguridad) — eso es solo desde la consola de Firebase.</p>
       <div class="card">
@@ -198,8 +215,180 @@ const PARAMS = [
   ['duelMaxPasses','Pases máximos',4,'Duelo'],
 ];
 const DEFAULTS = Object.fromEntries(PARAMS.map(p=>[p[0],p[2]]));
+
+// Misma lista que TEXTS de game.js (defaults espejo) — mantener sincronizada.
+const TEXT_PARAMS = [
+  ["abandonFlavorPool", "Desconexión / inactividad", "Al parecer sos intimidante\nTe tuvieron miedo\nLo llamaron a comer"],
+  ["toastOpponentWaiting", "Desconexión / inactividad", "Rival desconectado… esperando reconexión"],
+  ["msgOpponentWaiting", "Desconexión / inactividad", "⚠️ Rival desconectado — esperando…"],
+  ["toastOpponentBack", "Desconexión / inactividad", "Rival reconectado ✓"],
+  ["toastTourneyOppLeft", "Desconexión / inactividad", "Tu rival abandonó — pasás de ronda"],
+  ["resultAbandonNote", "Desconexión / inactividad", "(por abandono…)"],
+  ["resultVictoryTitle", "Desconexión / inactividad", "VICTORIA"],
+  ["toastSeriesOppLeft", "Desconexión / inactividad", "El rival abandonó la serie."],
+  ["toastRoomOppLeft", "Desconexión / inactividad", "El rival abandonó la sala."],
+  ["toastRoomClosed", "Desconexión / inactividad", "La sala se cerró."],
+  ["toastIdleAutoMove", "Desconexión / inactividad", "Te moviste solo por inactividad ({streak}/{max})"],
+  ["toastIdleForfeit", "Desconexión / inactividad", "Te desconectamos por inactividad — perdiste la partida."],
+  ["toastMoveError", "Desconexión / inactividad", "Error al enviar movimiento."],
+  ["howtoTitle", "Cómo se juega (mini)", "Cómo se juega"],
+  ["howtoText", "Cómo se juega (mini)", "Movete por el tablero. Agarrá espadas y escudos, y evitá las cruces. Al encontrarte con el rival, duelo."],
+  ["howtoLegendAtk", "Cómo se juega (mini)", "+daño próximo duelo"],
+  ["howtoLegendDef", "Cómo se juega (mini)", "+defensa próximo duelo"],
+  ["howtoLegendDown", "Cómo se juega (mini)", "daño directo"],
+  ["howtoHint", "Cómo se juega (mini)", "En el duelo: frená la aguja en la zona verde."],
+  ["infoIntro", "Cómo se juega (info)", "Cada jugador se mueve por el tablero de a una casilla por turno (incluidas las diagonales). Los dos eligen a la vez y se mueven al mismo tiempo. El objetivo: llegar al duelo con ventaja y dejar al rival sin vida."],
+  ["infoItemDmg", "Cómo se juega (info)", "<b>Poder de daño.</b> Suma daño a tus golpes en los duelos. Se acumula con cada uno que juntes."],
+  ["infoItemDef", "Cómo se juega (info)", "<b>Poder de defensa.</b> Reduce el daño que te hace el rival en los duelos. También se acumula."],
+  ["infoItemTrap", "Cómo se juega (info)", "<b>Trampa.</b> Si la pisás, perdés algo de vida. Nunca te mata: como mucho te deja al borde. Conviene esquivarlas."],
+  ["infoItemRing", "Cómo se juega (info)", "<b>Anillo.</b> Raro y valioso. Cura vida: mucho de golpe si estás muy lastimado, o de a poco durante varias rondas si estás más entero. Mientras dura el goteo, verás su ícono junto a tus poderes."],
+  ["infoDuelIntro", "Cómo se juega (info)", "Cuando los dos jugadores quedan en la misma casilla o pegados, se abre un duelo de reflejos. Una aguja recorre una barra de colores de ida y vuelta, y tenés que frenarla en la mejor zona posible."],
+  ["infoZoneGreen", "Cómo se juega (info)", "<b>Verde</b> — buen golpe."],
+  ["infoZoneYellow", "Cómo se juega (info)", "<b>Amarillo</b> — golpe medio."],
+  ["infoZoneOrange", "Cómo se juega (info)", "<b>Naranja</b> — golpe flojo."],
+  ["infoZoneRed", "Cómo se juega (info)", "<b>Rojo</b> — casi sin daño."],
+  ["infoPerfect", "Cómo se juega (info)", "Justo en el centro del verde hay una franja fina: el <b>PERFECTO</b>. Vale el doble y duplica tus poderes de daño en ese golpe. Ojo: solo cuenta en la <b>primera pasada</b> de la aguja; después desaparece."],
+  ["infoPerfectCancels", "Cómo se juega (info)", "Si tu golpe es perfecto y el del rival no, ese golpe <b>anula sus poderes</b> (su defensa no te tapa y su daño no cuenta). Si ambos hacen perfecto, los poderes valen normal."],
+  ["infoScoreDecay", "Cómo se juega (info)", "Cuanto más tardás en frenar, más pasadas cuenta la aguja y menos vale la zona roja. El que hace más puntaje gana el duelo y le baja la vida al otro. El perdedor también araña algo de daño, proporcional a lo cerca que estuvo."],
+  ["infoMercy", "Cómo se juega (info)", "Ganar un duelo nunca te mata a vos mismo, y las trampas tampoco: solo <b>perder</b> un duelo puede dejarte sin vida. Si los dos caen en la misma casilla con un ítem, un sorteo parejo decide quién se lo queda."],
+  ["infoWalls", "Cómo se juega (info)", "En el <b>Modo Paredes</b> (beta), el mapa es más grande y hay paredes que cortan el paso recto. Podés bordearlas en diagonal, pero no cruzar una esquina cerrada. Lo encontrás en el menú offline, o con el toggle 🧱 al crear una sala online (no disponible en torneo x4)."],
+  ["toastRingBig", "Toasts generales", "{ring} {who} +{heal} HP"],
+  ["toastRingDrip", "Toasts generales", "{ring} {who} +{heal} HP x{rounds}"],
+  ["toastTourneyFinal", "Toasts generales", "¡A la final! ⚔️"],
+  ["toastNeedConnection", "Toasts generales", "El torneo online necesita conexión."],
+  ["toastCreateRoomFirst", "Toasts generales", "Primero creá la sala."],
+  ["toastChangeModeBeforeJoin", "Toasts generales", "Cambiá el modo antes de que entre tu rival."],
+  ["toastTourneyFull", "Toasts generales", "Ya hay jugadores en el torneo."],
+  ["toastTourneyStartFail", "Toasts generales", "No se pudo iniciar el torneo."],
+  ["toastCreateRoomFail", "Toasts generales", "No se pudo crear la sala. Revisá tu conexión."],
+  ["waitTextWaitingOpp", "Toasts generales", "Esperando rival…"],
+  ["waitTextOppLeft", "Toasts generales", "El rival se fue — esperando otro…"],
+  ["waitTextPracticeAvailable", "Toasts generales", "Modo práctica disponible"],
+  ["userHintRegister", "Toasts generales", "Único y permanente, siempre en minúscula. Con la contraseña vas a poder entrar desde cualquier dispositivo. El nickname de cada partida se elige aparte, como siempre."],
+  ["userHintLogin", "Toasts generales", "Entrá con tu usuario y contraseña."],
+  ["userHintSession", "Toasts generales", "Sesión iniciada. Podés entrar con este usuario desde cualquier dispositivo."],
+  ["userHintNoPassword", "Toasts generales", "Tu usuario todavía no tiene contraseña. Creá una para poder entrar desde otro dispositivo (y para no perderlo)."],
+  ["toastWallsNotOnlineTourney", "Toasts generales", "El Modo Paredes no está disponible en el torneo online."],
+  ["toastCodeLength", "Toasts generales", "El código tiene 4 caracteres."],
+  ["toastPracticeMode", "Toasts generales", "Modo práctica: jugás contra la CPU."],
+  ["toastRoomNotFound", "Toasts generales", "Esa sala no existe."],
+  ["toastRoomFull", "Toasts generales", "La sala ya está llena."],
+  ["toastJoinFail", "Toasts generales", "No se pudo unir a la sala."],
+  ["toastConnectionError", "Toasts generales", "Error de conexión."],
+  ["toastWaitForCode", "Toasts generales", "Esperá a que se genere el código."],
+  ["toastLinkCopiedClipboard", "Toasts generales", "Link copiado al portapapeles ✓"],
+  ["toastLinkCopied", "Toasts generales", "Link copiado ✓"],
+  ["toastYourLink", "Toasts generales", "Tu link: {url}"],
+  ["toastInviteDetected", "Toasts generales", "Invitación detectada · elegí tu nombre y entrá"],
+  ["toastUserCreated", "Toasts generales", "Usuario \"{user}\" creado ✓"],
+  ["toastSessionStarted", "Toasts generales", "Sesión iniciada: {user} ✓"],
+  ["toastPasswordCreated", "Toasts generales", "Contraseña creada ✓"],
+  ["toastSessionClosed", "Toasts generales", "Sesión cerrada"],
+  ["errUserFormat", "Errores de cuenta", "Usuario: de 3 a 15 caracteres, minúsculas, números o _"],
+  ["errPassShort", "Errores de cuenta", "La contraseña necesita al menos 6 caracteres."],
+  ["errUserTaken", "Errores de cuenta", "Ese usuario ya existe."],
+  ["errCredentials", "Errores de cuenta", "Usuario o contraseña incorrectos."],
+  ["errAlreadyLoggedIn", "Errores de cuenta", "Ya iniciaste sesión con contraseña."],
+  ["errNoPassword", "Errores de cuenta", "Todavía no tenés contraseña — creala primero."],
+  ["errNoUser", "Errores de cuenta", "Primero creá tu usuario."],
+  ["errNoConnection", "Errores de cuenta", "Error de conexión. Probá de nuevo."],
+  ["msgTruce", "Mensajes de turno", "Tregua 🛡️ — elegí a dónde moverte"],
+  ["msgChooseCell", "Mensajes de turno", "Elegí un casillero contiguo para moverte"],
+  ["msgOppChoseFirst", "Mensajes de turno", "El rival ya eligió — te toca mover"],
+  ["msgWaitingOpp", "Mensajes de turno", "Esperando al rival…"],
+  ["msgMoving", "Mensajes de turno", "Moviendo…"],
+  ["msgDuelImminent", "Mensajes de turno", "Duelo inminente…"],
+  ["msgRepositioning", "Mensajes de turno", "Reposicionando…"],
+  ["oppNamePractice", "Nombres de personajes", "Cachito"],
+  ["campaignOpp1Name", "Nombres de personajes", "Tarata"],
+  ["rosterName0", "Nombres de personajes", "Maurice"],
+  ["rosterName1", "Nombres de personajes", "Mort"],
+  ["rosterName2", "Nombres de personajes", "Clover"],
+  ["rosterName3", "Nombres de personajes", "Skipper"],
+  ["rosterName4", "Nombres de personajes", "Kowalski"],
+  ["rosterName5", "Nombres de personajes", "Marlene"],
+  ["rosterName6", "Nombres de personajes", "Alex"],
+  ["rosterName7", "Nombres de personajes", "Rey Julian"],
+  ["cpuNamesPool", "Nombres de personajes", "Beto\nRulo\nCacho\nPipa\nTato\nCoco\nPocho\nTurco\nChino\nFlaco\nNino\nQuique"],
+  ["duelPerfectPrefix", "Duelo", "<b style=\"color:var(--perfect)\">PERFECTO</b> · "],
+  ["duelVerdictWin", "Duelo", "{perfectPrefix}<b style=\"color:var(--good)\">GANA</b> {name}"],
+  ["duelVerdictLose", "Duelo", "{perfectPrefix}<b style=\"color:var(--bad)\">GANA</b> {name}"],
+  ["duelVerdictTie", "Duelo", "<b style=\"color:var(--warn)\">EMPATE</b>"],
+  ["duelTitleEncounter", "Duelo", "¡Encuentro!"],
+  ["duelTitleStopGreen", "Duelo", "Frená en verde"],
+  ["duelCountdownGo", "Duelo", "¡YA!"],
+  ["duelResultTitle", "Duelo", "Resultado"],
+  ["duelTieTitle", "Duelo", "Empate"],
+  ["duelTieSub", "Duelo", "Nadie pierde vida — ambos salen expulsados"],
+  ["duelWinTitle", "Duelo", "Ganaste el duelo"],
+  ["duelLoseTitle", "Duelo", "Perdiste el duelo"],
+  ["duelPerfectSub", "Duelo", "⭐ PERFECTO de {name}"],
+  ["duelPassLabel", "Duelo", "pase {pass}/{max}"],
+  ["duelLastPassLabel", "Duelo", "último pase"],
+  ["zoneNamePerfect", "Duelo", "PERFECTO"],
+  ["zoneNameGreen", "Duelo", "Verde"],
+  ["zoneNameYellow", "Duelo", "Amarillo"],
+  ["zoneNameOrange", "Duelo", "Naranja"],
+  ["zoneNameRed", "Duelo", "Rojo"],
+  ["resultFinalEyebrow", "Fin de partida", "Final"],
+  ["resultBo5Eyebrow", "Fin de partida", "Mejor de 5 · {scoreYou}–{scoreOpp}"],
+  ["resultTieTitle", "Fin de partida", "Empate"],
+  ["resultWinTitle", "Fin de partida", "Ganaste"],
+  ["resultLoseTitle", "Fin de partida", "Perdiste"],
+  ["resultWinRoundTitle", "Fin de partida", "Ganaste la ronda"],
+  ["resultLoseRoundTitle", "Fin de partida", "Perdiste la ronda"],
+  ["resultWinSeriesTitle", "Fin de partida", "🏆 Ganaste la serie"],
+  ["resultLoseSeriesTitle", "Fin de partida", "Perdiste la serie"],
+  ["resultScoreRounds", "Fin de partida", "Rondas: <b>{scoreYou}</b> – <b>{scoreOpp}</b>"],
+  ["resultScoreHp", "Fin de partida", "<b>{youHp}</b> HP vs <b>{oppHp}</b> HP"],
+  ["campaignRetryLabel", "Fin de partida", "Reintentar"],
+  ["tourneyChampionTitle", "Fin de partida", "¡Campeón!"],
+  ["tourneyChampionScore", "Fin de partida", "Venciste a <b>{name}</b> y ganaste el torneo con <b>{hp}</b> HP restante."],
+  ["tourneyRoundEyebrow", "Fin de partida", "Rival {i}/{n}"],
+  ["tourneyBeatOpp", "Fin de partida", "Venciste a {name}"],
+  ["tourneyHpLeft", "Fin de partida", "Te quedan <b>{hp}</b> HP. Próximo rival con más vida y más astuto."],
+  ["tourneyEliminatedTitle", "Fin de partida", "Eliminado"],
+  ["tourneyEliminatedScore", "Fin de partida", "Llegaste hasta el rival <b>{i}/{n}</b> ({name})."],
+  ["tourneyRetryLabel", "Fin de partida", "Reintentar rival"],
+  ["tourneyChampionEyebrow", "Fin de partida", "🏆 Torneo"],
+  ["tourneyEyebrow", "Fin de partida", "Torneo"],
+  ["otChampionTitle", "Torneo online x4", "🏆 Ganaste el torneo"],
+  ["otLostFinalTitle", "Torneo online x4", "Perdiste la final"],
+  ["otFinishedTitle", "Torneo online x4", "Torneo terminado"],
+  ["otInProgressTitle", "Torneo online x4", "Torneo"],
+  ["otEliminatedSub", "Torneo online x4", "Podés espectar las otras partidas"],
+  ["otSemiWonTitle", "Torneo online x4", "Semifinal ganada"],
+  ["otWaitingFinalist", "Torneo online x4", "Esperando al otro finalista…"],
+  ["otChampionSub", "Torneo online x4", "Campeón: {dot} <b>{name}</b>"],
+  ["otSemi1Label", "Torneo online x4", "Semifinal 1"],
+  ["otSemi2Label", "Torneo online x4", "Semifinal 2"],
+  ["otFinalLabel", "Torneo online x4", "Final"],
+  ["otSpectateBtn", "Torneo online x4", "👁 Espectar"],
+  ["specConnecting", "Torneo online x4", "Conectando…"],
+  ["specMatchWon", "Torneo online x4", "🏁 Ganó {name}"],
+  ["specCpuVsCpu", "Torneo online x4", "🤖 Partida entre CPUs — se resuelve sola…"],
+  ["specDuelInProgress", "Torneo online x4", "⚔️ ¡Duelo en curso!"],
+  ["specDuelTie", "Torneo online x4", "🤝 Empate ({scoreA}-{scoreB})"],
+  ["specDuelWon", "Torneo online x4", "⚔️ Ganó {name} ({scoreA}-{scoreB})"],
+  ["specTurn", "Torneo online x4", "Turno {n}"],
+  ["specWaitingData", "Torneo online x4", "Esperando datos…"],
+  ["otTagYou", "Torneo online x4", "vos"],
+  ["otTagHost", "Torneo online x4", "anfitrión"],
+  ["otTagCpu", "Torneo online x4", "CPU"],
+  ["otSlotFree", "Torneo online x4", "— libre —"],
+  ["otSlotFreeTag", "Torneo online x4", "CPU al iniciar"],
+  ["campaignStartConfirm", "Campaña", "¿Comenzar campaña como <b>{name}</b>?"],
+  ["campaignToBeContinued", "Campaña", "Continuará…"],
+  ["waitTextCpuFill", "Toasts generales", "Los lugares libres se completan con CPUs"],
+  ["waitTextHostWillStart", "Toasts generales", "Esperando que el anfitrión inicie…"],
+];
+
+const TEXT_DEFAULTS = Object.fromEntries(TEXT_PARAMS.map(p=>[p[0],p[2]]));
+// Convierte camelCase en palabras legibles: 'toastOpponentWaiting' -> 'toast Opponent Waiting'.
+function humanizeKey(k){ return k.replace(/([A-Z0-9])/g,' $1').trim(); }
 let isAdmin = false;
 let remote = {};   // config/ actual en la nube
+let remoteTexts = {};   // texts/ actual en la nube
 
 function show(logged){
   $('login-card').style.display = logged ? 'none' : 'block';
@@ -226,10 +415,13 @@ async function refreshSession(){
   if(!isAdmin) return;   // el resto del panel es solo para admins
   $('st-save').disabled = false;
   $('st-reset').disabled = false;
+  $('tx-save').disabled = false;
+  $('tx-reset').disabled = false;
   loadSiteStats();
   loadUsers();
   loadPlayerStats();
   loadStats();
+  loadTexts();
   loadAdmins();
 }
 
@@ -389,6 +581,48 @@ $('st-reset').addEventListener('click', async ()=>{
     $('st-ok').textContent = 'Defaults restaurados ✓';
     await loadStats();
   }catch(e){ $('st-err').textContent = 'No se pudo restaurar (¿tu cuenta es admin?).'; }
+});
+
+// ---- Textos ----
+async function loadTexts(){
+  try{ remoteTexts = (await db.ref('texts').get()).val() || {}; }catch(e){ remoteTexts = {}; }
+  const card = $('texts-card'); card.innerHTML='';
+  let lastGroup='';
+  TEXT_PARAMS.forEach(([key,group,def])=>{
+    if(group!==lastGroup){ const g=document.createElement('div'); g.className='group'; g.textContent=group; card.appendChild(g); lastGroup=group; }
+    const cur = (typeof remoteTexts[key]==='string') ? remoteTexts[key] : def;
+    const row=document.createElement('div'); row.className='txt';
+    row.innerHTML = `<span class="txt__label">${esc(humanizeKey(key))}</span>
+      <textarea id="tx-${key}" ${isAdmin?'':'disabled'}></textarea>`;
+    card.appendChild(row);
+    const ta = row.querySelector('textarea');
+    ta.value = cur;   // sin escapar entidades: se guarda tal cual se ve
+    ta.classList.toggle('is-changed', cur!==def);
+    ta.addEventListener('input', ()=>{ ta.classList.toggle('is-changed', ta.value!==def); });
+  });
+}
+$('tx-save').addEventListener('click', async ()=>{
+  $('tx-err').textContent=''; $('tx-ok').textContent='';
+  const updates = {};
+  TEXT_PARAMS.forEach(([key,group,def])=>{
+    const v = $('tx-'+key).value;
+    updates[key] = (v===def) ? null : v;   // volver al default = borrar override
+  });
+  $('tx-save').disabled = true;
+  try{
+    await db.ref('texts').update(updates);
+    $('tx-ok').textContent = 'Guardado ✓ — aplica a todos en la próxima carga del juego.';
+    await loadTexts();
+  }catch(e){ $('tx-err').textContent = 'No se pudo guardar (¿tu cuenta es admin?).'; }
+  $('tx-save').disabled = !isAdmin;
+});
+$('tx-reset').addEventListener('click', async ()=>{
+  $('tx-err').textContent=''; $('tx-ok').textContent='';
+  try{
+    await db.ref('texts').remove();
+    $('tx-ok').textContent = 'Defaults restaurados ✓';
+    await loadTexts();
+  }catch(e){ $('tx-err').textContent = 'No se pudo restaurar (¿tu cuenta es admin?).'; }
 });
 
 // Sesión persistida: esperar a que Auth restaure y decidir qué mostrar
