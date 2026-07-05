@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.99';
+const VERSION = 'v0.3.00';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -471,11 +471,11 @@ function show(screen){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('is-active'));
   $('screen-'+screen).classList.add('is-active');
   App.screen = screen;
-  // Los controles superiores (info, tema y usuario) solo se muestran en el inicio.
-  const tc = $('top-controls');
-  if(tc) tc.classList.toggle('is-hidden', screen !== 'home');
+  // El botón de tema se ve en cualquier pestaña; info y usuario solo en el inicio.
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', screen !== 'home');
+  const ub = $('btn-user');
+  if(ub) ub.classList.toggle('is-hidden', screen !== 'home');
 }
 function escHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -502,6 +502,7 @@ const Chat = {
     w.classList.remove('is-open');
     w.style.display = 'flex';
     Net.onChatMessage = m => this.receive(m);
+    Net.stopChat();   // por si venía de una ronda anterior (bo5/revancha): evita listeners duplicados
     Net.listenChat();
   },
   unmount(){
@@ -898,10 +899,13 @@ function buildSpeedometer(){
     tick.style.left = (i * 10) + '%';
     ticksContainer.appendChild(tick);
   }
-  // Ancho del track cacheado UNA vez por duelo (no en cada frame): las agujas
-  // se mueven con transform en updateNeedles() en vez de `left`, que forzaba
-  // layout en cada frame del duelo (~60/seg) y se veía trabado.
+  // Ancho del track y referencias a las agujas cacheados UNA vez por duelo
+  // (no en cada frame): las agujas se mueven con transform en updateNeedles()
+  // en vez de `left`, que forzaba layout en cada frame del duelo (~60/seg) y
+  // se veía trabado; lo mismo aplica a re-buscar los nodos por id.
   G.duel.trackWidth = ticksContainer.parentElement.getBoundingClientRect().width;
+  G.duel.needleYou = $('speedo-needle');
+  G.duel.needleOpp = $('speedo-needle-opponent');
 }
 
 // Mueve una aguja a `pos` (0..1) del track sin tocar `left` (layout) — dos
@@ -915,8 +919,8 @@ function setNeedleX(el, pos, trackW){
 // Maneja ambas agujas. En online, la del rival aparece sólo cuando llega su
 // posición por Firebase (efecto "revelado con delay").
 function updateNeedles(currentPos){
-  const needleYou = $('speedo-needle');
-  const needleOpp = $('speedo-needle-opponent');
+  const needleYou = G.duel.needleYou;
+  const needleOpp = G.duel.needleOpp;
   const trackW = G.duel.trackWidth;
 
   // Aguja del jugador
@@ -2709,7 +2713,6 @@ function setupNextRound(){
     setTimeout(()=>{
       Net.resetForRematch().then(()=>{
         buildBoard();
-        Net.listenStart();
         Net.pushStart(serializeBoard());
       });
     }, 3000);
@@ -2990,9 +2993,14 @@ const Net = {
   },
 
   // Ambos: escuchan el arranque de la partida (cuando aparece game.board)
+  // Callback guardado en _startCb: listenBoard() escucha el mismo path
+  // ('game/board'), así que stopListenStart() debe sacar SOLO su propio
+  // listener y no un .off() a secas (eso se llevaría puesto también el de
+  // listenBoard, cortando la actualización de ítems del guest a mitad de ronda).
+  _startCb: null,
   listenStart(){
     if(!this.ref) return;
-    this.ref.child('game/board').on('value', s=>{
+    this._startCb = s=>{
       const b = s.val();
       if(b && this.onStart){
         // Leer el modo elegido por el host (guest lo recibe)
@@ -3001,11 +3009,12 @@ const Net = {
           this.onStart(b);
         }).catch(()=>this.onStart(b));
       }
-    });
+    };
+    this.ref.child('game/board').on('value', this._startCb);
   },
 
   stopListenStart(){
-    if(this.ref) this.ref.child('game/board').off();
+    if(this.ref && this._startCb){ this.ref.child('game/board').off('value', this._startCb); this._startCb=null; }
   },
 
   // ---- Revancha online (#6) ----
@@ -3963,7 +3972,7 @@ $('user-primary').addEventListener('click', async ()=>{
 $('user-logout').addEventListener('click', async ()=>{
   const res = await User.logout();
   if(res.ok){ $('user-overlay').hidden=true; toast(TEXTS.toastSessionClosed); }
-  else $('user-err').textContent = USER_ERR[res.reason] || USER_ERR['sin-conexion'];
+  else $('user-err').textContent = userErrText(res.reason);
 });
 function setModeUI(id){
   ['mode-single','mode-bo5','mode-t4'].forEach(m=>$(m).classList.toggle('is-on', m===id));
@@ -4130,11 +4139,11 @@ function applyTheme(theme){
   let saved = 'light';
   try { saved = localStorage.getItem('rally_theme') || 'light'; } catch(e){}
   applyTheme(saved);
-  // Estado inicial de los controles superiores: visibles solo en el inicio.
-  const tc = $('top-controls');
-  if(tc) tc.classList.toggle('is-hidden', App.screen !== 'home');
+  // Estado inicial: info y usuario visibles solo en el inicio; tema siempre visible.
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', App.screen !== 'home');
+  const ub = $('btn-user');
+  if(ub) ub.classList.toggle('is-hidden', App.screen !== 'home');
 })();
 $('btn-theme').addEventListener('click', ()=>{
   const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';

@@ -1,6 +1,10 @@
 # Rally — Session State & Learnings
 
-**Última actualización:** v0.2.99 — 2026-07-04, sesión remota (Claude Code on the web).
+**Última actualización:** v0.3.00 — 2026-07-05, sesión remota (Claude Code on the web).
+- Crédito del footer ("Sin © 2026 / Creado por lucio") movido de `screen-home` a `screen-info` únicamente (antes salía en el home); texto en minúscula.
+- Botón de tema (`btn-theme`) ya NO se oculta fuera del home — antes vivía en `#top-controls`, que se escondía entero fuera de `home` (`show()` + IIFE de arranque en game.js). Se separó: `btn-info`/`btn-user` siguen ocultos fuera de home, tema visible siempre. CSS: se sacó `.top-controls.is-hidden` (ya no se usa, el contenedor queda visible) y se agregó `.theme-toggle.is-hidden` (aplica solo a `btn-user`).
+- Bugs de red encontrados y arreglados en el mismo pase: (1) `USER_ERR` no existía (`ReferenceError` al fallar el logout) — usar `userErrText()`. (2) `setupNextRound()` (revancha/bo5, host) llamaba `Net.listenStart()` dos veces sin soltar la primera → `startOnlineGame()` podía dispararse doble por ronda; se sacó la llamada redundante. (3) `listenStart()`/`listenBoard()` comparten el path `game/board`; `stopListenStart()` hacía `.off()` a secas y se llevaba puesto el listener de `listenBoard()` (corta la sync de ítems al guest) — ahora `listenStart()` guarda su callback en `Net._startCb` y `stopListenStart()` saca solo ese. (4) `Chat.mount()` nunca soltaba el `child_added` de la ronda anterior (`Net.listenChat()` pisa `_chatQueryRef` sin `.off()` previo) → mensajes duplicados tras revancha/bo5; se agregó `Net.stopChat()` antes de re-escuchar. (5) `updateNeedles()` (loop de rAF del duelo, ~60/seg) reconsultaba `$('speedo-needle')`/`$('speedo-needle-opponent')` cada frame — cacheados en `G.duel.needleYou/needleOpp` desde `buildSpeedometer()`.
+- Validado con Playwright headless (Chromium local, sin Firebase real): tema alterna y es visible en cualquier pantalla, footer solo en info con texto correcto. Sintaxis validada con el `new Function(...)` de siempre.
 **Idioma:** todo con el usuario (Lucio) en español argentino.
 Memoria entre sesiones: mantener COMPACTO (el usuario cuida tokens — condensar/borrar lo viejo al agregar secciones nuevas).
 
