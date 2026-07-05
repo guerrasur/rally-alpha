@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.01';
+const VERSION = 'v0.3.02';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -471,7 +471,11 @@ function show(screen){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('is-active'));
   $('screen-'+screen).classList.add('is-active');
   App.screen = screen;
-  // El botón de tema se ve en cualquier pestaña; info y usuario solo en el inicio.
+  // El botón de tema se ve en cualquier pestaña SALVO en la partida (ahí pisa
+  // el HUD de vida; el pie de partida tiene su propio toggle ☾/☀). Info y
+  // usuario solo en el inicio.
+  const tb = $('btn-theme');
+  if(tb) tb.classList.toggle('is-hidden', screen === 'game');
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', screen !== 'home');
   const ub = $('btn-user');
@@ -694,6 +698,7 @@ const TEXTS = {
   userHintSession: 'Sesión iniciada. Podés entrar con este usuario desde cualquier dispositivo.',
   userHintNoPassword: 'Tu usuario todavía no tiene contraseña. Creá una para poder entrar desde otro dispositivo (y para no perderlo).',
   toastWallsNotOnlineTourney: 'El Modo Paredes no está disponible en el torneo online.',
+  toastLabAdminsOnly: 'El laboratorio es solo para admins.',
   toastCodeLength: 'El código tiene 4 caracteres.',
   toastPracticeMode: 'Modo práctica: jugás contra la CPU.',
   toastRoomNotFound: 'Esa sala no existe.',
@@ -1778,6 +1783,17 @@ function resolveMoves(){
   Sound.step(); haptic(10); renderBoard(); updateHud();
   flipMarker('is-you', youOldRect);
   flipMarker('is-opp', oppOldRect);
+  // Impacto visual al caer AMBOS en la misma casilla: onda expansiva one-shot
+  // + pop de aterrizaje de las fichas (el próximo renderBoard() limpia todo).
+  if(willClash){
+    const cell = document.querySelector('.cell.is-both-here');
+    if(cell){
+      cell.classList.add('is-impact');
+      const fx = document.createElement('div'); fx.className='clash-fx';
+      cell.appendChild(fx);
+    }
+    haptic([12,30,12]);
+  }
   if(G.you.hp<=0 || G.opp.hp<=0){ setTimeout(()=>endGame(), 800); return; }
   G.turnCount++;
 
@@ -4190,23 +4206,31 @@ function applyTheme(theme){
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', dark ? '#141416' : '#EAEAE7');
+  // Toggle del pie de partida: muestra a qué tema pasás al tocarlo
+  const gb = $('btn-theme-game');
+  if(gb) gb.textContent = dark ? '☀' : '☾';
+}
+function toggleTheme(){
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  try { localStorage.setItem('rally_theme', next); } catch(e){}
+  haptic(8);
 }
 (function(){
   let saved = 'light';
   try { saved = localStorage.getItem('rally_theme') || 'light'; } catch(e){}
   applyTheme(saved);
-  // Estado inicial: info y usuario visibles solo en el inicio; tema siempre visible.
+  // Estado inicial: info y usuario visibles solo en el inicio; el tema flotante
+  // en toda pestaña salvo la partida (mismo criterio que show()).
+  const tb = $('btn-theme');
+  if(tb) tb.classList.toggle('is-hidden', App.screen === 'game');
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', App.screen !== 'home');
   const ub = $('btn-user');
   if(ub) ub.classList.toggle('is-hidden', App.screen !== 'home');
 })();
-$('btn-theme').addEventListener('click', ()=>{
-  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-  applyTheme(next);
-  try { localStorage.setItem('rally_theme', next); } catch(e){}
-  haptic(8);
-});
+$('btn-theme').addEventListener('click', toggleTheme);
+$('btn-theme-game').addEventListener('click', toggleTheme);
 
 // Botón de usuario: reservado para un update futuro (stats/logros/perfil).
 // Por ahora no hace nada al tocarlo.
@@ -4324,9 +4348,26 @@ function buildLab(){
     body.appendChild(row);
   });
 }
-function openLab(){ buildLab(); show('lab'); }
+// ¿La cuenta actual es admin? Lee admins/{uid} (las reglas permiten a cada
+// usuario leer SU PROPIA clave). Memoizado solo en éxito: un fallo de red no
+// se cachea, así el próximo intento vuelve a preguntar.
+let _isAdminCache = null;
+async function isAdmin(){
+  if(_isAdminCache !== null) return _isAdminCache;
+  try{
+    const u = await ensureAuth();
+    if(!u || !fbDb) return false;
+    const snap = await fbDb.ref('admins/'+u.uid).get();
+    _isAdminCache = (snap.val() === true);
+    return _isAdminCache;
+  }catch(e){ return false; }
+}
+async function openLab(){
+  if(!(await isAdmin())){ toast(TEXTS.toastLabAdminsOnly); return; }
+  buildLab(); show('lab');
+}
 
-// Acceso oculto: ?lab=1 en la URL, o 5 toques en la versión
+// Acceso oculto (solo admins): ?lab=1 en la URL, o 5 toques en la versión
 (function(){
   const params=new URLSearchParams(location.search);
   if(params.get('lab')==='1') setTimeout(openLab, 400);
