@@ -567,6 +567,29 @@
   .cell .player-marker.is-clash.is-you{ transform: translate(20%,20%) scale(.68); z-index:2; }
   .cell .player-marker.is-clash.is-opp{ transform: translate(-20%,-20%) scale(.68); }
 
+  /* Onda expansiva one-shot al caer ambos en la misma casilla (la agrega JS
+     en resolveMovesAndContinue; el próximo renderBoard la limpia solo) */
+  .clash-fx{
+    position:absolute; left:50%; top:50%; width:100%; height:100%;
+    border-radius:50%; border:2.5px solid var(--accent);
+    pointer-events:none; z-index:3; opacity:0;
+    animation: clashShock .55s ease-out;
+  }
+  @keyframes clashShock{
+    0%{ transform:translate(-50%,-50%) scale(.3); opacity:.9; }
+    100%{ transform:translate(-50%,-50%) scale(2.4); opacity:0; }
+  }
+  /* Las fichas "aterrizan" con un pop; terminan en el transform de reposo de
+     .is-clash (la animación pisa el transform solo mientras corre) */
+  .cell.is-impact .player-marker.is-clash.is-you{ animation: clashLandYou .35s cubic-bezier(.2,.8,.3,1.4); }
+  .cell.is-impact .player-marker.is-clash.is-opp{ animation: clashLandOpp .35s cubic-bezier(.2,.8,.3,1.4); }
+  @keyframes clashLandYou{ 0%{ transform:translate(20%,20%) scale(.95); } 100%{ transform:translate(20%,20%) scale(.68); } }
+  @keyframes clashLandOpp{ 0%{ transform:translate(-20%,-20%) scale(.95); } 100%{ transform:translate(-20%,-20%) scale(.68); } }
+  @media (prefers-reduced-motion: reduce){
+    .clash-fx{ animation:none; }
+    .cell.is-impact .player-marker.is-clash{ animation:none; }
+  }
+
   /* Paredes del Modo Paredes: barritas absolutas dentro de la celda */
   .wall-seg{ position:absolute; z-index:4; pointer-events:none;
     background: var(--wall, #8A8A90); border-radius:2px; }
