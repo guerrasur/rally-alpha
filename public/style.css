@@ -958,6 +958,47 @@
   .result-title.is-win{ color: var(--good); }
   .result-title.is-lose{ color: var(--bad); }
 
+  /* Entrada animada del título de resultado (torneo offline y online): se
+     re-dispara con pulseResultTitle() sacando/poniendo la clase con reflow
+     forzado en el medio, porque una animación CSS no se reinicia sola. */
+  @keyframes resultTitlePop{
+    0%{ transform: scale(.82); opacity: 0; }
+    60%{ transform: scale(1.06); opacity: 1; }
+    100%{ transform: scale(1); opacity: 1; }
+  }
+  .result-title.is-pulse{ animation: resultTitlePop .38s cubic-bezier(.2,.8,.3,1.3); }
+  @media (prefers-reduced-motion: reduce){
+    .result-title.is-pulse{ animation: none; }
+  }
+
+  /* Momento de campeón (torneo offline de 8 y torneo online x4): mismo dorado
+     que ya usa "Rey Julian" (is-king) para consistencia visual. */
+  .result-title.is-champion{ color:#9A7B14; animation: resultTitlePop .38s cubic-bezier(.2,.8,.3,1.3), championGlow 1.1s ease-out; }
+  [data-theme="dark"] .result-title.is-champion{ color:#D4AF37; }
+  @keyframes championGlow{
+    0%{ text-shadow: 0 0 0 rgba(212,175,55,0); }
+    40%{ text-shadow: 0 0 18px rgba(212,175,55,.9), 0 0 30px rgba(212,175,55,.5); }
+    100%{ text-shadow: 0 0 8px rgba(212,175,55,.35); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .result-title.is-champion{ animation: none; }
+  }
+
+  /* Fila de chips con el progreso del torneo offline (uno por rival del
+     roster); solo la tiene contenido cuando el resultado viene de Tourney,
+     así que queda vacía (y oculta) para online/campaña/partida suelta. */
+  .tourney-progress{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; max-width:280px; }
+  .tourney-progress:empty{ display:none; }
+  .tp-chip{
+    width:30px; height:30px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; border:2px solid var(--line); background:var(--field);
+    opacity:.4;
+  }
+  .tp-chip.is-beaten{ opacity:1; border-color:var(--good); }
+  .tp-chip.is-current{ opacity:1; border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+  .tp-chip.is-king{ border-color:#D4AF37; }
+
   /* ===== Torneo online (x4) ===== */
   .cell .player-marker.is-you{ background: var(--you-accent, var(--accent)); }
   .p-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; flex:0 0 auto; }

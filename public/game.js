@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.00';
+const VERSION = 'v0.3.01';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -2766,7 +2766,8 @@ function endGame(){
   nextBtn.style.display='none'; againBtn.style.display='block';
   const roomBtn=$('btn-to-room'); roomBtn.style.display='none';
   const campBtn=$('btn-camp-next'); campBtn.style.display='none';
-  const rt=$('result-title'); rt.classList.remove('is-win','is-lose');
+  const rt=$('result-title'); rt.classList.remove('is-win','is-lose','is-champion');
+  $('tourney-progress').innerHTML='';   // solo la rama de Tourney offline la llena
 
   // --- Torneo online x4: el resultado va al bracket, no a la pantalla clásica ---
   if(OT.active && OT.inMatch){ OT.onMyMatchEnd(youHp, oppHp); return; }
@@ -2847,6 +2848,8 @@ function endGame(){
       Tourney._beaten = Tourney.index;   // venció a todos
       Tourney.active=false;
       Tourney._carryHp=null;             // reset para el próximo torneo
+      rt.classList.add('is-win','is-champion');
+      Sound.win(); haptic([15,30,15]);
     } else if(youWon){
       Tourney._carryHp = youHp;          // conserva la vida para la próxima ronda
       Tourney._beaten = Tourney.index;   // último vencido
@@ -2855,13 +2858,19 @@ function endGame(){
       $('result-score').innerHTML=fillText('tourneyHpLeft', {hp:youHp});
       againBtn.style.display='none';
       nextBtn.style.display='block';
+      rt.classList.add('is-win');
+      Sound.win(); haptic([15,30,15]);
     } else {
       $('result-eyebrow').textContent=TEXTS.tourneyEyebrow;
       $('result-title').textContent=TEXTS.tourneyEliminatedTitle;
       $('result-score').innerHTML=fillText('tourneyEliminatedScore', {i:Tourney.index+1, n:TOURNEY_ROSTER.length, name:r.name});
       againBtn.textContent=TEXTS.tourneyRetryLabel;
       Tourney.active=true; // permitir reintentar el mismo (conserva _carryHp de la ronda anterior)
+      rt.classList.add('is-lose');
+      Sound.lose(); haptic([20,60,20]);
     }
+    renderTourneyProgress();
+    pulseResultTitle(rt);
     show('result');
     return;
   }
@@ -3283,11 +3292,14 @@ const OT = {
   myDone:false, eliminated:false, finished:false, _finalHandled:false,
   specId:null, _specRef:null, _specSeats:null,
   _champBumped:false,   // evita sumar "torneos ganados" más de una vez por torneo
+  _resultSoundPlayed:false,   // evita repetir sonido/haptic en cada re-render del hub
+  _lastYouHp:null, _lastOppHp:null,   // HP final de tu último partido (recap en el hub)
 
   resetRunFlags(){
     this.inMatch=false; this.myMatchId=null; this.matchA=null; this.matchB=null;
     this.master=false; this.myDone=false; this.eliminated=false;
-    this.finished=false; this._finalHandled=false; this._champBumped=false; this.stopSpec();
+    this.finished=false; this._finalHandled=false; this._champBumped=false;
+    this._resultSoundPlayed=false; this._lastYouHp=null; this._lastOppHp=null; this.stopSpec();
   },
   detachRoom(){
     try{ if(this.ref){ this.ref.child('players').off(); this.ref.child('status').off(); this.ref.child('bracket').off(); } }catch(e){}
@@ -3459,6 +3471,7 @@ const OT = {
   async route(){
     this._phase='playing';
     this.myDone=false; this.eliminated=false; this.finished=false; this._finalHandled=false; this._champBumped=false;
+    this._resultSoundPlayed=false; this._lastYouHp=null; this._lastOppHp=null;
     try{ this.ref.child('players/'+this.mySeat).onDisconnect().cancel(); }catch(e){}
     let r1=null;
     try{
@@ -3543,8 +3556,10 @@ const OT = {
     G.online=false; G.running=false;
     this.inMatch=false; this.myDone=true;
     if(winner!==this.mySeat) this.eliminated=true;
+    this._lastYouHp=youHp; this._lastOppHp=oppHp;   // recap de HP en el hub
     this.clearColors();
     show('othub'); this.renderHub();
+    pulseResultTitle($('othub-title'));
   },
 
   // ---- Estado para espectadores ----
@@ -3572,28 +3587,46 @@ const OT = {
     const b=this.br||{}, r1=b.r1||{}, fw=b.f&&b.f.winner;
     const w0=r1.m0&&r1.m0.winner, w1=r1.m1&&r1.m1.winner;
     const title=$('othub-title'), sub=$('othub-sub');
-    title.classList.remove('is-win','is-lose');
+    title.classList.remove('is-win','is-lose','is-champion');
+    const hpRecap = this._lastYouHp!=null
+      ? `<br><span style="font-size:13px;">${fillText('resultScoreHp', {youHp:this._lastYouHp, oppHp:this._lastOppHp})}</span>` : '';
     if(this.finished && fw){
       const champ=this.players[fw]||{};
       if(fw===this.mySeat){
-        title.textContent=TEXTS.otChampionTitle; title.classList.add('is-win');
+        title.textContent=TEXTS.otChampionTitle; title.classList.add('is-win','is-champion');
         if(!this._champBumped){
           this._champBumped = true;
           ensureAuth().then(u=>{ if(u) Stats.bump(u.uid, 'tournamentsWon', 1); });
         }
+        if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.win(); haptic([15,30,15]); }
+        sub.innerHTML=fillText('otChampionSub', {
+          dot:`<span class="p-dot" style="background:${champ.color||CPU_GRAY}"></span>`,
+          name:escHtml(champ.name||'?')
+        }) + hpRecap;
       }
-      else if((w0===this.mySeat||w1===this.mySeat)){ title.textContent=TEXTS.otLostFinalTitle; title.classList.add('is-lose'); }
-      else { title.textContent=TEXTS.otFinishedTitle; }
-      sub.innerHTML=fillText('otChampionSub', {
-        dot:`<span class="p-dot" style="background:${champ.color||CPU_GRAY}"></span>`,
-        name:escHtml(champ.name||'?')
-      });
+      else if((w0===this.mySeat||w1===this.mySeat)){
+        title.textContent=TEXTS.otLostFinalTitle; title.classList.add('is-lose');
+        if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.lose(); haptic([20,60,20]); }
+        sub.innerHTML=fillText('otChampionSub', {
+          dot:`<span class="p-dot" style="background:${champ.color||CPU_GRAY}"></span>`,
+          name:escHtml(champ.name||'?')
+        }) + hpRecap;
+      }
+      else {
+        title.textContent=TEXTS.otFinishedTitle;
+        sub.innerHTML=fillText('otChampionSub', {
+          dot:`<span class="p-dot" style="background:${champ.color||CPU_GRAY}"></span>`,
+          name:escHtml(champ.name||'?')
+        });
+      }
     } else if(this.eliminated){
       title.textContent=TEXTS.tourneyEliminatedTitle; title.classList.add('is-lose');
-      sub.textContent=TEXTS.otEliminatedSub;
+      if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.lose(); haptic([20,60,20]); }
+      sub.innerHTML=TEXTS.otEliminatedSub + hpRecap;
     } else if(this.myDone){
       title.textContent=TEXTS.otSemiWonTitle; title.classList.add('is-win');
-      sub.textContent=TEXTS.otWaitingFinalist;
+      if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.win(); haptic([15,30,15]); }
+      sub.innerHTML=TEXTS.otWaitingFinalist + hpRecap;
     } else {
       title.textContent=TEXTS.otInProgressTitle; sub.textContent='';
     }
@@ -3757,6 +3790,29 @@ function applyOppCosmetic(){
     root.style.removeProperty('--opp-accent');
     if(!OT.active) root.style.removeProperty('--you-accent');
   }
+}
+
+// Re-dispara la animación de entrada (.is-pulse) del título de resultado,
+// sacando y volviendo a poner la clase con un reflow forzado en el medio
+// (si solo se agrega, un segundo resultado con la misma clase ya puesta no
+// re-anima porque la animación CSS no se reinicia sola).
+function pulseResultTitle(el){
+  el.classList.remove('is-pulse'); void el.offsetWidth; el.classList.add('is-pulse');
+}
+
+// Fila compacta de chips (uno por rival del roster) para #screen-result,
+// mismo criterio is-beaten/is-current/is-king que showTourneyBracket() pero
+// en formato horizontal (ahí es una lista vertical tipo "Mortal Kombat").
+function renderTourneyProgress(){
+  const wrap = $('tourney-progress'); wrap.innerHTML='';
+  TOURNEY_ROSTER.forEach((r,i)=>{
+    const chip=document.createElement('span'); chip.className='tp-chip';
+    if(r.trait==='luck') chip.classList.add('is-king');
+    if(i<=Tourney._beaten) chip.classList.add('is-beaten');
+    if(i===Tourney.index && Tourney.active) chip.classList.add('is-current');
+    chip.textContent = r.emoji || '●';
+    wrap.appendChild(chip);
+  });
 }
 
 // Pantalla "Mortal Kombat": tu nombre vs la lista de rivales apilados.
