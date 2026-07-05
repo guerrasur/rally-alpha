@@ -1,4 +1,4 @@
-const VERSION = 'v0.2.99';
+const VERSION = 'v0.3.00';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -471,11 +471,11 @@ function show(screen){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('is-active'));
   $('screen-'+screen).classList.add('is-active');
   App.screen = screen;
-  // Los controles superiores (info, tema y usuario) solo se muestran en el inicio.
-  const tc = $('top-controls');
-  if(tc) tc.classList.toggle('is-hidden', screen !== 'home');
+  // El botón de tema se ve en cualquier pestaña; info y usuario solo en el inicio.
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', screen !== 'home');
+  const ub = $('btn-user');
+  if(ub) ub.classList.toggle('is-hidden', screen !== 'home');
 }
 function escHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4130,11 +4130,11 @@ function applyTheme(theme){
   let saved = 'light';
   try { saved = localStorage.getItem('rally_theme') || 'light'; } catch(e){}
   applyTheme(saved);
-  // Estado inicial de los controles superiores: visibles solo en el inicio.
-  const tc = $('top-controls');
-  if(tc) tc.classList.toggle('is-hidden', App.screen !== 'home');
+  // Estado inicial: info y usuario visibles solo en el inicio; tema siempre visible.
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', App.screen !== 'home');
+  const ub = $('btn-user');
+  if(ub) ub.classList.toggle('is-hidden', App.screen !== 'home');
 })();
 $('btn-theme').addEventListener('click', ()=>{
   const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';

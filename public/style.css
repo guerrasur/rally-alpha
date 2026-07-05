@@ -86,7 +86,7 @@
     align-items:center;
     gap:2px;
   }
-  .top-controls.is-hidden{ display:none; }
+  .theme-toggle.is-hidden{ display:none; }
   .info-btn{
     position:absolute;
     top: max(8px, env(safe-area-inset-top));
