@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally — duelo en tablero · v0.3.00</title>
-<link rel="stylesheet" href="style.css?v=v0.3.00" />
+<title>Rally — duelo en tablero · v0.3.01</title>
+<link rel="stylesheet" href="style.css?v=v0.3.01" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -19,7 +19,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.3.00</div>
+  <div class="version-tag" id="version-tag">v0.3.01</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -356,6 +356,7 @@
       <h2 class="result-title" id="result-title">—</h2>
       <p class="result-score" id="result-score">—</p>
     </div>
+    <div class="tourney-progress" id="tourney-progress"></div>
     <div class="actions">
       <button class="btn btn--primary" id="btn-tourney-next" style="display:none;">Siguiente rival ▸</button>
       <button class="btn btn--primary" id="btn-camp-next" style="display:none;">Continuar ▸</button>
@@ -476,6 +477,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.3.00" defer></script>
+<script src="game.js?v=v0.3.01" defer></script>
 </body>
 </html>
