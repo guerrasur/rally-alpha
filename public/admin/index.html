@@ -72,13 +72,74 @@
   .table-scroll{ overflow-x:auto; }
   .table-scroll table{ min-width:560px; }
   .ach-soon{ color:var(--muted); opacity:.7; }
+
+  /* ===== 🗺️ Editor de mapas ===== */
+  .m-row{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .m-row:last-child{ border-bottom:none; }
+  .m-row__name{ flex:1; font-weight:600; font-size:14px; }
+  .m-row__size{ font-size:11px; color:var(--muted); }
+  .palette{ display:flex; gap:6px; flex-wrap:wrap; margin:12px 0; }
+  .pal-btn{ min-width:44px; height:40px; padding:0 10px; border:1.5px solid var(--line); border-radius:9px;
+            background:var(--paper); color:var(--ink); font-size:17px; cursor:pointer; }
+  .pal-btn.is-on{ border-color:var(--accent); background:var(--accent-soft); }
+  .map-grid{ display:grid; gap:3px; width:100%; max-width:430px; margin:0 auto; touch-action:manipulation; }
+  .mcell{ position:relative; aspect-ratio:1; background:var(--paper); border:1px solid var(--line);
+          border-radius:4px; display:flex; align-items:center; justify-content:center;
+          font-size:clamp(11px,3.4vw,18px); cursor:pointer; user-select:none; }
+  .mcell.is-start{ background:var(--accent-soft); cursor:not-allowed; font-size:10px; color:var(--muted); font-weight:700; }
+  .we{ position:absolute; z-index:3; }
+  .we-r{ top:0; bottom:0; right:-5px; width:10px; cursor:pointer; }
+  .we-b{ left:0; right:0; bottom:-5px; height:10px; cursor:pointer; }
+  .we::after{ content:''; position:absolute; background:transparent; border-radius:2px; transition:background .12s; }
+  .we-r::after{ top:-1px; bottom:-1px; left:3px; width:4px; }
+  .we-b::after{ left:-1px; right:-1px; top:3px; height:4px; }
+  .we.is-wall::after{ background:#8A8A90; }
+  .we:not(.is-wall):hover::after{ background:rgba(138,138,144,.35); }
+  .m-editor-head{ display:flex; gap:10px; align-items:center; margin-bottom:4px; }
+  .m-editor-head .input{ margin-bottom:0; }
+
+  /* ===== 📖 Editor de campaña ===== */
+  .cnode{ border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; background:var(--paper); }
+  .cnode__head{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .cnode__title{ flex:1; font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent); }
+  .cnode__btn{ border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:7px;
+               width:30px; height:30px; cursor:pointer; font-size:14px; }
+  .cnode__btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .cnode .frow{ display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .cnode .frow label{ font-size:12px; color:var(--muted); min-width:110px; }
+  .cnode .frow input[type=text], .cnode .frow input[type=number], .cnode .frow select{
+    flex:1; min-width:90px; padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+    background:var(--field); color:var(--ink); font:inherit; font-size:13.5px; }
+  .cnode .frow input[type=color]{ width:44px; height:32px; border:1px solid var(--line); border-radius:8px; background:var(--field); padding:2px; }
+  .cnode .frow input[type=range]{ flex:1; }
+  .cnode .frow .rangeval{ min-width:34px; text-align:right; font-size:13px; color:var(--accent); font-weight:700; }
+  .cnode textarea{ width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px;
+                   background:var(--field); color:var(--ink); font:inherit; font-size:13.5px; resize:vertical; min-height:64px; line-height:1.4; }
+  .c-addrow{ display:flex; gap:10px; margin:4px 0 12px; }
+  .c-addrow .btn{ flex:1; }
+  details.adv{ margin-top:14px; }
+  details.adv summary{ font-size:12.5px; color:var(--muted); cursor:pointer; }
+  details.adv textarea{ width:100%; margin-top:8px; min-height:110px; font-family:monospace; font-size:12px;
+    padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); resize:vertical; }
+
+  /* ===== 🎭 Editor de personajes ===== */
+  .chrow{ border-bottom:1px solid var(--line); padding:10px 0; }
+  .chrow:last-child{ border-bottom:none; }
+  .chrow__head{ font-size:12px; font-weight:700; color:var(--muted); margin-bottom:8px; }
+  .chrow .frow{ display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+  .chrow .frow label{ font-size:12px; color:var(--muted); min-width:64px; }
+  .chrow .frow input[type=text], .chrow .frow input[type=number], .chrow .frow select{
+    flex:1; min-width:70px; padding:7px 9px; border:1px solid var(--line); border-radius:8px;
+    background:var(--paper); color:var(--ink); font:inherit; font-size:13.5px; }
+  .chrow .frow input[type=color]{ width:44px; height:30px; border:1px solid var(--line); border-radius:8px; background:var(--paper); padding:2px; }
+  .chrow .frow input.emoji{ max-width:64px; flex:0 1 64px; text-align:center; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="topline">
     <div><span class="eyebrow">Rally</span><h1>Panel de admin</h1></div>
-    <span class="count" id="ver">v0.3.02</span>
+    <span class="count" id="ver">v0.3.03</span>
   </div>
 
   <!-- Login -->
@@ -157,6 +218,66 @@
       <div class="row-actions">
         <button class="btn btn--primary" id="tx-save" disabled>Guardar cambios</button>
         <button class="btn btn--ghost" id="tx-reset">Restaurar defaults</button>
+      </div>
+
+      <h2>🗺️ Editor de mapas</h2>
+      <p class="hint">Mapas pintados a mano para usar en la campaña. <b>7x7 clásico</b> juega con las reglas normales; <b>9x9 con paredes</b> juega con las reglas del Modo Paredes. Las esquinas (V = vos, R = rival) son las posiciones de arranque y no se pintan. En 9x9, tocá los <b>bordes</b> entre casillas para poner/sacar paredes.</p>
+      <div class="card">
+        <div id="m-list"><span class="hint">Cargando…</span></div>
+        <div class="row-actions">
+          <button class="btn btn--primary" id="m-new7">+ Mapa 7x7</button>
+          <button class="btn btn--primary" id="m-new9">+ Mapa 9x9 🧱</button>
+        </div>
+        <div id="m-editor" style="display:none; margin-top:16px;">
+          <div class="m-editor-head">
+            <input class="input" id="m-name" type="text" placeholder="nombre del mapa" maxlength="40" />
+            <span class="m-row__size" id="m-size-tag">7x7</span>
+          </div>
+          <div class="palette" id="m-palette"></div>
+          <div class="map-grid" id="m-grid"></div>
+          <p class="err" id="m-err"></p>
+          <p class="okmsg" id="m-ok"></p>
+          <div class="row-actions">
+            <button class="btn btn--primary" id="m-save">Guardar mapa</button>
+            <button class="btn btn--ghost" id="m-cancel">Cerrar editor</button>
+          </div>
+        </div>
+      </div>
+
+      <h2>📖 Editor de campaña</h2>
+      <p class="hint">La cinta de nodos que juega el jugador en orden. <b>Escena</b> = líneas de historia que aparecen de a una. <b>Partida</b> = combate contra un rival configurable, con mapa fijo (de los guardados arriba) o aleatorio. Si editás un mapa después, volvé a <b>guardar la campaña</b> para que tome la versión nueva. Los cambios aplican a todos en la próxima carga del juego.</p>
+      <div class="card">
+        <div id="c-nodes"><span class="hint">Cargando…</span></div>
+        <div class="c-addrow">
+          <button class="btn btn--primary" id="c-add-scene">+ Escena</button>
+          <button class="btn btn--primary" id="c-add-match">+ Partida</button>
+        </div>
+        <p class="err" id="c-err"></p>
+        <p class="okmsg" id="c-ok"></p>
+        <div class="row-actions">
+          <button class="btn btn--primary" id="c-save">Guardar campaña</button>
+          <button class="btn btn--ghost" id="c-reset">Restaurar default</button>
+        </div>
+        <details class="adv">
+          <summary>JSON avanzado (backup / importar)</summary>
+          <textarea id="c-json" spellcheck="false"></textarea>
+          <div class="row-actions">
+            <button class="btn btn--ghost btn--small" id="c-export">⬇ Exportar acá</button>
+            <button class="btn btn--ghost btn--small" id="c-import">⬆ Importar de acá</button>
+          </div>
+        </details>
+      </div>
+
+      <h2>🎭 Editor de personajes</h2>
+      <p class="hint">Los 8 rivales del torneo offline, en orden de aparición. HP y skill vacíos = usar la curva default (mostrada como referencia). El rival de práctica ("Cachito") y los nombres también se pueden tocar desde 📝 Textos — si un nombre está editado en los dos lados, gana el de Textos.</p>
+      <div class="card">
+        <div id="ch-rows"><span class="hint">Cargando…</span></div>
+        <p class="err" id="ch-err"></p>
+        <p class="okmsg" id="ch-ok"></p>
+        <div class="row-actions">
+          <button class="btn btn--primary" id="ch-save">Guardar personajes</button>
+          <button class="btn btn--ghost" id="ch-reset">Restaurar defaults</button>
+        </div>
       </div>
 
       <h2>🔑 Administradores</h2>
@@ -422,6 +543,9 @@ async function refreshSession(){
   loadPlayerStats();
   loadStats();
   loadTexts();
+  loadMaps();
+  loadCampaign();
+  loadCharacters();
   loadAdmins();
 }
 
@@ -623,6 +747,423 @@ $('tx-reset').addEventListener('click', async ()=>{
     $('tx-ok').textContent = 'Defaults restaurados ✓';
     await loadTexts();
   }catch(e){ $('tx-err').textContent = 'No se pudo restaurar (¿tu cuenta es admin?).'; }
+});
+
+// =====================================================================
+// 🗺️📖🎭 EDITOR DEL JUEGO (v0.3.03)
+// Espejos de game.js — mantener sincronizados: CELL_CODE (e/a/d/x/r),
+// formato de board ("celdas" plano 7x7 / "W<size>~<paredes>~<celdas>"),
+// claves de pared canónicas "x1,y1|x2,y2" unidas por ";", roster default.
+// =====================================================================
+
+// ---- Espejo compacto del módulo Walls de game.js ----
+function wkey(x1,y1,x2,y2){
+  if(y1>y2 || (y1===y2 && x1>x2)){ [x1,x2]=[x2,x1]; [y1,y2]=[y2,y1]; }
+  return `${x1},${y1}|${x2},${y2}`;
+}
+function wallsBlock(set,x,y,nx,ny){
+  const has=(a,b,c,d)=>set.has(wkey(a,b,c,d));
+  const dx=nx-x, dy=ny-y;
+  if(dx===0 || dy===0) return has(x,y,nx,ny);
+  const sideH=has(x,y,x+dx,y), sideV=has(x,y,x,y+dy);
+  const destH=has(x,y+dy,nx,ny), destV=has(x+dx,y,nx,ny);
+  return (sideH&&sideV)||(destH&&destV)||(sideH&&destH)||(sideV&&destV);
+}
+function fullyConnected(set,n){
+  const seen=new Set([`${n-1},${n-1}`]), q=[[n-1,n-1]];
+  while(q.length){
+    const [x,y]=q.shift();
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+      if(dx===0&&dy===0) continue;
+      const nx=x+dx, ny=y+dy;
+      if(nx<0||nx>=n||ny<0||ny>=n) continue;
+      if(wallsBlock(set,x,y,nx,ny)) continue;
+      const k=`${nx},${ny}`;
+      if(!seen.has(k)){ seen.add(k); q.push([nx,ny]); }
+    }
+  }
+  return seen.size===n*n;
+}
+
+const ITEM_GLYPH = { e:'', a:'🗡️', d:'◈', x:'×', r:'💍' };
+const PAL_ITEMS = [ ['e','⌫ vaciar'], ['a','🗡️'], ['d','◈'], ['x','×'], ['r','💍'] ];
+
+// Board serializado que consume el juego: plano si es 7x7 sin paredes,
+// "W<size>~<paredes>~<celdas>" si es 9x9 (con o sin paredes → reglas de Modo Paredes).
+function mapToBoardString(m){
+  if(m.size===7 && !(m.walls||'').length) return m.board;
+  return `W${m.size}~${m.walls||''}~${m.board}`;
+}
+
+// ---- 🗺️ Mapas ----
+let mapsCache = {};        // maps/ crudo: id → JSON string
+let mEdit = null;          // mapa en edición: {id,name,size,cells:[],walls:Set}
+let mBrush = 'a';
+
+async function loadMaps(){
+  try{ mapsCache = (await db.ref('maps').get()).val() || {}; }catch(e){ mapsCache = {}; }
+  renderMapList();
+  renderCampaignNodes();   // refresca los selectores de mapa de la campaña
+}
+function parsedMaps(){
+  const out = [];
+  for(const id in mapsCache){
+    try{ const m = JSON.parse(mapsCache[id]); if(m && m.board) out.push({ id, ...m }); }catch(e){}
+  }
+  out.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  return out;
+}
+function renderMapList(){
+  const list = $('m-list');
+  const maps = parsedMaps();
+  if(!maps.length){ list.innerHTML = '<span class="hint">Todavía no hay mapas guardados.</span>'; return; }
+  list.innerHTML = '';
+  maps.forEach(m=>{
+    const row = document.createElement('div'); row.className='m-row';
+    row.innerHTML = `<span class="m-row__name">${esc(m.name||m.id)}</span>
+      <span class="m-row__size">${m.size}x${m.size}${(m.walls||'').length?' 🧱':''}</span>`;
+    const edit = document.createElement('button'); edit.className='btn btn--ghost btn--small'; edit.textContent='Editar';
+    edit.addEventListener('click', ()=>openMapEditor(m));
+    const del = document.createElement('button'); del.className='btn btn--ghost btn--small'; del.textContent='Borrar';
+    del.addEventListener('click', async ()=>{
+      if(!confirm(`¿Borrar el mapa "${m.name||m.id}"? Las partidas de campaña que lo usen conservan su copia embebida.`)) return;
+      try{ await db.ref('maps/'+m.id).remove(); await loadMaps(); }catch(e){ alert('No se pudo borrar.'); }
+    });
+    row.appendChild(edit); row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+function openMapEditor(m){
+  const size = m ? m.size : 7;
+  mEdit = m
+    ? { id:m.id, name:m.name||'', size, cells:(m.board||'').padEnd(size*size,'e').split('').slice(0,size*size),
+        walls:new Set((m.walls||'').split(';').filter(Boolean)) }
+    : null;
+  $('m-name').value = mEdit ? mEdit.name : '';
+  $('m-size-tag').textContent = `${size}x${size}${size===9?' 🧱':''}`;
+  $('m-err').textContent=''; $('m-ok').textContent='';
+  $('m-editor').style.display='block';
+  renderPalette(); renderMapGrid();
+  $('m-editor').scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+function newMap(size){
+  mEdit = { id:'m'+Date.now().toString(36), name:'', size, cells:Array(size*size).fill('e'), walls:new Set() };
+  $('m-name').value='';
+  $('m-size-tag').textContent = `${size}x${size}${size===9?' 🧱':''}`;
+  $('m-err').textContent=''; $('m-ok').textContent='';
+  $('m-editor').style.display='block';
+  renderPalette(); renderMapGrid();
+  $('m-name').focus();
+}
+$('m-new7').addEventListener('click', ()=>newMap(7));
+$('m-new9').addEventListener('click', ()=>newMap(9));
+$('m-cancel').addEventListener('click', ()=>{ mEdit=null; $('m-editor').style.display='none'; });
+
+function renderPalette(){
+  const pal = $('m-palette'); pal.innerHTML='';
+  PAL_ITEMS.forEach(([code,label])=>{
+    const b = document.createElement('button'); b.className='pal-btn'+(mBrush===code?' is-on':'');
+    b.textContent = label;
+    b.addEventListener('click', ()=>{ mBrush=code; renderPalette(); });
+    pal.appendChild(b);
+  });
+}
+function renderMapGrid(){
+  if(!mEdit) return;
+  const n = mEdit.size, grid = $('m-grid');
+  grid.style.gridTemplateColumns = `repeat(${n},1fr)`;
+  grid.innerHTML='';
+  for(let y=0;y<n;y++) for(let x=0;x<n;x++){
+    const i = y*n+x;
+    const cell = document.createElement('div'); cell.className='mcell';
+    const isStart = (x===0&&y===0) || (x===n-1&&y===n-1);
+    if(isStart){
+      cell.classList.add('is-start');
+      cell.textContent = (x===0) ? 'R' : 'V';
+      cell.title = (x===0) ? 'Arranque del rival' : 'Tu arranque';
+    } else {
+      cell.textContent = ITEM_GLYPH[mEdit.cells[i]] || '';
+      cell.addEventListener('click', ()=>{
+        mEdit.cells[i] = mBrush;
+        cell.textContent = ITEM_GLYPH[mBrush] || '';
+      });
+    }
+    // Bordes de pared (solo 9x9): derecho y de abajo, como .wall-seg del juego
+    if(n===9){
+      if(x<n-1){
+        const e = document.createElement('div'); e.className='we we-r';
+        const k = wkey(x,y,x+1,y);
+        if(mEdit.walls.has(k)) e.classList.add('is-wall');
+        e.addEventListener('click', ev=>{
+          ev.stopPropagation();
+          if(mEdit.walls.has(k)) mEdit.walls.delete(k); else mEdit.walls.add(k);
+          e.classList.toggle('is-wall');
+        });
+        cell.appendChild(e);
+      }
+      if(y<n-1){
+        const e = document.createElement('div'); e.className='we we-b';
+        const k = wkey(x,y,x,y+1);
+        if(mEdit.walls.has(k)) e.classList.add('is-wall');
+        e.addEventListener('click', ev=>{
+          ev.stopPropagation();
+          if(mEdit.walls.has(k)) mEdit.walls.delete(k); else mEdit.walls.add(k);
+          e.classList.toggle('is-wall');
+        });
+        cell.appendChild(e);
+      }
+    }
+    grid.appendChild(cell);
+  }
+}
+$('m-save').addEventListener('click', async ()=>{
+  if(!mEdit) return;
+  const err=$('m-err'), ok=$('m-ok');
+  err.textContent=''; ok.textContent='';
+  const name = $('m-name').value.trim();
+  if(!name){ err.textContent='Poné un nombre al mapa.'; return; }
+  const n = mEdit.size;
+  mEdit.cells[0]='e'; mEdit.cells[n*n-1]='e';   // esquinas siempre libres
+  if(!fullyConnected(mEdit.walls, n)){
+    err.textContent='Las paredes dejan casillas inalcanzables — abrí algún paso.';
+    return;
+  }
+  const payload = JSON.stringify({
+    name, size:n, board:mEdit.cells.join(''),
+    walls:Array.from(mEdit.walls).join(';'),
+  });
+  try{
+    await db.ref('maps/'+mEdit.id).set(payload);
+    ok.textContent='Mapa guardado ✓';
+    await loadMaps();
+  }catch(e){ err.textContent='No se pudo guardar (¿tu cuenta es admin?).'; }
+});
+
+// ---- 📖 Campaña ----
+// Espejo del CAMPAIGN_SCRIPT default de game.js — mantener sincronizado.
+const CAMPAIGN_DEFAULT = [
+  { id:'intro-match', type:'match', opp:{ name:'Tarata', hp:11, skill:0.35 } },
+];
+let cNodes = [];
+
+async function loadCampaign(){
+  let raw = null;
+  try{ raw = (await db.ref('campaign/script').get()).val(); }catch(e){}
+  cNodes = null;
+  if(typeof raw==='string' && raw){
+    try{ const arr = JSON.parse(raw); if(Array.isArray(arr)) cNodes = arr; }catch(e){}
+  }
+  if(!cNodes) cNodes = JSON.parse(JSON.stringify(CAMPAIGN_DEFAULT));
+  renderCampaignNodes();
+}
+function mapSelectOptions(selectedId){
+  const opts = ['<option value="">Aleatorio</option>'];
+  parsedMaps().forEach(m=>{
+    opts.push(`<option value="${esc(m.id)}"${m.id===selectedId?' selected':''}>${esc(m.name||m.id)} (${m.size}x${m.size}${(m.walls||'').length?' 🧱':''})</option>`);
+  });
+  return opts.join('');
+}
+function renderCampaignNodes(){
+  const box = $('c-nodes');
+  if(!Array.isArray(cNodes)){ return; }
+  if(!cNodes.length){ box.innerHTML='<span class="hint">Campaña vacía — agregá nodos.</span>'; return; }
+  box.innerHTML='';
+  cNodes.forEach((node,i)=>{
+    const card = document.createElement('div'); card.className='cnode';
+    const head = document.createElement('div'); head.className='cnode__head';
+    head.innerHTML = `<span class="cnode__title">Nodo ${i+1} · ${node.type==='scene'?'📜 Escena':'⚔️ Partida'}</span>`;
+    const mk = (txt,fn,title)=>{
+      const b=document.createElement('button'); b.className='cnode__btn'; b.textContent=txt; b.title=title;
+      b.addEventListener('click',fn); head.appendChild(b);
+    };
+    mk('↑', ()=>{ if(i>0){ [cNodes[i-1],cNodes[i]]=[cNodes[i],cNodes[i-1]]; renderCampaignNodes(); } }, 'Subir');
+    mk('↓', ()=>{ if(i<cNodes.length-1){ [cNodes[i+1],cNodes[i]]=[cNodes[i],cNodes[i+1]]; renderCampaignNodes(); } }, 'Bajar');
+    mk('✕', ()=>{ cNodes.splice(i,1); renderCampaignNodes(); }, 'Borrar nodo');
+    card.appendChild(head);
+
+    if(node.type==='scene'){
+      const ta = document.createElement('textarea');
+      ta.placeholder = 'Una línea de historia por renglón…';
+      ta.value = (node.lines||[]).join('\n');
+      ta.addEventListener('input', ()=>{ node.lines = ta.value.split('\n').map(s=>s.trim()).filter(Boolean); });
+      card.appendChild(ta);
+    } else {
+      node.opp = node.opp || {};
+      const rows = document.createElement('div');
+      const frow = (label, inputHtml)=>`<div class="frow"><label>${label}</label>${inputHtml}</div>`;
+      rows.innerHTML =
+        frow('Rival', `<input type="text" data-f="name" value="${esc(node.opp.name||'')}" placeholder="nombre" maxlength="40">`) +
+        frow('HP rival', `<input type="number" data-f="hp" value="${node.opp.hp??''}" min="1" max="500" placeholder="100">`) +
+        frow('Skill (0–1)', `<input type="range" data-f="skill" value="${node.opp.skill??0.35}" min="0" max="1" step="0.05"><span class="rangeval">${(node.opp.skill??0.35).toFixed(2)}</span>`) +
+        frow('Color', `<input type="color" data-f="accent" value="${/^#[0-9A-Fa-f]{6}$/.test(node.opp.accent||'')?node.opp.accent:'#8C8A85'}"><span class="hint" style="margin:0;">gris = sin color propio</span>`) +
+        frow('Mult. de daño', `<input type="number" data-f="dmgMult" value="${node.opp.dmgMult??''}" min="0.1" max="10" step="0.1" placeholder="1">`) +
+        frow('Tu HP inicial', `<input type="number" data-f="youHp" value="${node.youHp??''}" min="1" max="500" placeholder="default">`) +
+        frow('Mapa', `<select data-f="map">${mapSelectOptions(node.mapId)}</select>`);
+      card.appendChild(rows);
+      rows.querySelector('[data-f=name]').addEventListener('input', e=>{ node.opp.name = e.target.value; });
+      rows.querySelector('[data-f=hp]').addEventListener('input', e=>{
+        const v=parseFloat(e.target.value); if(isFinite(v)&&v>0) node.opp.hp=v; else delete node.opp.hp;
+      });
+      const skillInp = rows.querySelector('[data-f=skill]');
+      skillInp.addEventListener('input', e=>{
+        node.opp.skill = parseFloat(e.target.value);
+        e.target.nextElementSibling.textContent = node.opp.skill.toFixed(2);
+      });
+      rows.querySelector('[data-f=accent]').addEventListener('input', e=>{
+        node.opp.accent = (e.target.value==='#8C8A85') ? undefined : e.target.value;
+        if(node.opp.accent===undefined) delete node.opp.accent;
+      });
+      rows.querySelector('[data-f=dmgMult]').addEventListener('input', e=>{
+        const v=parseFloat(e.target.value); if(isFinite(v)&&v>0&&v!==1) node.opp.dmgMult=v; else delete node.opp.dmgMult;
+      });
+      rows.querySelector('[data-f=youHp]').addEventListener('input', e=>{
+        const v=parseFloat(e.target.value); if(isFinite(v)&&v>0) node.youHp=v; else delete node.youHp;
+      });
+      rows.querySelector('[data-f=map]').addEventListener('change', e=>{
+        node.mapId = e.target.value || undefined;
+        if(!node.mapId) delete node.mapId;
+      });
+    }
+    box.appendChild(card);
+  });
+}
+$('c-add-scene').addEventListener('click', ()=>{
+  cNodes.push({ id:'n'+Date.now().toString(36), type:'scene', lines:[] });
+  renderCampaignNodes();
+});
+$('c-add-match').addEventListener('click', ()=>{
+  cNodes.push({ id:'n'+Date.now().toString(36), type:'match', opp:{ name:'', hp:100, skill:0.35 } });
+  renderCampaignNodes();
+});
+$('c-save').addEventListener('click', async ()=>{
+  const err=$('c-err'), ok=$('c-ok');
+  err.textContent=''; ok.textContent='';
+  // Validación + embebido del mapa elegido en node.board (el juego no lee maps/)
+  const maps = Object.fromEntries(parsedMaps().map(m=>[m.id,m]));
+  for(let i=0;i<cNodes.length;i++){
+    const n = cNodes[i];
+    if(n.type==='scene'){
+      if(!(n.lines||[]).length){ err.textContent=`El nodo ${i+1} (escena) no tiene líneas.`; return; }
+    } else if(n.type==='match'){
+      if(!(n.opp&&(n.opp.name||'').trim())){ err.textContent=`El nodo ${i+1} (partida) no tiene nombre de rival.`; return; }
+      if(n.mapId){
+        const m = maps[n.mapId];
+        if(!m){ err.textContent=`El nodo ${i+1} usa un mapa que ya no existe — elegí otro.`; return; }
+        n.board = mapToBoardString(m);
+      } else {
+        delete n.board;
+      }
+    }
+  }
+  if(!cNodes.length){ err.textContent='La campaña no puede quedar vacía — usá "Restaurar default" para volver a la original.'; return; }
+  const json = JSON.stringify(cNodes);
+  if(json.length > 200000){ err.textContent='La campaña es demasiado grande.'; return; }
+  $('c-save').disabled = true;
+  try{
+    await db.ref('campaign/script').set(json);
+    ok.textContent = 'Guardado ✓ — aplica a todos en la próxima carga del juego.';
+  }catch(e){ err.textContent='No se pudo guardar (¿tu cuenta es admin?).'; }
+  $('c-save').disabled = false;
+});
+$('c-reset').addEventListener('click', async ()=>{
+  const err=$('c-err'), ok=$('c-ok');
+  err.textContent=''; ok.textContent='';
+  try{
+    await db.ref('campaign').remove();
+    ok.textContent='Campaña default restaurada ✓';
+    await loadCampaign();
+  }catch(e){ err.textContent='No se pudo restaurar (¿tu cuenta es admin?).'; }
+});
+$('c-export').addEventListener('click', ()=>{ $('c-json').value = JSON.stringify(cNodes, null, 2); });
+$('c-import').addEventListener('click', ()=>{
+  try{
+    const arr = JSON.parse($('c-json').value);
+    if(!Array.isArray(arr)) throw new Error('no es un array');
+    if(!arr.every(n=>n && (n.type==='match'||n.type==='scene'))) throw new Error('nodos inválidos');
+    cNodes = arr;
+    renderCampaignNodes();
+    $('c-ok').textContent='JSON importado al editor — revisá y guardá.';
+    $('c-err').textContent='';
+  }catch(e){ $('c-err').textContent='JSON inválido: '+e.message; }
+});
+
+// ---- 🎭 Personajes ----
+// Espejo de TOURNEY_ROSTER + curvas default de game.js — mantener sincronizado.
+const ROSTER_DEFAULTS = [
+  { name:'Maurice',    accent:'#2B8C4E', emoji:'🐒' },
+  { name:'Mort',       accent:'#D6A22B', emoji:'🐭' },
+  { name:'Clover',     accent:'#1FA8A0', emoji:'🛡️' },
+  { name:'Skipper',    accent:'#5A6B7A', emoji:'🐧' },
+  { name:'Kowalski',   accent:'#7A3BD6', emoji:'📐' },
+  { name:'Marlene',    accent:'#D6577A', emoji:'🦦', trait:'doubleStep' },
+  { name:'Alex',       accent:'#D6772B', emoji:'🦁', trait:'hardHit' },
+  { name:'Rey Julian', accent:'#C8302B', emoji:'👑', trait:'luck' },
+];
+const hpDef = i => Math.round(10 * Math.pow(20, i/7));
+const skillDef = i => Math.pow(i/7, 1.6);
+const TRAIT_LABEL = { '':'ninguno', doubleStep:'doble paso', hardHit:'pega fuerte', luck:'suerte (rey)' };
+
+async function loadCharacters(){
+  let saved = [];
+  try{
+    const raw = (await db.ref('characters/roster').get()).val();
+    if(typeof raw==='string' && raw){ const arr=JSON.parse(raw); if(Array.isArray(arr)) saved=arr; }
+  }catch(e){}
+  const box = $('ch-rows'); box.innerHTML='';
+  ROSTER_DEFAULTS.forEach((def,i)=>{
+    const o = saved[i] || {};
+    const row = document.createElement('div'); row.className='chrow';
+    const traitSel = ['','doubleStep','hardHit','luck'].map(t=>
+      `<option value="${t}"${(o.trait??def.trait??'')===t?' selected':''}>${TRAIT_LABEL[t]}</option>`).join('');
+    row.innerHTML = `
+      <div class="chrow__head">Rival ${i+1} · default: ${esc(def.emoji)} ${esc(def.name)} — ${hpDef(i)} HP, skill ${skillDef(i).toFixed(2)}</div>
+      <div class="frow">
+        <label>Nombre</label><input type="text" id="ch-name-${i}" value="${esc(o.name??def.name)}" maxlength="40">
+        <input type="text" class="emoji" id="ch-emoji-${i}" value="${esc(o.emoji??def.emoji)}" maxlength="4" title="emoji">
+        <input type="color" id="ch-accent-${i}" value="${/^#[0-9A-Fa-f]{6}$/.test(o.accent||'')?o.accent:def.accent}">
+      </div>
+      <div class="frow">
+        <label>HP</label><input type="number" id="ch-hp-${i}" value="${typeof o.hp==='number'?o.hp:''}" min="1" max="500" placeholder="${hpDef(i)}">
+        <label>Skill</label><input type="number" id="ch-skill-${i}" value="${typeof o.skill==='number'?o.skill:''}" min="0" max="1" step="0.05" placeholder="${skillDef(i).toFixed(2)}">
+        <select id="ch-trait-${i}">${traitSel}</select>
+      </div>`;
+    box.appendChild(row);
+  });
+}
+$('ch-save').addEventListener('click', async ()=>{
+  const err=$('ch-err'), ok=$('ch-ok');
+  err.textContent=''; ok.textContent='';
+  const arr = ROSTER_DEFAULTS.map((def,i)=>{
+    const o = {};
+    const name = $('ch-name-'+i).value.trim();
+    const emoji = $('ch-emoji-'+i).value.trim();
+    const accent = $('ch-accent-'+i).value;
+    const trait = $('ch-trait-'+i).value;
+    if(name && name!==def.name) o.name = name;
+    if(emoji && emoji!==def.emoji) o.emoji = emoji;
+    if(accent && accent.toLowerCase()!==def.accent.toLowerCase()) o.accent = accent;
+    if(trait !== (def.trait||'')) o.trait = trait;
+    const hp = parseFloat($('ch-hp-'+i).value);
+    if(isFinite(hp) && hp>0) o.hp = hp;
+    const sk = parseFloat($('ch-skill-'+i).value);
+    if(isFinite(sk) && sk>=0 && sk<=1) o.skill = sk;
+    return o;
+  });
+  $('ch-save').disabled = true;
+  try{
+    await db.ref('characters/roster').set(JSON.stringify(arr));
+    ok.textContent = 'Guardado ✓ — aplica a todos en la próxima carga del juego.';
+  }catch(e){ err.textContent='No se pudo guardar (¿tu cuenta es admin?).'; }
+  $('ch-save').disabled = false;
+});
+$('ch-reset').addEventListener('click', async ()=>{
+  const err=$('ch-err'), ok=$('ch-ok');
+  err.textContent=''; ok.textContent='';
+  try{
+    await db.ref('characters').remove();
+    ok.textContent='Defaults restaurados ✓';
+    await loadCharacters();
+  }catch(e){ err.textContent='No se pudo restaurar (¿tu cuenta es admin?).'; }
 });
 
 // Sesión persistida: esperar a que Auth restaure y decidir qué mostrar
