@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.07';
+const VERSION = 'v0.3.08';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -257,16 +257,23 @@ const App = {
   online: false,
   muted: false,
   isHost: false,
-  matchMode: 'single',   // 'single' | 'bo5'
-  scoreYou: 0,           // rondas ganadas (bo5)
+  matchMode: 'bo5',      // 'single' | 'bo5' ('bo5' = serie; hoy es "mejor de 3", default online)
+  scoreYou: 0,           // rondas ganadas (serie)
   scoreOpp: 0,
+  roundHist: [],         // historial de rondas de la serie: 'you' | 'opp' (para los puntos)
   wallsMode: false,      // Modo Paredes (experimental)
 };
 
 // Entra/sale de modos con tablero especial (ajusta el tamaño global).
 function enterWallsMode(){ App.wallsMode = true;  CFG.boardSize = CFG.wallsBoardSize; }
 function exitSpecialMode(){ App.wallsMode = false; CFG.boardSize = CFG.boardSizeDefault; Walls.clear(); }
-const BO5_TARGET = 3;    // gana quien llega a 3 rondas
+// La serie online es "mejor de 3": gana quien llega a 2 rondas. (El valor
+// interno del modo sigue siendo 'bo5' para no tocar el wire/las reglas.)
+const BO5_TARGET = 2;
+const SERIES_ROUNDS = 3;      // puntos que se muestran en el marcador de rondas
+// El Torneo offline queda afuera del recorte de vida (CFG.maxHp 100→35):
+// el jugador arranca cada corrida con la vida clásica.
+const TOURNEY_YOU_HP = 100;
 
 // ---- Modo Torneo offline ----
 // 8 rivales: vida exponencial 10→200, IA exponencialmente más fuerte (skill 0→1).
@@ -439,7 +446,7 @@ function currentCpuSkill(){
 // propia puntería. >0 = buscar el duelo; <0 = evitarlo. Rango aprox. [-1, 1].
 function cpuDuelAdvantage(){
   const skill = currentCpuSkill();
-  const hpEdge   = (G.opp.hp - G.you.hp) / CFG.maxHp;
+  const hpEdge   = (G.opp.hp - G.you.hp) / (G.you.maxHp || CFG.maxHp);
   const buffEdge = ((G.opp.buffs.dmg - G.you.buffs.dmg) + (G.opp.buffs.def - G.you.buffs.def)) / 12;
   const aimEdge  = (Math.max(skill, 0.3) - 0.55) * 0.6;
   return hpEdge*0.6 + buffEdge*0.5 + aimEdge;
@@ -596,7 +603,7 @@ const CFG = {
   boardSizeDefault: 7,   // tamaño normal (para restaurar al salir de modos especiales)
   wallsBoardSize: 9,     // tamaño del mapa en Modo Paredes
   wallsCount: 14,        // cantidad de segmentos de pared a generar
-  maxHp: 100,
+  maxHp: 35,           // antes 100: partidas más rápidas (el Torneo offline mantiene 100 vía TOURNEY_YOU_HP)
   powerDmgCount: 3,
   powerDefCount: 3,
   powerDmgValue: 3,    // antes 2. Partidas se hacían largas: más punch por ítem de ataque.
@@ -628,10 +635,10 @@ const CFG = {
   duelMaxPasses: 4,
   ringChancePerTurn: 0.06,   // prob. por turno (solo pasada la mitad) de que aparezca
   ringMinTurn: 8,            // antes de este turno no aparece (partida avanzada)
-  ringBigHeal: 50,           // cura grande si cumple condiciones
-  ringHealDiff: 20,          // diferencia de HP requerida
-  ringHealUnder: 40,         // HP máximo del que lo agarra para la cura grande
-  ringDripHeal: 5,           // cura por ronda si no cumple
+  ringBigHeal: 18,           // cura grande si cumple condiciones (era 50 con maxHp 100)
+  ringHealDiff: 7,           // diferencia de HP requerida (era 20 con maxHp 100)
+  ringHealUnder: 14,         // HP máximo del que lo agarra para la cura grande (era 40)
+  ringDripHeal: 2,           // cura por ronda si no cumple (era 5 con maxHp 100)
   ringDripRounds: 5,         // cantidad de rondas de cura chica
   duelCountdownMs: 800,
   duelCycleDuration: 1.8,
@@ -777,7 +784,7 @@ const TEXTS = {
 
   // --- Fin de partida (online 1v1/bo5, campaña, torneo offline) ---
   resultFinalEyebrow: 'Final',
-  resultBo5Eyebrow: 'Mejor de 5 · {scoreYou}–{scoreOpp}',
+  resultBo5Eyebrow: 'Mejor de 3 · {scoreYou}–{scoreOpp}',
   resultTieTitle: 'Empate',
   resultWinTitle: 'Ganaste',
   resultLoseTitle: 'Perdiste',
@@ -1324,8 +1331,12 @@ function startGame(){
               : Tourney.active  ? tourneyHpFor(Tourney.index) : CFG.maxHp;
   // En torneo, el jugador conserva la vida entre rondas (salvo al empezar/reintentar)
   const youHp = Campaign.active ? ((Campaign.cur() && Campaign.cur().youHp) || CFG.maxHp)
-              : (Tourney.active && Tourney._carryHp!=null) ? Tourney._carryHp : CFG.maxHp;
-  G.you = {x:n-1,y:n-1,hp:youHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
+              : Tourney.active  ? (Tourney._carryHp!=null ? Tourney._carryHp : TOURNEY_YOU_HP)
+              : CFG.maxHp;
+  // maxHp propio del jugador: el HUD/curas escalan con esto (torneo sigue en 100)
+  const youMax = Campaign.active ? Math.max(youHp, CFG.maxHp)
+               : Tourney.active  ? TOURNEY_YOU_HP : CFG.maxHp;
+  G.you = {x:n-1,y:n-1,hp:youHp,maxHp:youMax,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   G.opp = {x:0,y:0,hp:oppHp,maxHp:oppHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
   G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0;
   resolveSkins();   // easter egg Messi (offline: solo aplica tu propia skin)
@@ -1343,10 +1354,10 @@ function startOnlineGame(boardStr, role){
   const n = CFG.boardSize;           // leer DESPUÉS de deserializar
   document.documentElement.style.removeProperty('--opp-accent'); // rival neutro online
   if(role === 'host'){
-    G.you = {x:n-1,y:n-1,hp:CFG.maxHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
+    G.you = {x:n-1,y:n-1,hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
     G.opp = {x:0,  y:0,  hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
   } else {
-    G.you = {x:0,  y:0,  hp:CFG.maxHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
+    G.you = {x:0,  y:0,  hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
     G.opp = {x:n-1,y:n-1,hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   }
   G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0;
@@ -1621,7 +1632,7 @@ function cpuDecideMove(){
       let val = 0;
       if(t==='power_dmg') val = 6;
       else if(t==='power_def') val = 5;
-      else if(t==='ring') val = 7 + ((CFG.maxHp - G.opp.hp)/CFG.maxHp)*8;
+      else if(t==='ring') val = 7 + (((G.opp.maxHp||CFG.maxHp) - G.opp.hp)/(G.opp.maxHp||CFG.maxHp))*8;
       if(!val) continue;
       const d = Math.max(Math.abs(tx-G.opp.x), Math.abs(ty-G.opp.y));
       const discounted = val - d * 1.2;
@@ -1638,8 +1649,9 @@ function cpuDecideMove(){
     if(cell.type === 'ring'){
       // El anillo cura: siempre valioso, y MUCHO más si la CPU está lastimada
       // (con poca vida dispara la cura grande). Lo prioriza sobre otros ítems.
-      const missing = CFG.maxHp - G.opp.hp;               // cuánta vida le falta
-      score += 7 + (missing / CFG.maxHp) * 8;             // ~7 sana, hasta ~15 muy herida
+      const oppMax = G.opp.maxHp || CFG.maxHp;
+      const missing = oppMax - G.opp.hp;                  // cuánta vida le falta
+      score += 7 + (missing / oppMax) * 8;                // ~7 sana, hasta ~15 muy herida
       if(losing) score += 2;                              // extra si va perdiendo
     }
     if(cell.type === 'empty')     score += 1;   // base: moverse a vacío es bueno
@@ -1966,7 +1978,7 @@ function applyCellEffect(player){
     Sound.pickupDef && Sound.pickupDef();
     if(diff >= CFG.ringHealDiff && player.hp < CFG.ringHealUnder){
       // Cura grande inmediata
-      player.hp = Math.min(CFG.maxHp, player.hp + CFG.ringBigHeal);
+      player.hp = Math.min(player.maxHp || CFG.maxHp, player.hp + CFG.ringBigHeal);
       const who = (player===G.you)?App.playerName:App.oppName;
       toast(`{ring} ${who} +${CFG.ringBigHeal} HP`);
     } else {
@@ -1981,7 +1993,7 @@ function applyCellEffect(player){
 // Aplica el goteo de curación del anillo (llamado cada ronda/turno)
 function applyRingDrip(player){
   if(player.ringDrip && player.ringDrip>0){
-    player.hp = Math.min(CFG.maxHp, player.hp + CFG.ringDripHeal);
+    player.hp = Math.min(player.maxHp || CFG.maxHp, player.hp + CFG.ringDripHeal);
     player.ringDrip--;
   }
 }
@@ -2491,7 +2503,7 @@ function showDuelOutcome(o){
       requestAnimationFrame(tick);
     }, 500);
   };
-  col('you', o.youBefore, G.you.hp, CFG.maxHp);
+  col('you', o.youBefore, G.you.hp, G.you.maxHp || CFG.maxHp);
   col('opp', o.oppBefore, G.opp.hp, G.opp.maxHp || CFG.maxHp);
 }
 
@@ -2726,7 +2738,7 @@ function setHpBarColor(fillEl, pct){
 
 function updateHud(){
   const oppMax = G.opp.maxHp || CFG.maxHp;
-  const youPct=Math.max(0,Math.min(100,(G.you.hp/CFG.maxHp)*100));
+  const youPct=Math.max(0,Math.min(100,(G.you.hp/(G.you.maxHp||CFG.maxHp))*100));
   const oppPct=Math.max(0,Math.min(100,(G.opp.hp/oppMax)*100));
   $('hp-fill-you').style.width=youPct+'%'; $('hp-fill-opp').style.width=oppPct+'%';
   $('hp-num-you').textContent=Math.max(0,G.you.hp); $('hp-num-opp').textContent=Math.max(0,G.opp.hp);
@@ -2827,6 +2839,19 @@ function returnToRoom(){
   onBothReady({ role: Net.role, oppName: App.oppName || 'Rival' });
   show('lobby');
 }
+// Marcador de la serie online (mejor de 3): 3 puntos en orden cronológico de
+// rondas. Gris = pendiente; azul = la ganaste vos; negro = la ganó el rival.
+function renderRoundDots(){
+  const el=$('round-dots'); el.innerHTML='';
+  for(let i=0;i<SERIES_ROUNDS;i++){
+    const d=document.createElement('span'); d.className='round-dot';
+    const w=App.roundHist[i];
+    if(w==='you') d.classList.add('is-you');
+    else if(w==='opp') d.classList.add('is-opp');
+    el.appendChild(d);
+  }
+}
+
 function endGame(){
   G.running=false; G.phase='gameover';
   const youHp=Math.max(0,G.you.hp), oppHp=Math.max(0,G.opp.hp);
@@ -2837,6 +2862,7 @@ function endGame(){
   const campBtn=$('btn-camp-next'); campBtn.style.display='none';
   const rt=$('result-title'); rt.classList.remove('is-win','is-lose','is-champion');
   $('tourney-progress').innerHTML='';   // solo la rama de Tourney offline la llena
+  $('round-dots').innerHTML='';         // solo la serie online lo llena (renderRoundDots)
 
   // --- Torneo online x4: el resultado va al bracket, no a la pantalla clásica ---
   if(OT.active && OT.inMatch){ OT.onMyMatchEnd(youHp, oppHp); return; }
@@ -2844,9 +2870,10 @@ function endGame(){
   // --- Fin de partida ONLINE ---
   if(G.online){
     const isTie = (youHp===oppHp);
-    // Mejor de 5: actualizar marcador (los empates no suman a nadie)
+    // Serie (mejor de 3): actualizar marcador (los empates no suman a nadie)
     if(App.matchMode==='bo5' && !isTie){
-      if(youHp>oppHp) App.scoreYou++; else App.scoreOpp++;
+      if(youHp>oppHp){ App.scoreYou++; App.roundHist.push('you'); }
+      else           { App.scoreOpp++; App.roundHist.push('opp'); }
     }
     const matchOver = App.matchMode!=='bo5' ||
                       App.scoreYou>=BO5_TARGET || App.scoreOpp>=BO5_TARGET;
@@ -2860,6 +2887,7 @@ function endGame(){
 
     if(App.matchMode==='bo5'){
       $('result-score').innerHTML=`${fillText('resultScoreRounds',{scoreYou:App.scoreYou, scoreOpp:App.scoreOpp})}<br><span style="color:var(--muted)">${youHp} HP vs ${oppHp} HP</span>`;
+      renderRoundDots();
     } else {
       $('result-score').innerHTML=fillText('resultScoreHp', {youHp, oppHp});
     }
@@ -2875,7 +2903,7 @@ function endGame(){
       if(won===true)  rt.classList.add('is-win');
       if(won===false) rt.classList.add('is-lose');
       ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { gamesPlayed:1, gamesWon: won===true?1:0 }); });
-      App.scoreYou=0; App.scoreOpp=0;   // reset para futuras series
+      App.scoreYou=0; App.scoreOpp=0; App.roundHist=[];   // reset para futuras series
       setupOnlineEnd();
     } else {
       // Quedan rondas: continuar la serie automáticamente (mismo flujo de revancha)
@@ -3887,7 +3915,7 @@ function renderTourneyProgress(){
 // Pantalla "Mortal Kombat": tu nombre vs la lista de rivales apilados.
 // Rey Julian arriba en dorado; vencidos tachados en rojo; el actual resaltado.
 function showTourneyBracket(onGo){
-  const youHp = (Tourney._carryHp!=null) ? Tourney._carryHp : CFG.maxHp;
+  const youHp = (Tourney._carryHp!=null) ? Tourney._carryHp : TOURNEY_YOU_HP;
   $('bracket-you-name').textContent = App.playerName;
   $('bracket-you-hp').textContent = youHp+' HP';
   $('bracket-title').textContent = (Tourney.index===0) ? '¡Comienza el torneo!' : 'Próximo combate';
@@ -3968,7 +3996,7 @@ function onBothReady(info){
 
 async function startCreateRoom(){
   readName(); App.online=!DEMO; App.isHost=true;
-  App.scoreYou=0; App.scoreOpp=0;   // nueva serie
+  App.scoreYou=0; App.scoreOpp=0; App.roundHist=[];   // nueva serie
   $('lobby-created').style.display='flex'; $('lobby-join').style.display='none'; show('lobby');
   $('mode-select').style.display='flex'; $('btn-share').style.display='block';
   $('ot-box').style.display='none'; setModeUI(App.matchMode==='bo5'?'mode-bo5':'mode-single');
@@ -4176,7 +4204,7 @@ $('btn-join-go').addEventListener('click', async ()=>{
   if(DEMO){ App.online=false; App.oppName=TEXTS.oppNamePractice; App.roomCode=code; toast(TEXTS.toastPracticeMode); beginGame(); return; }
 
   App.online=true; App.isHost=false; App.roomCode=code;
-  App.scoreYou=0; App.scoreOpp=0;   // nueva serie
+  App.scoreYou=0; App.scoreOpp=0; App.roundHist=[];   // nueva serie
   const goBtn=$('btn-join-go'); goBtn.disabled=true; goBtn.textContent='Conectando…';
   Net.onReady = onBothReady;
   try {

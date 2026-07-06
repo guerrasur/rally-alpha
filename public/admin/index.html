@@ -317,7 +317,7 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 
 // Misma lista que LAB_PARAMS de game.js (defaults espejo de CFG) — mantener sincronizada.
 const PARAMS = [
-  ['maxHp','Vida máxima',100,'General'],
+  ['maxHp','Vida máxima',35,'General'],
   ['regenInterval','Turnos para regenerar ítems',4,'General'],
   ['powerDmgValue','Valor buff daño (🗡️)',3,'Ítems'],
   ['powerDefValue','Valor buff defensa (◈)',1,'Ítems'],
@@ -452,7 +452,7 @@ const TEXT_PARAMS = [
   ["zoneNameOrange", "Duelo", "Naranja"],
   ["zoneNameRed", "Duelo", "Rojo"],
   ["resultFinalEyebrow", "Fin de partida", "Final"],
-  ["resultBo5Eyebrow", "Fin de partida", "Mejor de 5 · {scoreYou}–{scoreOpp}"],
+  ["resultBo5Eyebrow", "Fin de partida", "Mejor de 3 · {scoreYou}–{scoreOpp}"],
   ["resultTieTitle", "Fin de partida", "Empate"],
   ["resultWinTitle", "Fin de partida", "Ganaste"],
   ["resultLoseTitle", "Fin de partida", "Perdiste"],
