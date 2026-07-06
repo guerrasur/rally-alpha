@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.02';
+const VERSION = 'v0.3.03';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -286,12 +286,18 @@ function currentTrait(){
 }
 const Tourney = { active:false, index:0 };
 function tourneyHpFor(i){
+  // Override del editor de personajes (characters/roster) si existe
+  const r = TOURNEY_ROSTER[i];
+  if(r && typeof r.hp === 'number' && r.hp > 0) return r.hp;
   // Exponencial 10 → 200 a lo largo de la ronda (n = roster length)
   const n = TOURNEY_ROSTER.length;
   const t = n>1 ? i/(n-1) : 1;
   return Math.round(10 * Math.pow(200/10, t)); // 10,~15,...,200
 }
 function tourneySkillFor(i){
+  // Override del editor de personajes (characters/roster) si existe
+  const r = TOURNEY_ROSTER[i];
+  if(r && typeof r.skill === 'number' && r.skill >= 0 && r.skill <= 1) return r.skill;
   // Exponencial 0 → 1: rivales iniciales casi random, finales casi óptimos
   const n = TOURNEY_ROSTER.length;
   const t = n>1 ? i/(n-1) : 1;
@@ -1297,7 +1303,23 @@ function startGame(){
   G.online=false; G.flip=false;
   Chat.unmount();   // sin chat en offline/local
   applyOppCosmetic();
-  buildBoard(); const n=CFG.boardSize;
+  // Tablero fijo de campaña (editor de mapas): el nodo trae el board serializado
+  // (formato clásico o "W<size>~…" con paredes — deserializeBoard resuelve ambos
+  // y setea CFG.boardSize/App.wallsMode). Sin board: aleatorio como siempre.
+  const fixedBoard = Campaign.active && Campaign.cur() && Campaign.cur().board;
+  if(typeof fixedBoard === 'string' && fixedBoard.length){
+    deserializeBoard(fixedBoard);
+    // Las esquinas son posiciones de arranque: vaciarlas por las dudas
+    const nn = CFG.boardSize;
+    cellAt(0,0).type='empty'; cellAt(nn-1,nn-1).type='empty';
+  } else {
+    // Si el nodo ANTERIOR de la campaña era un mapa con paredes, este no lo es:
+    // volver al tablero normal antes de generar (fuera de campaña no aplica —
+    // el modo Paredes de partida rápida usa wallsMode a propósito).
+    if(Campaign.active && App.wallsMode) exitSpecialMode();
+    buildBoard();
+  }
+  const n=CFG.boardSize;
   const oppHp = Campaign.active ? (Campaign.matchOpt('hp') || CFG.maxHp)
               : Tourney.active  ? tourneyHpFor(Tourney.index) : CFG.maxHp;
   // En torneo, el jugador conserva la vida entre rondas (salvo al empezar/reintentar)
@@ -4303,6 +4325,63 @@ function applyRemoteTexts(){
 }
 applyRemoteTexts();
 
+// ===== 📖 Campaña remota (editor /admin/, v0.3.03) =====
+// El editor guarda TODA la cinta como un JSON string en campaign/script
+// (lectura pública, escritura solo-admin). Si existe y es válida, REEMPLAZA
+// CAMPAIGN_SCRIPT entero. Saves viejos siguen andando: índice fuera de rango
+// → toBeContinued(), tipo desconocido → se saltea (ya implementado en enter()).
+function applyRemoteCampaign(){
+  if(!fbDb) return;
+  fbDb.ref('campaign/script').get().then(s=>{
+    const raw = s.val(); if(typeof raw !== 'string' || !raw) return;
+    let nodes;
+    try{ nodes = JSON.parse(raw); }catch(e){ console.warn('[Rally] campaign/script inválido'); return; }
+    if(!Array.isArray(nodes) || !nodes.length) return;
+    const valid = nodes.every(n => n && (n.type==='match' || n.type==='scene'));
+    if(!valid){ console.warn('[Rally] campaign/script con nodos desconocidos'); return; }
+    CAMPAIGN_SCRIPT.length = 0;
+    CAMPAIGN_SCRIPT.push(...nodes);
+    Campaign._remoteScript = true;   // los textos default ya no pisan el nodo 0
+    console.log('[Rally] Campaña remota aplicada:', nodes.length, 'nodos');
+  }).catch(()=>{});
+}
+applyRemoteCampaign();
+
+// ===== 🎭 Personajes remotos (editor /admin/, v0.3.03) =====
+// characters/roster = JSON string con un array de hasta 8 overrides
+// {name, emoji, accent, trait, hp, skill} para TOURNEY_ROSTER. Solo se
+// mergean campos presentes y del tipo correcto; hp/skill los consumen
+// tourneyHpFor()/tourneySkillFor() con prioridad sobre la curva exponencial.
+function applyRemoteCharacters(){
+  if(!fbDb) return;
+  fbDb.ref('characters/roster').get().then(s=>{
+    const raw = s.val(); if(typeof raw !== 'string' || !raw) return;
+    let arr;
+    try{ arr = JSON.parse(raw); }catch(e){ console.warn('[Rally] characters/roster inválido'); return; }
+    if(!Array.isArray(arr)) return;
+    let n=0;
+    arr.forEach((o,i)=>{
+      const r = TOURNEY_ROSTER[i];
+      if(!r || !o || typeof o !== 'object') return;
+      if(typeof o.name==='string' && o.name.trim()){
+        r.name = o.name.trim();
+        // applyTextsToDom() re-aplica nombres desde TEXTS: mantener coherencia.
+        // Un override explícito en texts/rosterName{i} sigue teniendo prioridad
+        // (llega por applyRemoteTexts y pisa esta clave).
+        TEXTS['rosterName'+i] = r.name;
+      }
+      if(typeof o.emoji==='string') r.emoji = o.emoji;
+      if(typeof o.accent==='string' && o.accent) r.accent = o.accent;
+      if(typeof o.trait==='string') r.trait = o.trait || undefined;
+      if(typeof o.hp==='number' && o.hp>0) r.hp = o.hp;
+      if(typeof o.skill==='number' && o.skill>=0 && o.skill<=1) r.skill = o.skill;
+      n++;
+    });
+    if(n) console.log('[Rally] Personajes remotos aplicados:', n, 'rivales');
+  }).catch(()=>{});
+}
+applyRemoteCharacters();
+
 // Vuelca los textos estáticos (overlay howto + pantalla larga "Cómo se juega") al DOM.
 function applyTextsToDom(){
   $('howto-title').textContent = TEXTS.howtoTitle;
@@ -4327,7 +4406,9 @@ function applyTextsToDom(){
   $('info-mercy').innerHTML = TEXTS.infoMercy;
   $('info-walls').innerHTML = TEXTS.infoWalls;
   TOURNEY_ROSTER.forEach((r,i)=>{ r.name = TEXTS['rosterName'+i] || r.name; });
-  CAMPAIGN_SCRIPT[0].opp.name = TEXTS.campaignOpp1Name;
+  // Solo aplica a la campaña DEFAULT: con campaña remota (editor) manda el
+  // nombre del editor, y además el nodo 0 puede no ser una partida (guard).
+  if(!Campaign._remoteScript && CAMPAIGN_SCRIPT[0] && CAMPAIGN_SCRIPT[0].opp) CAMPAIGN_SCRIPT[0].opp.name = TEXTS.campaignOpp1Name;
   CPU_NAMES.length = 0;
   CPU_NAMES.push(...TEXTS.cpuNamesPool.split('\n').map(s=>s.trim()).filter(Boolean));
 }
