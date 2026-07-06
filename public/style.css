@@ -993,6 +993,14 @@
   .result-eyebrow{ font-size:11px; font-weight:600; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
   .result-title{ font-family:var(--font-display); font-weight:700; font-size:52px; letter-spacing:-.02em; line-height:.95; }
   .result-score{ font-family:var(--font-display); font-weight:500; font-size:22px; color:var(--muted); letter-spacing:.04em; }
+  /* Marcador de la serie online (mejor de 3): 3 puntos en orden cronológico.
+     Gris = ronda pendiente, azul = ganada por vos, negro = por el rival.
+     Vacío (fuera de la serie) no ocupa lugar. */
+  .round-dots{ display:flex; gap:12px; justify-content:center; padding:4px 0; }
+  .round-dots:empty{ display:none; }
+  .round-dot{ width:14px; height:14px; border-radius:50%; background:var(--line); }
+  .round-dot.is-you{ background:var(--accent); }
+  .round-dot.is-opp{ background:var(--ink); }
   .result-title.is-win{ color: var(--good); }
   .result-title.is-lose{ color: var(--bad); }
 

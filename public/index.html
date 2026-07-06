@@ -4,8 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally beta - v0.3.07</title>
-<link rel="stylesheet" href="style.css?v=v0.3.07" />
+<title>Rally beta - v0.3.08</title>
+<link rel="icon" type="image/png" href="favicon.png?v=v0.3.08" />
+<link rel="apple-touch-icon" href="favicon.png?v=v0.3.08" />
+<link rel="stylesheet" href="style.css?v=v0.3.08" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -19,7 +21,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.3.07</div>
+  <div class="version-tag" id="version-tag">v0.3.08</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -145,13 +147,13 @@
         <div class="mode-select" id="mode-select">
           <span class="mode-select__label">Modo de juego</span>
           <div class="mode-select__opts">
-            <button class="mode-opt is-on" id="mode-single" data-mode="single">
+            <button class="mode-opt" id="mode-single" data-mode="single">
               <span class="mode-opt__name">Partida única</span>
               <span class="mode-opt__desc">Un duelo y listo.</span>
             </button>
-            <button class="mode-opt" id="mode-bo5" data-mode="bo5">
-              <span class="mode-opt__name">Mejor de 5</span>
-              <span class="mode-opt__desc">Serie: gana el primero en llegar a 3.</span>
+            <button class="mode-opt is-on" id="mode-bo5" data-mode="bo5">
+              <span class="mode-opt__name">Mejor de 3</span>
+              <span class="mode-opt__desc">Serie: gana el primero en llegar a 2.</span>
             </button>
             <button class="mode-opt" id="mode-t4" data-mode="t4">
               <span class="mode-opt__name">🏆 Torneo x4</span>
@@ -354,6 +356,7 @@
     <div class="result-verdict">
       <span class="result-eyebrow" id="result-eyebrow">Final</span>
       <h2 class="result-title" id="result-title">—</h2>
+      <div class="round-dots" id="round-dots"></div>
       <p class="result-score" id="result-score">—</p>
     </div>
     <div class="tourney-progress" id="tourney-progress"></div>
@@ -477,6 +480,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.3.07" defer></script>
+<script src="game.js?v=v0.3.08" defer></script>
 </body>
 </html>
