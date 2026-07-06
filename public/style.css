@@ -591,27 +591,18 @@
     .cell.is-impact .player-marker.is-clash{ animation:none; }
   }
 
-  /* Aviso de duelo: ambos en casillas contiguas. Marco pulsante en las dos
-     casillas + onda grande en el punto medio (lo agrega JS en resolveMoves;
-     el próximo renderBoard limpia todo) */
-  .cell.is-duel-warn{ background: color-mix(in srgb, var(--bad) 12%, transparent); }
-  .cell.is-duel-warn::before{
-    content:''; position:absolute; inset:1px;
-    border:1.5px solid var(--bad);
-    border-radius:4px; pointer-events:none;
-    animation: clashPulse .55s ease-in-out infinite;
-  }
-  /* Onda centrada en el punto medio entre ambos: JS setea left/top/width/height
-     en px sobre .board; clashShock ya centra con translate(-50%,-50%) */
+  /* Aviso de duelo (ambos en casillas contiguas): onda grande centrada en el
+     punto medio entre ambos, misma estética azul que .clash-fx. JS setea
+     left/top/width/height en px sobre .board; clashShock ya centra con
+     translate(-50%,-50%). El próximo renderBoard limpia todo. */
   .duel-fx{
     position:absolute;
-    border-radius:50%; border:3px solid var(--bad);
+    border-radius:50%; border:2.5px solid var(--accent);
     pointer-events:none; z-index:5; opacity:0;
     animation: clashShock .7s ease-out;
   }
   @media (prefers-reduced-motion: reduce){
     .duel-fx{ animation:none; }
-    .cell.is-duel-warn::before{ animation:none; opacity:.6; }
   }
 
   /* Paredes del Modo Paredes: barritas absolutas dentro de la celda */

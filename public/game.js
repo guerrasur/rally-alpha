@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.04';
+const VERSION = 'v0.3.05';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1817,8 +1817,8 @@ function resolveMoves(){
     haptic([12,30,12]);
   }
   // Aviso de duelo: cayeron en casillas contiguas (misma condición que dispara
-  // el duelo más abajo). Una onda grande centrada en el punto medio entre ambos
-  // + marco pulsante en las dos casillas (el próximo renderBoard limpia todo).
+  // el duelo más abajo). Una onda grande centrada en el punto medio entre
+  // ambos, misma estética que clash-fx (el próximo renderBoard limpia todo).
   const willDuel = !willClash && !wasTruce &&
     areAdjacentOrSame(G.you, G.opp) && !wallSeparates(G.you, G.opp);
   if(willDuel){
@@ -1826,8 +1826,6 @@ function resolveMoves(){
     const cellYou = document.querySelector(`.cell[data-x="${G.you.x}"][data-y="${G.you.y}"]`);
     const cellOpp = document.querySelector(`.cell[data-x="${G.opp.x}"][data-y="${G.opp.y}"]`);
     if(cellYou && cellOpp){
-      cellYou.classList.add('is-duel-warn');
-      cellOpp.classList.add('is-duel-warn');
       // Punto medio en píxeles relativo al board (los rects ya reflejan la
       // vista espejada del guest y el tamaño real de celda/gap)
       const br = boardEl.getBoundingClientRect();
