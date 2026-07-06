@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally beta - v0.3.08</title>
-<link rel="icon" type="image/png" href="favicon.png?v=v0.3.08" />
-<link rel="apple-touch-icon" href="favicon.png?v=v0.3.08" />
-<link rel="stylesheet" href="style.css?v=v0.3.08" />
+<title>Rally beta - v0.3.09</title>
+<link rel="icon" type="image/png" href="favicon.png?v=v0.3.09" />
+<link rel="apple-touch-icon" href="favicon.png?v=v0.3.09" />
+<link rel="stylesheet" href="style.css?v=v0.3.09" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -21,7 +21,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.3.08</div>
+  <div class="version-tag" id="version-tag">v0.3.09</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -195,7 +195,7 @@
         <div class="hud-user" id="hud-user-opp"></div>
         <div class="hud-hp-row">
           <div class="hp-bar"><div class="hp-fill" id="hp-fill-opp" style="width:100%"></div></div>
-          <span class="hp-num" id="hp-num-opp">100</span>
+          <span class="hp-num" id="hp-num-opp"></span>
         </div>
         <div class="hud-buffs" id="hud-buffs-opp"></div>
       </div>
@@ -204,7 +204,7 @@
         <div class="hud-user" id="hud-user-you"></div>
         <div class="hud-hp-row">
           <div class="hp-bar"><div class="hp-fill" id="hp-fill-you" style="width:100%"></div></div>
-          <span class="hp-num" id="hp-num-you">100</span>
+          <span class="hp-num" id="hp-num-you"></span>
         </div>
         <div class="hud-buffs" id="hud-buffs-you"></div>
       </div>
@@ -480,6 +480,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.3.08" defer></script>
+<script src="game.js?v=v0.3.09" defer></script>
 </body>
 </html>
