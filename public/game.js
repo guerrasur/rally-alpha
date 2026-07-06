@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.05';
+const VERSION = 'v0.3.06';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1833,12 +1833,16 @@ function resolveMoves(){
       const cx = (ry.left + ry.width/2 + ro.left + ro.width/2)/2 - br.left;
       const cy = (ry.top + ry.height/2 + ro.top + ro.height/2)/2 - br.top;
       const size = ry.width * 2.2;   // aurora grande: cubre las dos casillas
-      const fx = document.createElement('div'); fx.className='duel-fx';
-      fx.style.left = cx+'px'; fx.style.top = cy+'px';
-      fx.style.width = size+'px'; fx.style.height = size+'px';
-      boardEl.appendChild(fx);
+      // Esperar a que TERMINE el deslizamiento FLIP de las fichas
+      // (~2 frames + .35s de transición, ver flipMarker) antes de la onda.
+      setTimeout(()=>{
+        const fx = document.createElement('div'); fx.className='duel-fx';
+        fx.style.left = cx+'px'; fx.style.top = cy+'px';
+        fx.style.width = size+'px'; fx.style.height = size+'px';
+        boardEl.appendChild(fx);
+        haptic([12,30,12]);
+      }, 400);
     }
-    haptic([12,30,12]);
   }
   if(G.you.hp<=0 || G.opp.hp<=0){ setTimeout(()=>endGame(), 800); return; }
   G.turnCount++;
@@ -1873,7 +1877,10 @@ function resolveMoves(){
     // flujo normal (duelo si no había tregua; nada más si la había).
     if(sharedBuff){ showBuffRoulette(sharedBuff, proceed); }
     else proceed();
-  }, 550);
+  // Con aviso de duelo, dar tiempo a que la onda (arranca a los 400ms, dura
+  // .7s) se vea completa antes del countdown. Determinista: ambos clientes
+  // calculan el mismo willDuel, así que online quedan sincronizados igual.
+  }, willDuel ? 1150 : 550);
 }
 
 // Ruleta rápida de buff compartido: alterna el resaltado entre los dos nombres
