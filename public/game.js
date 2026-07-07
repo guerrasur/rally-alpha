@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.09';
+const VERSION = 'v0.3.10';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -907,6 +907,13 @@ function timeToPosition(time){
   }
 }
 
+// Mantiene G.duel.trackWidth al día si el ancho del track cambia EN VIVO
+// (rotación de pantalla, barra del navegador mobile que aparece/desaparece,
+// zoom, split-screen): sin esto, el ancho quedaba cacheado fijo desde el
+// arranque del duelo y la aguja se desalineaba de las zonas de color reales
+// si el layout cambiaba a mitad de duelo (aguja "no fluida" / desincronizada).
+let speedoResizeObserver = null;
+
 function buildSpeedometer(){
   const ticksContainer = $('speedo-ticks');
   ticksContainer.innerHTML = '';
@@ -921,9 +928,17 @@ function buildSpeedometer(){
   // (no en cada frame): las agujas se mueven con transform en updateNeedles()
   // en vez de `left`, que forzaba layout en cada frame del duelo (~60/seg) y
   // se veía trabado; lo mismo aplica a re-buscar los nodos por id.
-  G.duel.trackWidth = ticksContainer.parentElement.getBoundingClientRect().width;
+  const track = ticksContainer.parentElement;
+  G.duel.trackWidth = track.getBoundingClientRect().width;
   G.duel.needleYou = $('speedo-needle');
   G.duel.needleOpp = $('speedo-needle-opponent');
+
+  if(typeof ResizeObserver !== 'undefined' && !speedoResizeObserver){
+    speedoResizeObserver = new ResizeObserver(entries=>{
+      G.duel.trackWidth = entries[0].contentRect.width;
+    });
+    speedoResizeObserver.observe(track);
+  }
 }
 
 // Mueve una aguja a `pos` (0..1) del track sin tocar `left` (layout) — dos
