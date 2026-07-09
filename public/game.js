@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.09';
+const VERSION = 'v0.3.10';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -3089,6 +3089,7 @@ const Net = {
   // HOST: sube el tablero serializado y marca la sala como "playing"
   async pushStart(boardStr){
     if(!this.ref) return;
+    this._lastBoardStr = boardStr;
     await this.ref.child('game').set({
       board: boardStr,
       turn: 0,
@@ -3103,18 +3104,30 @@ const Net = {
   // ('game/board'), así que stopListenStart() debe sacar SOLO su propio
   // listener y no un .off() a secas (eso se llevaría puesto también el de
   // listenBoard, cortando la actualización de ítems del guest a mitad de ronda).
+  // ⚠️ .on('value') dispara INMEDIATAMENTE con el valor actual: al armarse
+  // entre rondas de una serie (o en la pantalla de fin), game/board todavía
+  // tiene el tablero VIEJO de la ronda que acaba de terminar, y ese primer
+  // evento arrancaba la ronda al instante (pantalla de resultado que "se pasa
+  // en menos de 1 segundo") sobre un board que el host pisaba 3s después
+  // (segunda ronda injugable). Fix: _lastBoardStr recuerda el último board
+  // visto en el wire; al armar el listener se congela ese valor como "viejo"
+  // y solo un board DISTINTO dispara onStart (el host siempre genera un board
+  // nuevo tras resetForRematch, así que el string nunca se repite).
   _startCb: null,
+  _lastBoardStr: null,
   listenStart(){
     if(!this.ref) return;
+    this.stopListenStart();   // idempotente: nunca dos listeners de start a la vez
+    const stale = this._lastBoardStr;   // board de la ronda que acaba de terminar (o null)
     this._startCb = s=>{
       const b = s.val();
-      if(b && this.onStart){
-        // Leer el modo elegido por el host (guest lo recibe)
-        this.ref.child('game/mode').get().then(ms=>{
-          App.matchMode = ms.val() || 'single';
-          this.onStart(b);
-        }).catch(()=>this.onStart(b));
-      }
+      if(!b || b===stale || !this.onStart) return;
+      this._lastBoardStr = b;
+      // Leer el modo elegido por el host (guest lo recibe)
+      this.ref.child('game/mode').get().then(ms=>{
+        App.matchMode = ms.val() || 'single';
+        this.onStart(b);
+      }).catch(()=>this.onStart(b));
     };
     this.ref.child('game/board').on('value', this._startCb);
   },
@@ -3168,6 +3181,7 @@ const Net = {
   // HOST: sube el board actualizado tras regenerar items
   async pushBoard(boardStr){
     if(!this.ref) return;
+    this._lastBoardStr = boardStr;
     await this.ref.child('game/board').set(boardStr);
   },
 
@@ -3176,6 +3190,7 @@ const Net = {
     if(!this.ref) return;
     this.ref.child('game/board').on('value', s=>{
       const b = s.val();
+      if(b) this._lastBoardStr = b;   // recuerda el board vigente (ver listenStart)
       if(b && this.onBoardUpdate) this.onBoardUpdate(b);
     });
   },
@@ -3329,7 +3344,7 @@ const Net = {
       if(this._duelRef){ this._duelRef.off(); this._duelRef=null; }
       if(this.ref){ this.ref.child('game/board').off(); this.ref.off(); }
     } catch(e){}
-    this.ref=null; this.role=null;
+    this.ref=null; this.role=null; this._startCb=null; this._lastBoardStr=null;
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
     this.onOpponentWaiting=null; this.onOpponentBack=null;
@@ -3353,6 +3368,7 @@ const Net = {
       }
     } catch(e){ console.warn('[Rally] Net.leave', e); }
     this.ref=null; this.code=null; this.role=null; this.onReady=null;
+    this._startCb=null; this._lastBoardStr=null;
     this.onGuestLeft=null; this._sawGuest=false;
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
