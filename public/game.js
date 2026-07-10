@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.14';
+const VERSION = 'v0.3.15';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -183,13 +183,12 @@ const User = {
     // El botón es un ícono (top-controls, junto al tema) — no tocar su SVG.
     const btn = $('btn-user');
     if(btn){
-      btn.title = this.name ? ('Usuario: '+this.name) : 'Crear usuario';
+      btn.title = this.name ? fillText('userTooltipNamed', {name:this.name}) : TEXTS.userTooltipCreate;
       btn.classList.toggle('has-user', !!this.name);
     }
     const foot = $('home-foot');
     if(foot){
-      const base = DEMO ? 'Modo práctica activo. Conectá Firebase para jugar online con un amigo.'
-                        : 'Online activo · creá una sala y pasá el código.';
+      const base = DEMO ? TEXTS.homeFootDemo : TEXTS.homeFootOnline;
       foot.textContent = this.name ? ('👤 '+this.name+' · '+base) : base;
     }
   },
@@ -492,6 +491,8 @@ function show(screen){
   // usuario solo en el inicio.
   const tb = $('btn-theme');
   if(tb) tb.classList.toggle('is-hidden', screen === 'game');
+  const lb = $('btn-lang');
+  if(lb) lb.classList.toggle('is-hidden', screen === 'game');
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', screen !== 'home');
   const ub = $('btn-user');
@@ -665,7 +666,7 @@ const CFG = {
 // archivo. Mismo patrón que CFG/config/: defaults acá, overrides opcionales
 // en Firebase (nodo `texts/`, sparse), aplicados una vez al cargar por
 // applyRemoteTexts(). Los `{placeholder}` se rellenan en runtime con fillText().
-const TEXTS = {
+const TEXTS_ES = {
   // --- Desconexión / abandono / inactividad ---
   abandonFlavorPool: 'Al parecer sos intimidante\nTe tuvieron miedo\nLo llamaron a comer',
   toastOpponentWaiting: 'Rival desconectado… esperando reconexión',
@@ -859,7 +860,252 @@ const TEXTS = {
   campaignToBeContinued: 'Continuará…',
   waitTextCpuFill: 'Los lugares libres se completan con CPUs',
   waitTextHostWillStart: 'Esperando que el anfitrión inicie…',
+
+  // --- Textos antes hardcodeados en JS (v0.3.15, i18n) ---
+  btnCampaign: 'Campaña',
+  btnCampaignContinue: '▶ Continuar campaña',
+  userTitleRegister: 'Creá tu <b>usuario</b>',
+  userTitleLogin: 'Iniciar <b>sesión</b>',
+  userBtnRegister: 'Crear cuenta',
+  userBtnLogin: 'Entrar',
+  userBtnCreatePassword: 'Crear contraseña',
+  userSwitchToLogin: '¿Ya tenés usuario? Iniciá sesión',
+  userSwitchToRegister: '¿No tenés usuario? Creá uno',
+  userSwitchOther: 'Entrar con otro usuario',
+  btnRematch: 'Revancha',
+  bracketTitleStart: '¡Comienza el torneo!',
+  bracketTitleNext: 'Próximo combate',
+  userTooltipNamed: 'Usuario: {name}',
+  userTooltipCreate: 'Crear usuario',
+  homeFootDemo: 'Modo práctica activo. Conectá Firebase para jugar online con un amigo.',
+  homeFootOnline: 'Online activo · creá una sala y pasá el código.',
 };
+
+// ===== 🌐 Idioma (v0.3.15) =====
+// Traducciones al inglés de TEXTS_ES. Claves ausentes acá (p.ej. nombres
+// propios de personajes: rosterNameX, cpuNamesPool, oppNamePractice,
+// campaignOpp1Name) se dejan sin traducir a propósito — son nombres, no
+// cambian entre idiomas. TEXTS_ES sigue siendo la base editable desde
+// /admin/ (los overrides remotos solo aplican en español, ver refreshTexts()).
+const TEXTS_EN = {
+  abandonFlavorPool: 'Seems like you\'re intimidating\nThey got scared\nSomeone called them for dinner',
+  toastOpponentWaiting: 'Opponent disconnected… waiting for reconnection',
+  msgOpponentWaiting: '⚠️ Opponent disconnected — waiting…',
+  toastOpponentBack: 'Opponent reconnected ✓',
+  toastTourneyOppLeft: 'Your rival left — you advance',
+  resultAbandonNote: '(by forfeit…)',
+  resultVictoryTitle: 'VICTORY',
+  toastSeriesOppLeft: 'Your rival left the series.',
+  toastRoomOppLeft: 'Your rival left the room.',
+  toastRoomClosed: 'The room was closed.',
+  toastIdleAutoMove: 'You moved automatically due to inactivity ({streak}/{max})',
+  toastIdleForfeit: 'You were disconnected for inactivity — you lost the match.',
+  toastMoveError: 'Error sending move.',
+
+  howtoTitle: 'How to play',
+  howtoText: 'Move around the board. Grab swords and shields, and avoid the crosses. When you meet your rival, duel.',
+  howtoLegendAtk: '+damage next duel',
+  howtoLegendDef: '+defense next duel',
+  howtoLegendDown: 'direct damage',
+  howtoHint: 'In the duel: stop the needle in the green zone.',
+
+  infoIntro: 'Move one tile per turn (diagonals included). Both players choose and move at the same time. Goal: reach the duel with an advantage and empty your rival\'s health.',
+  infoItemDmg: '<b>Damage power.</b> Adds damage to your hits. It stacks.',
+  infoItemDef: '<b>Defense power.</b> Reduces the damage you take. It also stacks.',
+  infoItemTrap: '<b>Trap.</b> Costs you health if you step on it, but it never kills you. Better to avoid it.',
+  infoItemRing: '<b>Ring.</b> Rare. Heals a lot at once if you\'re badly hurt, or bit by bit over several rounds if not.',
+  infoDuelIntro: 'When you meet your rival, a reflex duel starts: stop the needle in the best possible zone.',
+  infoZoneGreen: '<b>Green</b> — good hit.',
+  infoZoneYellow: '<b>Yellow</b> — medium hit.',
+  infoZoneOrange: '<b>Orange</b> — weak hit.',
+  infoZoneRed: '<b>Red</b> — almost no damage.',
+  infoPerfect: 'In the center of the green there\'s a thin strip: the <b>PERFECT</b>. It\'s worth double and doubles your damage power, but only on the <b>first pass</b>.',
+  infoPerfectCancels: 'A PERFECT <b>cancels your rival\'s powers</b> if they didn\'t also land a perfect.',
+  infoScoreDecay: 'The more passes it takes you to stop, the less red is worth. The higher score wins; the loser still deals some damage.',
+  infoMercy: 'Winning a duel or stepping on a trap never kills you: only <b>losing</b> a duel can. Shared item: even coin flip.',
+  infoWalls: '<b>Walls Mode</b> (beta): bigger map with walls that block straight passage, can be bordered diagonally. In the offline menu or with the 🧱 online toggle (not in the 4-player tournament).',
+
+  toastRingBig: '{ring} {who} +{heal} HP',
+  toastRingDrip: '{ring} {who} +{heal} HP x{rounds}',
+  toastTourneyFinal: 'To the final! ⚔️',
+  toastNeedConnection: 'The online tournament needs a connection.',
+  toastCreateRoomFirst: 'Create the room first.',
+  toastChangeModeBeforeJoin: 'Change the mode before your rival joins.',
+  toastTourneyFull: 'There are already players in the tournament.',
+  toastTourneyStartFail: 'Could not start the tournament.',
+  toastCreateRoomFail: 'Could not create the room. Check your connection.',
+  waitTextWaitingOpp: 'Waiting for rival…',
+  waitTextOppLeft: 'Your rival left — waiting for another…',
+  waitTextPracticeAvailable: 'Practice mode available',
+  userHintRegister: 'Unique and permanent, always lowercase. With a password you\'ll be able to log in from any device. Each match\'s nickname is chosen separately, as always.',
+  userHintLogin: 'Log in with your username and password.',
+  userHintSession: 'Session started. You can log in with this username from any device.',
+  userHintNoPassword: 'Your username doesn\'t have a password yet. Create one to log in from another device (and to not lose it).',
+  toastWallsNotOnlineTourney: 'Walls Mode isn\'t available in the online tournament.',
+  toastChaosNotOnlineTourney: 'Chaos Mode isn\'t available in the online tournament.',
+  chestGotAtk: '🎁 {name}: 🗡️ +damage',
+  chestGotDef: '🎁 {name}: ◈ +defense',
+  chestGotHeal: '🎁 {name}: +{hp} HP',
+  chestTrap: '🎁 {name}: it was a trap!',
+  chestTeleport: '🎁 {name}: teleport!',
+  bombArmed: '💣 Bomb armed: get away!',
+  bombExploded: '💥 BOOM!',
+  bootsPicked: '👟 {name}: double step next turn',
+  infoChaos: '<b>Chaos Mode</b> (beta): surprise chests 🎁, portals 🌀, timed bombs 💣, high ground ⛰️ and double-step boots 👟. In the offline menu or with the 🌀 online toggle (not in the 4-player tournament).',
+  toastLabAdminsOnly: 'The lab is admins-only.',
+  toastCodeLength: 'The code is 4 characters.',
+  toastPracticeMode: 'Practice mode: you play against the CPU.',
+  toastRoomNotFound: 'That room doesn\'t exist.',
+  toastRoomFull: 'The room is already full.',
+  toastJoinFail: 'Could not join the room.',
+  toastConnectionError: 'Connection error.',
+  toastWaitForCode: 'Wait for the code to be generated.',
+  toastLinkCopiedClipboard: 'Link copied to clipboard ✓',
+  toastLinkCopied: 'Link copied ✓',
+  toastYourLink: 'Your link: {url}',
+  toastInviteDetected: 'Invite detected · pick your name and join',
+  toastUserCreated: 'User "{user}" created ✓',
+  toastSessionStarted: 'Session started: {user} ✓',
+  toastPasswordCreated: 'Password created ✓',
+  toastSessionClosed: 'Session closed',
+
+  errUserFormat: 'Username: 3 to 15 characters, lowercase, numbers or _',
+  errPassShort: 'The password needs at least 6 characters.',
+  errUserTaken: 'That username already exists.',
+  errCredentials: 'Incorrect username or password.',
+  errAlreadyLoggedIn: 'You already logged in with a password.',
+  errNoPassword: 'You don\'t have a password yet — create one first.',
+  errNoUser: 'Create your username first.',
+  errNoConnection: 'Connection error. Try again.',
+
+  msgTruce: 'Truce 🛡️ — choose where to move',
+  msgChooseCell: 'Choose an adjacent tile to move to',
+  msgOppChoseFirst: 'Your rival already chose — your turn to move',
+  msgWaitingOpp: 'Waiting for rival…',
+  msgMoving: 'Moving…',
+  msgDuelImminent: 'Duel imminent…',
+  msgRepositioning: 'Repositioning…',
+
+  duelPerfectPrefix: '<b style="color:var(--perfect)">PERFECT</b> · ',
+  duelVerdictWin: '{perfectPrefix}<b style="color:var(--good)">WINS</b> {name}',
+  duelVerdictLose: '{perfectPrefix}<b style="color:var(--bad)">WINS</b> {name}',
+  duelVerdictTie: '<b style="color:var(--warn)">TIE</b>',
+  duelTitleEncounter: 'Encounter!',
+  duelTitleStopGreen: 'Stop in green',
+  duelCountdownGo: 'GO!',
+  duelResultTitle: 'Result',
+  duelTieTitle: 'Tie',
+  duelTieSub: 'Nobody loses health — both get ejected',
+  duelWinTitle: 'You won the duel',
+  duelLoseTitle: 'You lost the duel',
+  duelPerfectSub: '⭐ PERFECT by {name}',
+  duelPassLabel: 'pass {pass}/{max}',
+  duelLastPassLabel: 'last pass',
+  zoneNamePerfect: 'PERFECT',
+  zoneNameGreen: 'Green',
+  zoneNameYellow: 'Yellow',
+  zoneNameOrange: 'Orange',
+  zoneNameRed: 'Red',
+
+  resultFinalEyebrow: 'Final',
+  resultBo5Eyebrow: 'Best of 3 · {scoreYou}–{scoreOpp}',
+  resultTieTitle: 'Tie',
+  resultWinTitle: 'You won',
+  resultLoseTitle: 'You lost',
+  resultWinRoundTitle: 'You won the round',
+  resultLoseRoundTitle: 'You lost the round',
+  resultWinSeriesTitle: '🏆 You won the series',
+  resultLoseSeriesTitle: 'You lost the series',
+  resultScoreRounds: 'Rounds: <b>{scoreYou}</b> – <b>{scoreOpp}</b>',
+  resultScoreHp: '<b>{youHp}</b> HP vs <b>{oppHp}</b> HP',
+  campaignRetryLabel: 'Retry',
+  tourneyChampionTitle: 'Champion!',
+  tourneyChampionScore: 'You beat <b>{name}</b> and won the tournament with <b>{hp}</b> HP left.',
+  tourneyRoundEyebrow: 'Rival {i}/{n}',
+  tourneyBeatOpp: 'You beat {name}',
+  tourneyHpLeft: 'You have <b>{hp}</b> HP left. Next rival is tougher and smarter.',
+  tourneyEliminatedTitle: 'Eliminated',
+  tourneyEliminatedScore: 'You made it to rival <b>{i}/{n}</b> ({name}).',
+  tourneyRetryLabel: 'Retry rival',
+  tourneyChampionEyebrow: '🏆 Tournament',
+  tourneyEyebrow: 'Tournament',
+
+  otChampionTitle: '🏆 You won the tournament',
+  otLostFinalTitle: 'You lost the final',
+  otFinishedTitle: 'Tournament finished',
+  otInProgressTitle: 'Tournament',
+  otEliminatedSub: 'You can spectate the other matches',
+  otSemiWonTitle: 'Semifinal won',
+  otWaitingFinalist: 'Waiting for the other finalist…',
+  otChampionSub: 'Champion: {dot} <b>{name}</b>',
+  otSemi1Label: 'Semifinal 1',
+  otSemi2Label: 'Semifinal 2',
+  otFinalLabel: 'Final',
+  otSpectateBtn: '👁 Spectate',
+  specConnecting: 'Connecting…',
+  specMatchWon: '🏁 {name} won',
+  specCpuVsCpu: '🤖 CPU vs CPU match — resolves itself…',
+  specDuelInProgress: '⚔️ Duel in progress!',
+  specDuelTie: '🤝 Tie ({scoreA}-{scoreB})',
+  specDuelWon: '⚔️ {name} won ({scoreA}-{scoreB})',
+  specTurn: 'Turn {n}',
+  specWaitingData: 'Waiting for data…',
+  otTagYou: 'you',
+  otTagHost: 'host',
+  otTagCpu: 'CPU',
+  otSlotFree: '— free —',
+  otSlotFreeTag: 'CPU on start',
+  campaignStartConfirm: 'Start the campaign as <b>{name}</b>?',
+  campaignToBeContinued: 'To be continued…',
+  waitTextCpuFill: 'Free slots are filled with CPUs',
+  waitTextHostWillStart: 'Waiting for the host to start…',
+
+  btnCampaign: 'Campaign',
+  btnCampaignContinue: '▶ Continue campaign',
+  userTitleRegister: 'Create your <b>username</b>',
+  userTitleLogin: 'Log <b>in</b>',
+  userBtnRegister: 'Create account',
+  userBtnLogin: 'Log in',
+  userBtnCreatePassword: 'Create password',
+  userSwitchToLogin: 'Already have a username? Log in',
+  userSwitchToRegister: 'No username yet? Create one',
+  userSwitchOther: 'Log in with another username',
+  btnRematch: 'Rematch',
+  bracketTitleStart: 'The tournament begins!',
+  bracketTitleNext: 'Next match',
+  userTooltipNamed: 'User: {name}',
+  userTooltipCreate: 'Create account',
+  homeFootDemo: 'Practice mode active. Connect Firebase to play online with a friend.',
+  homeFootOnline: 'Online active · create a room and share the code.',
+};
+
+// Idioma activo: 'es' (default) o 'en'. Se guarda en localStorage ('rally_lang')
+// y se detecta del navegador si el jugador nunca lo eligió (index.html aplica
+// esto mismo ANTES del primer paint para setear <html lang>; acá se replica
+// la detección para que TEXTS arranque ya en el idioma correcto).
+let LANG = 'es';
+(function(){
+  try{
+    const stored = localStorage.getItem('rally_lang');
+    if(stored==='es' || stored==='en'){ LANG = stored; return; }
+  }catch(e){}
+  const attr = document.documentElement.getAttribute('lang');
+  if(attr==='es' || attr==='en'){ LANG = attr; return; }
+  const nav = (navigator.language || 'en').toLowerCase();
+  LANG = nav.indexOf('es')===0 ? 'es' : 'en';
+})();
+
+// TEXTS: copia de trabajo que lee el resto del juego (TEXTS.foo / fillText).
+// Se repuebla desde TEXTS_ES (+ overrides de TEXTS_EN si LANG==='en') cada vez
+// que cambia el idioma o llegan textos remotos. Los overrides de /admin/ solo
+// tocan TEXTS_ES: el panel edita el texto en español, que es la fuente.
+const TEXTS = {};
+function refreshTexts(){
+  for(const k in TEXTS_ES) TEXTS[k] = TEXTS_ES[k];
+  if(LANG === 'en') for(const k in TEXTS_EN) TEXTS[k] = TEXTS_EN[k];
+}
+refreshTexts();
+
 // Rellena {placeholders} de un texto con los valores dados: fillText('Hola {name}', {name:'Lucio'}) → 'Hola Lucio'.
 function fillText(key, vars){
   let s = TEXTS[key] != null ? TEXTS[key] : key;
@@ -4229,7 +4475,7 @@ function showTourneyBracket(onGo){
   const youHp = (Tourney._carryHp!=null) ? Tourney._carryHp : TOURNEY_YOU_HP;
   $('bracket-you-name').textContent = App.playerName;
   $('bracket-you-hp').textContent = youHp+' HP';
-  $('bracket-title').textContent = (Tourney.index===0) ? '¡Comienza el torneo!' : 'Próximo combate';
+  $('bracket-title').textContent = (Tourney.index===0) ? TEXTS.bracketTitleStart : TEXTS.bracketTitleNext;
 
   const wrap = $('bracket-rivals'); wrap.innerHTML='';
   const order = TOURNEY_ROSTER.map((r,i)=>i).reverse();  // Rey Julian (jefe) arriba
@@ -4378,17 +4624,17 @@ const UserUI = {
     $('user-stats').style.display = (m==='session') ? 'block' : 'none';
     primary.disabled=false;
     if(m==='register'){
-      $('user-title').innerHTML='Creá tu <b>usuario</b>';
+      $('user-title').innerHTML=TEXTS.userTitleRegister;
       $('user-hint').textContent=TEXTS.userHintRegister;
       $('user-pass').style.display='block';
-      primary.style.display='block'; primary.textContent='Crear cuenta';
-      $('user-switch').textContent='¿Ya tenés usuario? Iniciá sesión';
+      primary.style.display='block'; primary.textContent=TEXTS.userBtnRegister;
+      $('user-switch').textContent=TEXTS.userSwitchToLogin;
     } else if(m==='login'){
-      $('user-title').innerHTML='Iniciar <b>sesión</b>';
+      $('user-title').innerHTML=TEXTS.userTitleLogin;
       $('user-hint').textContent=TEXTS.userHintLogin;
       $('user-pass').style.display='block';
-      primary.style.display='block'; primary.textContent='Entrar';
-      $('user-switch').textContent='¿No tenés usuario? Creá uno';
+      primary.style.display='block'; primary.textContent=TEXTS.userBtnLogin;
+      $('user-switch').textContent=TEXTS.userSwitchToRegister;
     } else {   // session
       $('user-title').innerHTML='👤 <b>'+escHtml(User.name||'')+'</b>';
       if(User.hasPassword()){
@@ -4398,9 +4644,9 @@ const UserUI = {
       } else {
         $('user-hint').textContent=TEXTS.userHintNoPassword;
         $('user-pass').style.display='block';
-        primary.style.display='block'; primary.textContent='Crear contraseña';
+        primary.style.display='block'; primary.textContent=TEXTS.userBtnCreatePassword;
       }
-      $('user-switch').textContent='Entrar con otro usuario';
+      $('user-switch').textContent=TEXTS.userSwitchOther;
       loadProfileStats();
     }
   },
@@ -4497,7 +4743,7 @@ $('btn-offline').addEventListener('click', ()=>{ readName(); updateCampaignBtn()
 // retoma automáticamente en el nodo guardado (sin volver a confirmar).
 function updateCampaignBtn(){
   Campaign.load();
-  $('btn-campaign').textContent = Campaign.hasProgress() ? '▶ Continuar campaña' : 'Campaña';
+  $('btn-campaign').textContent = Campaign.hasProgress() ? TEXTS.btnCampaignContinue : TEXTS.btnCampaign;
 }
 $('btn-campaign').addEventListener('click', ()=>{
   readName(); exitSpecialMode(); App.online=false; Tourney.active=false;
@@ -4557,10 +4803,10 @@ $('btn-join-go').addEventListener('click', async ()=>{
 $('btn-lobby-back').addEventListener('click', ()=>{ if(OT.active){ OT.leaveTournament(); return; } Net.leave(); show('home'); });
 $('btn-join-back').addEventListener('click', ()=>show('home'));
 $('code-in').addEventListener('input', e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
-$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent=TEXTS.btnRematch; $('btn-again').style.display='block'; Net.leave(); show('home'); });
 $('btn-mute').addEventListener('click', ()=>{ App.muted=!App.muted; $('btn-mute').textContent=App.muted?'♪ off':'♪ on'; });
 $('btn-again').addEventListener('click', ()=>{ show('game'); startGame(); });
-$('btn-home').addEventListener('click', ()=>{ Chat.unmount(); Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-home').addEventListener('click', ()=>{ Chat.unmount(); Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent=TEXTS.btnRematch; $('btn-again').style.display='block'; Net.leave(); show('home'); });
 
 // Chat en vivo (solo online): abrir/cerrar panel y enviar mensajes.
 $('chat-toggle').addEventListener('click', ()=> Chat.toggle());
@@ -4631,6 +4877,8 @@ function toggleTheme(){
   // en toda pestaña salvo la partida (mismo criterio que show()).
   const tb = $('btn-theme');
   if(tb) tb.classList.toggle('is-hidden', App.screen === 'game');
+  const lb = $('btn-lang');
+  if(lb) lb.classList.toggle('is-hidden', App.screen === 'game');
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', App.screen !== 'home');
   const ub = $('btn-user');
@@ -4638,6 +4886,141 @@ function toggleTheme(){
 })();
 $('btn-theme').addEventListener('click', toggleTheme);
 $('btn-theme-game').addEventListener('click', toggleTheme);
+
+// ===== 🌐 Idioma (v0.3.15) =====
+// Traduce el HTML estático (botones/labels que nunca pasan por TEXTS) al
+// vuelo. La versión en español se cachea del propio DOM la primera vez
+// (así queda una sola fuente de verdad: el HTML) y STATIC_I18N_EN trae el
+// override en inglés por id de elemento.
+const STATIC_I18N_EN = {
+  'btn-info': {aria:'Information'},
+  'btn-theme': {aria:'Toggle theme'},
+  'btn-lang': {aria:'Change language'},
+  'btn-user': {aria:'Account'},
+  'name-label': {text:'Your name'},
+  'name-input': {placeholder:'Player'},
+  'btn-create': {text:'Create room'},
+  'btn-join': {text:'Join with code'},
+  'divider-offline': {text:'offline'},
+  'btn-offline': {text:'Play solo'},
+  'info-h1': {text:'How to play'},
+  'info-h2': {text:'Board elements'},
+  'info-h3': {text:'The duel'},
+  'info-h4': {text:'Details'},
+  'btn-info-back': {text:'Back'},
+  'page-credit': {html:'No © 2026<br>Made by lucio'},
+  'offline-kicker': {text:'offline mode'},
+  'offline-tag': {text:'Play offline against the machine.'},
+  'btn-quick': {text:'Quick match'},
+  'btn-tournament': {text:'🏆 Tournament'},
+  'btn-walls-label': {text:'🧱 Walls'},
+  'btn-chaos-label': {text:'🌀 Chaos'},
+  'btn-offline-back': {text:'Back'},
+  'lobby-eyebrow-share': {text:'Share this code'},
+  'lobby-hint': {text:'Your rival enters it in "Join with code" and you start.'},
+  'btn-share': {text:'🔗 Share invite'},
+  'mode-select-label': {text:'Game mode'},
+  'mode-single-name': {text:'Single match'},
+  'mode-single-desc': {text:'One duel and done.'},
+  'mode-bo5-name': {text:'Best of 3'},
+  'mode-bo5-desc': {text:'Series: first to 2 wins.'},
+  'mode-t4-name': {text:'🏆 4-player tournament'},
+  'mode-t4-desc': {text:'Up to 4 players, single elimination.'},
+  'walls-toggle-label': {text:'🧱 Walls Mode'},
+  'chaos-toggle-label': {text:'🌀 Chaos Mode'},
+  'btn-demo-start': {text:'Start practice (vs CPU)'},
+  'btn-lobby-back': {text:'Exit'},
+  'join-name-label': {text:'Your name'},
+  'join-name': {placeholder:'Player'},
+  'lobby-eyebrow-code': {text:'Enter the code'},
+  'btn-join-go': {text:'Join'},
+  'btn-join-back': {text:'Back'},
+  'tourney-bar-label': {text:'🏆 Tournament'},
+  'btn-howto-ok': {text:'Got it'},
+  'btn-leave': {text:'exit'},
+  'chat-input': {placeholder:'Message…'},
+  'chat-send': {aria:'Send'},
+  'chat-toggle': {aria:'Chat'},
+  'duel-stop': {text:'Stop'},
+  'roulette-caption': {text:'who gets it?'},
+  'btn-to-room': {text:'Back to room'},
+  'btn-home': {text:'Back to menu'},
+  'othub-eyebrow': {text:'Online tournament'},
+  'btn-ot-room': {text:'Back to room'},
+  'btn-ot-exit': {text:'Leave tournament'},
+  'btn-spec-back': {text:'◂ Back to tournament'},
+  'bracket-eyebrow': {text:'Tournament'},
+  'bracket-go': {text:'Fight ▸'},
+  'scene-continue': {text:'Continue ▸'},
+  'user-eyebrow': {text:'Account'},
+  'us-label-gamesWon': {text:'Games won'},
+  'us-label-tournamentsWon': {text:'Tournaments won'},
+  'us-label-achievements': {text:'🏆 Achievements'},
+  'us-label-soon': {text:'Coming soon'},
+  'user-input': {placeholder:'username'},
+  'user-pass': {placeholder:'password'},
+  'user-cancel': {text:'Back'},
+  'camp-eyebrow': {text:'Campaign'},
+  'camp-yes': {text:'Start'},
+  'camp-no': {text:'Back'},
+  'lab-sub': {text:'Adjust the balance live. Changes apply to upcoming matches.'},
+  'lab-group-actions': {text:'Quick actions'},
+  'lab-force-perfect-label': {text:'Always force PERFECT (testing)'},
+  'lab-spawn-ring-label': {text:'Spawn ring'},
+  'lab-export': {text:'⬇ Export JSON'},
+  'lab-import': {text:'⬆ Import JSON'},
+  'lab-reset': {text:'Reset values'},
+  'lab-back': {text:'Back'},
+  'lab-json': {placeholder:'Paste JSON here to import, or export to copy it.'},
+};
+const TITLE_EN = 'Rally - Online Matches';
+const DESC_EN = 'Rally (Rallyyy) is a casual game to play with friends or alone. Quick duels, several modes, free online matches with no signup.';
+let _staticI18nEsCache = null;
+function applyStaticLang(){
+  if(!_staticI18nEsCache){
+    _staticI18nEsCache = { title: document.title, desc: '' };
+    const metaEs = document.querySelector('meta[name="description"]');
+    if(metaEs) _staticI18nEsCache.desc = metaEs.getAttribute('content');
+    for(const id in STATIC_I18N_EN){
+      const el = $(id); if(!el) continue;
+      const spec = STATIC_I18N_EN[id], cache = {};
+      if(spec.text!=null) cache.text = el.textContent;
+      if(spec.html!=null) cache.html = el.innerHTML;
+      if(spec.placeholder!=null) cache.placeholder = el.getAttribute('placeholder');
+      if(spec.aria!=null) cache.aria = el.getAttribute('aria-label');
+      _staticI18nEsCache[id] = cache;
+    }
+  }
+  const en = LANG === 'en';
+  document.title = en ? TITLE_EN : _staticI18nEsCache.title;
+  const meta = document.querySelector('meta[name="description"]');
+  if(meta) meta.setAttribute('content', en ? DESC_EN : _staticI18nEsCache.desc);
+  for(const id in STATIC_I18N_EN){
+    const el = $(id); if(!el) continue;
+    const use = en ? STATIC_I18N_EN[id] : _staticI18nEsCache[id];
+    if(use.text!=null) el.textContent = use.text;
+    if(use.html!=null) el.innerHTML = use.html;
+    if(use.placeholder!=null) el.setAttribute('placeholder', use.placeholder);
+    if(use.aria!=null) el.setAttribute('aria-label', use.aria);
+  }
+}
+function applyLang(){
+  refreshTexts();
+  applyTextsToDom();
+  applyStaticLang();
+  updateCampaignBtn();
+  User.updateUI();
+}
+function toggleLang(){
+  LANG = LANG === 'es' ? 'en' : 'es';
+  try { localStorage.setItem('rally_lang', LANG); } catch(e){}
+  document.documentElement.setAttribute('lang', LANG);
+  document.documentElement.setAttribute('data-lang', LANG);
+  applyLang();
+  haptic(8);
+}
+applyLang();
+$('btn-lang').addEventListener('click', toggleLang);
 
 // Botón de usuario: reservado para un update futuro (stats/logros/perfil).
 // Por ahora no hace nada al tocarlo.
@@ -4713,9 +5096,9 @@ function applyRemoteTexts(){
     const t = s.val(); if(!t) return;
     let n=0;
     for(const k in t){
-      if(typeof TEXTS[k]==='string' && typeof t[k]==='string' && TEXTS[k]!==t[k]){ TEXTS[k]=t[k]; n++; }
+      if(typeof TEXTS_ES[k]==='string' && typeof t[k]==='string' && TEXTS_ES[k]!==t[k]){ TEXTS_ES[k]=t[k]; n++; }
     }
-    if(n){ console.log('[Rally] Textos remotos aplicados:', n, 'valores'); applyTextsToDom(); }
+    if(n){ console.log('[Rally] Textos remotos aplicados:', n, 'valores'); refreshTexts(); applyTextsToDom(); }
   }).catch(()=>{});
 }
 applyRemoteTexts();
@@ -4762,7 +5145,9 @@ function applyRemoteCharacters(){
         r.name = o.name.trim();
         // applyTextsToDom() re-aplica nombres desde TEXTS: mantener coherencia.
         // Un override explícito en texts/rosterName{i} sigue teniendo prioridad
-        // (llega por applyRemoteTexts y pisa esta clave).
+        // (llega por applyRemoteTexts y pisa esta clave). Nombres propios: no
+        // dependen del idioma, se escriben en TEXTS_ES y TEXTS por igual.
+        TEXTS_ES['rosterName'+i] = r.name;
         TEXTS['rosterName'+i] = r.name;
       }
       if(typeof o.emoji==='string') r.emoji = o.emoji;

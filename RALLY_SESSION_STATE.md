@@ -1,8 +1,9 @@
 # Rally — Session State & Learnings
 
-**Última actualización:** v0.3.14 — 2026-07-10, sesión remota (Claude Code on the web).
+**Última actualización:** v0.3.15 — 2026-07-10, sesión remota (Claude Code on the web).
 
 ## CHANGELOG (resumido, más reciente primero)
+- **🌐 v0.3.15 — idioma ES/EN:** ícono de globo en `top-controls` (misma estética que el toggle luna/sol, mismo criterio de visibilidad: oculto en pantalla de partida). Si el jugador nunca eligió idioma, se detecta `navigator.language` ANTES del primer paint (script inline en `index.html`, mismo patrón que el tema): español → `es`, cualquier otro → `en` por defecto. Persiste en `localStorage.rally_lang`. Arquitectura: `TEXTS_ES` (el objeto de siempre, sigue recibiendo overrides remotos de `/admin/`) + `TEXTS_EN` (traducción estática, sin override remoto — **limitación conocida**: el panel de admin solo edita texto en español) + `TEXTS` como copia de trabajo repoblada por `refreshTexts()` según `LANG`. El HTML estático que nunca pasaba por `TEXTS` (botones, labels, placeholders) ahora tiene `id` y se traduce vía `STATIC_I18N_EN` + `applyStaticLang()` (cachea el español del propio DOM la primera vez). El Lab (`/admin/` testing) no se tradujo completo — bajo impacto, uso interno. Validado con Playwright: detección automática a inglés, toggle ES↔EN, persistencia post-reload, pantallas home/offline/lobby/info.
 - **🔎 SEO — Verificación Search Console + meta tags:** propiedad `rallyyy.web.app` verificada vía archivo HTML (subido a `public/`, no a la raíz). `<title>` → "Rally - Partidas Online" + nuevo `<meta name="description">`. **Pendiente:** repuesta la cuota diaria, pedir indexación manual de `https://rallyyy.web.app`; evaluar `sitemap.xml` si se suman más rutas.
 - **v0.3.14 — barra de duelo, 2do intento:** eliminado el costo de pintado restante del duelo: `perfectShine` ahora anima solo `opacity` vía `::after` (no `box-shadow`), y `body.is-dueling` oculta (`visibility:hidden`) todo el juego debajo del overlay durante el duelo. Validado 9/9.
 - **v0.3.13 — barra de duelo lageada (Modo Caos):** las animaciones CSS infinitas de portales/bombas del Modo Caos competían con el rAF de la aguja. Fix: `setDuelOverlayShown(on)` pausa todos los loops decorativos del board durante el duelo. Validado 6/6.
@@ -56,7 +57,8 @@ Un amigo del usuario dijo haber creado "una rama" — verificado en GitHub, no e
 **Idioma:** todo con el usuario (Lucio) en español argentino.
 Memoria entre sesiones: mantener COMPACTO (el usuario cuida tokens — condensar/borrar lo viejo al agregar secciones nuevas).
 
-## BACKLOG (repriorizado 2026-07-04)
+## BACKLOG (repriorizado 2026-07-10)
+- **i18n:** overrides remotos de `/admin/` (`texts/`) solo aplican en español; Lab sin traducir completo (uso interno).
 - **Endurecer validación de campos compuestos en `database.rules.json`:** `moves`, `ejects`, `spec.A/B` no fuerzan que el valor sea un objeto (`hasChildren`). Bajo impacto, no urgente.
 - **📈 Visitas del sitio:** hecho (v0.2.85). A futuro: distinguir visitas nuevas vs. recurrentes, visitas por día/semana.
 - **Estadísticas de jugador:** hecho (v0.2.84). A futuro: sistema real de logros, daño hecho/recibido en perfil del jugador, ranking/leaderboard.
