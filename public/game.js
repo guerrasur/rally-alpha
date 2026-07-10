@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.24';
+const VERSION = 'v0.3.25';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1424,6 +1424,8 @@ function regenerateItems(){
 const SKINS = [
   { id:'default', name:'Clásica', nameEn:'Classic', sprite:null },
   { id:'malla',   name:'Malla',   nameEn:'Malla',   sprite:'sprites/malla.webp' },
+  { id:'sumi',    name:'Sumi',    nameEn:'Sumi',    sprite:'sprites/sumi.webp' },
+  { id:'kai',     name:'Kai',     nameEn:'Kai',     sprite:'sprites/kai.webp' },
 ];
 // Perfil cosmético del jugador. La skin se guarda en localStorage (aplica al
 // instante, incluso offline) y, si hay sesión, también en users/{uid}/skin para
