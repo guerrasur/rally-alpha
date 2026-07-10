@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.21';
+const VERSION = 'v0.3.22';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1151,6 +1151,7 @@ const G = {
   skinOpp: null,
   spriteOpp: null,  // url de imagen para el marker del rival (sprite de campaña) o null
   spriteOppMove: null,  // url de imagen "en movimiento" del rival (o null: no hay variante)
+  spriteYou: null,  // url de imagen para tu propia ficha (skin elegida en el perfil) o null
   _duelResolved: false,
   _revealShown: false,
   you: { x:6, y:6, hp:100, prevX:6, prevY:6, buffs:{dmg:0, def:0} },
@@ -1415,6 +1416,45 @@ function regenerateItems(){
   Sound.regen();
 }
 
+// ---- 🎨 Skins de la ficha propia (perfil, solo usuarios registrados) ----
+// Catálogo de fichas seleccionables. `sprite:null` = bola sólida por defecto
+// (el color de siempre, --accent). Cada otra entrada trae una imagen webp que
+// se pinta sobre el marker vía la clase .has-sprite (mismo mecanismo que el
+// sprite del rival de campaña). Para sumar una skin: agregar acá + subir el webp.
+const SKINS = [
+  { id:'default', name:'Clásica', nameEn:'Classic', sprite:null },
+  { id:'malla',   name:'Malla',   nameEn:'Malla',   sprite:'sprites/malla.webp' },
+];
+// Perfil cosmético del jugador. La skin se guarda en localStorage (aplica al
+// instante, incluso offline) y, si hay sesión, también en users/{uid}/skin para
+// que siga a la cuenta entre dispositivos. Solo se APLICA a la ficha si el
+// jugador está registrado (ver resolveSkins) — la elección es una perk de cuenta.
+const Profile = {
+  skin: 'default',
+  load(){
+    try{ const s=localStorage.getItem('rally_skin'); if(s && SKINS.some(k=>k.id===s)) this.skin=s; }catch(e){}
+  },
+  cur(){ return SKINS.find(k=>k.id===this.skin) || SKINS[0]; },
+  sprite(){ return this.cur().sprite; },
+  setSkin(id){
+    if(!SKINS.some(k=>k.id===id)) return;
+    this.skin=id;
+    try{ localStorage.setItem('rally_skin', id); }catch(e){}
+    const cu = User.current();
+    if(cu && fbDb) fbDb.ref('users/'+cu.uid+'/skin').set(id).catch(()=>{});
+  },
+  // Trae la skin guardada en la cuenta (al abrir el perfil ya logueado). Firebase
+  // gana sobre localStorage: es la fuente de verdad de la cuenta.
+  async loadRemote(){
+    const cu = User.current();
+    if(!cu || !fbDb) return;
+    try{
+      const v = (await fbDb.ref('users/'+cu.uid+'/skin').get()).val();
+      if(v && SKINS.some(k=>k.id===v)){ this.skin=v; try{ localStorage.setItem('rally_skin', v); }catch(e){} }
+    }catch(e){}
+  },
+};
+
 // ---- Easter egg "Messi" (cambio #3) ----
 function isMessi(name){ return (name||'').trim().toLowerCase()==='messi'; }
 // Resuelve skins y nombres según las reglas del easter egg.
@@ -1433,6 +1473,9 @@ function resolveSkins(){
     if(youMessi) G.skinYou = '🇦🇷';
     if(oppMessi) G.skinOpp = '🇦🇷';
   }
+  // Skin de la ficha propia: solo si el jugador está registrado (perk de cuenta).
+  // El emoji del easter egg Messi tiene prioridad en el render (ver renderBoard).
+  G.spriteYou = User.name ? Profile.sprite() : null;
 }
 
 // Ícono de ítem de una celda (compartido por el tablero real y el del espectador de OT).
@@ -1483,6 +1526,7 @@ function renderBoard(){
         const m=document.createElement('div'); m.className='player-marker is-you';
         if(shielded) m.classList.add('has-shield');
         if(G.skinYou){ m.classList.add('has-skin'); m.textContent=G.skinYou; }
+        else if(G.spriteYou){ m.classList.add('has-sprite'); m.style.backgroundImage = `url(${G.spriteYou})`; }
         if(bothHere) m.classList.add('is-clash');
         div.appendChild(m);
       }
@@ -4625,6 +4669,7 @@ $('btn-join').addEventListener('click', ()=>{ readName(); $('join-name').value=A
 
 // ---- 👤 Usuario: overlay de cuenta (registro / login / sesión) ----
 User.load();
+Profile.load();
 const USER_ERR_KEY = {
   'formato':     'errUserFormat',
   'pass-corta':  'errPassShort',
@@ -4666,6 +4711,7 @@ const UserUI = {
     $('user-input').style.display = (m==='session') ? 'none' : 'block';
     $('user-logout').hidden = (m!=='session');
     $('user-stats').style.display = (m==='session') ? 'block' : 'none';
+    $('user-skin').style.display = (m==='session') ? 'block' : 'none';
     primary.disabled=false;
     if(m==='register'){
       $('user-title').innerHTML=TEXTS.userTitleRegister;
@@ -4692,9 +4738,34 @@ const UserUI = {
       }
       $('user-switch').textContent=TEXTS.userSwitchOther;
       loadProfileStats();
+      // Skin: pinta lo que hay en local YA, y re-sincroniza cuando llega la
+      // versión de la cuenta (Firebase gana). Si el overlay sigue en session.
+      SkinPicker.sync(); SkinPicker.render();
+      Profile.loadRemote().then(()=>{ if(this.mode==='session'){ SkinPicker.sync(); SkinPicker.render(); } });
     }
   },
 };
+
+// Selector de skin del perfil: bola/preview al centro, flechas a los costados.
+const SkinPicker = {
+  idx: 0,
+  sync(){ const i = SKINS.findIndex(k=>k.id===Profile.skin); this.idx = i<0 ? 0 : i; },
+  render(){
+    const s = SKINS[this.idx], prev = $('skin-preview');
+    prev.className = 'skin-preview is-you' + (s.sprite ? ' has-sprite' : '');
+    prev.style.backgroundImage = s.sprite ? `url(${s.sprite})` : '';
+    $('skin-name').textContent = (LANG==='en') ? s.nameEn : s.name;
+  },
+  cycle(dir){
+    this.idx = (this.idx + dir + SKINS.length) % SKINS.length;
+    Profile.setSkin(SKINS[this.idx].id);
+    this.render();
+    // Si ya estás en partida (raro desde el perfil), refleja el cambio al toque.
+    if(G.running){ G.spriteYou = User.name ? Profile.sprite() : null; renderBoard(); }
+  },
+};
+$('skin-prev').addEventListener('click', ()=>SkinPicker.cycle(-1));
+$('skin-next').addEventListener('click', ()=>SkinPicker.cycle(1));
 $('btn-user').addEventListener('click', ()=>UserUI.open());
 $('user-cancel').addEventListener('click', ()=>{ $('user-overlay').hidden=true; });
 $('user-switch').addEventListener('click', ()=>{
@@ -5001,6 +5072,7 @@ const STATIC_I18N_EN = {
   'us-label-tournamentsWon': {text:'Tournaments won'},
   'us-label-achievements': {text:'🏆 Achievements'},
   'us-label-soon': {text:'Coming soon'},
+  'user-skin-label': {text:'Your token'},
   'user-input': {placeholder:'username'},
   'user-pass': {placeholder:'password'},
   'user-cancel': {text:'Back'},
