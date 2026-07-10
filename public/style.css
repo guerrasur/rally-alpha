@@ -492,6 +492,7 @@
     font-size: clamp(16px, 4.5vw, 24px);
     line-height: 1;
     animation: portalSpin 6s linear infinite;
+    will-change: transform;   /* capa propia: el giro no repinta la celda */
   }
   @keyframes portalSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
   /* Remolino one-shot en la casilla de destino de un teleport (portal o cofre);
@@ -513,6 +514,7 @@
   }
   .cell .item-bomb.is-armed{
     animation: bombPulse .8s ease-in-out infinite;
+    will-change: transform;   /* capa propia: el latido no repinta la celda */
   }
   @keyframes bombPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.25); } }
   .cell .item-high{
@@ -542,6 +544,17 @@
     .portal-fx{ animation:none; }
     .cell .item-bomb.is-armed{ animation:none; }
     .bomb-fx{ animation:none; }
+  }
+  /* Duelo en curso (body.is-dueling, ver setDuelOverlayShown): el overlay es
+     semitransparente y el tablero se sigue pintando abajo — pausar TODOS los
+     loops decorativos del board para que no compitan con el rAF de la aguja
+     (en móvil la trababan). Si se agrega otra animación infinita a una celda,
+     sumarla acá. */
+  body.is-dueling .cell .item-portal,
+  body.is-dueling .cell .item-bomb.is-armed,
+  body.is-dueling .cell .item-ring,
+  body.is-dueling .cell.is-both-here::before{
+    animation-play-state: paused;
   }
   .cell .item-ring{
     width: clamp(20px, 5.5vw, 30px);

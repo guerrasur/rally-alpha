@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.12';
+const VERSION = 'v0.3.13';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1489,7 +1489,7 @@ function onOpponentLeft(){
   if(!G.online || G.phase==='gameover') return;
   G.running=false; G.phase='gameover'; G.online=false;
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
-  $('duel-overlay').classList.remove('is-show');
+  setDuelOverlayShown(false);
   if(OT.active && OT.inMatch){
     toast(TEXTS.toastTourneyOppLeft);
     OT.onMyMatchEnd(Math.max(1, G.you.hp), 0);
@@ -2299,9 +2299,20 @@ function ejectPlayers(){
   Sound.eject(); haptic([15,30,15,30,15]);
 }
 
+// Muestra/oculta el overlay de duelo. Además pausa las animaciones CSS
+// decorativas del tablero (portal girando, bomba latiendo, anillo, marco de
+// choque) vía body.is-dueling: el overlay es SEMITRANSPARENTE (--overlay 0.96)
+// así que el board se sigue pintando abajo, y esos loops infinitos compiten
+// con el rAF de la aguja — en móvil se veía "lageada" (misma familia que el
+// fix v0.2.95 de layout-thrashing; regresión reportada al salir Modo Caos).
+function setDuelOverlayShown(on){
+  $('duel-overlay').classList.toggle('is-show', on);
+  document.body.classList.toggle('is-dueling', on);
+}
+
 // DOM/estado compartido por el countdown del duelo, offline y online.
 function showDuelCountdownUI(){
-  $('duel-overlay').classList.add('is-show');
+  setDuelOverlayShown(true);
   $('duel-result').style.display='none';
   $('duel-game').style.display='none';
   $('duel-countdown').style.display='block';
@@ -2842,7 +2853,7 @@ function resolveDuel(){
   $('duel-result').style.display='flex'; $('duel-game').style.display='none';
   updateHud();
   setTimeout(()=>{
-    $('duel-overlay').classList.remove('is-show');
+    setDuelOverlayShown(false);
     if(G.you.hp<=0||G.opp.hp<=0){ endGame(); return; }
     if(isTie) ejectPlayers();
     renderBoard(); updateHud(); startChoosePhase();
@@ -2986,7 +2997,7 @@ function finishDuelOnline(){
 
   const duelId = duelIdFor();
   setTimeout(()=>{
-    $('duel-overlay').classList.remove('is-show');
+    setDuelOverlayShown(false);
     G._duelResolved = false;
     if(G.you.hp<=0||G.opp.hp<=0){ endGame(); return; }
     if(isTie){
