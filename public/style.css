@@ -416,6 +416,11 @@
     padding: 2px 5px;
   }
   .buff-chip.is-ring .sym{ font-size: 12px; }
+  .buff-chip.is-boots{
+    background: rgba(90,160,90,0.14);
+    color: var(--good, #3a7d3a);
+    border: 1px solid rgba(90,160,90,0.35);
+  }
 
   .board-wrap{
     flex:1;
@@ -501,9 +506,42 @@
     0%{ transform:translate(-50%,-50%) scale(2.2) rotate(0deg); opacity:.85; }
     100%{ transform:translate(-50%,-50%) scale(.4) rotate(200deg); opacity:0; }
   }
+  /* 💣 Bomba: quieta hasta que alguien la pisa; armada, late. ⛰️ terreno alto */
+  .cell .item-bomb{
+    font-size: clamp(15px, 4.2vw, 22px);
+    line-height: 1;
+  }
+  .cell .item-bomb.is-armed{
+    animation: bombPulse .8s ease-in-out infinite;
+  }
+  @keyframes bombPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.25); } }
+  .cell .item-high{
+    font-size: clamp(15px, 4.2vw, 22px);
+    line-height: 1;
+    opacity: .85;
+  }
+  .cell .item-boots{
+    font-size: clamp(15px, 4.2vw, 22px);
+    line-height: 1;
+  }
+  /* Aviso sutil en el área de una bomba armada (nada estridente) */
+  .cell.is-blast-warn{
+    box-shadow: inset 0 0 0 1.5px rgba(200,120,40,0.45);
+  }
+  /* Flash one-shot de explosión (el próximo renderBoard lo limpia solo) */
+  .bomb-fx{
+    position:absolute; inset:0;
+    border-radius:6px;
+    background: radial-gradient(circle, rgba(255,170,60,0.75) 0%, rgba(255,90,40,0.35) 60%, transparent 100%);
+    pointer-events:none; z-index:3; opacity:0;
+    animation: bombFlash .55s ease-out;
+  }
+  @keyframes bombFlash{ 0%{ opacity:.95; transform:scale(.6); } 100%{ opacity:0; transform:scale(1.15); } }
   @media (prefers-reduced-motion: reduce){
     .cell .item-portal{ animation:none; }
     .portal-fx{ animation:none; }
+    .cell .item-bomb.is-armed{ animation:none; }
+    .bomb-fx{ animation:none; }
   }
   .cell .item-ring{
     width: clamp(20px, 5.5vw, 30px);
