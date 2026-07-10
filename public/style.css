@@ -556,6 +556,14 @@
   body.is-dueling .cell.is-both-here::before{
     animation-play-state: paused;
   }
+  /* Y además: NO componer nada del juego debajo del overlay durante el duelo.
+     Con --overlay al 96% el compositor mezclaba tablero+HUD completos en cada
+     frame (a DPR 3 en móvil es un overdraw enorme que traba la aguja).
+     visibility:hidden mantiene el layout (los getBoundingClientRect siguen
+     midiendo bien) y con 96% de opacidad el cambio es imperceptible. */
+  body.is-dueling #screen-game > *:not(.duel-overlay){
+    visibility: hidden;
+  }
   .cell .item-ring{
     width: clamp(20px, 5.5vw, 30px);
     height: clamp(20px, 5.5vw, 30px);
@@ -826,11 +834,24 @@
     width: 3px;
     opacity: 1;
     background: linear-gradient(180deg, #F7DC7E, #D4AF37);
+    /* Glow base ESTÁTICO; el pulso vive en el ::after animando SOLO opacity
+       (compositado por GPU). Antes se animaba box-shadow acá (perfectShine,
+       v0.2.70): repintado por CPU de la zona del track en CADA frame durante
+       todo el pase 1 — trababa la aguja en móvil. Nunca animar sombras/filter
+       en loop dentro del velocímetro. */
+    box-shadow: 0 0 4px 1px rgba(212,175,55,.75), 0 0 10px 2px rgba(212,175,55,.35);
+  }
+  .speedo-center-mark.is-live::after{
+    content:'';
+    position:absolute; inset:0;
+    border-radius: inherit;
+    box-shadow: 0 0 8px 2px rgba(212,175,55,1), 0 0 18px 5px rgba(212,175,55,.55);
     animation: perfectShine .9s ease-in-out infinite;
+    will-change: opacity;
   }
   @keyframes perfectShine{
-    0%,100%{ box-shadow: 0 0 4px 1px rgba(212,175,55,.75), 0 0 10px 2px rgba(212,175,55,.35); }
-    50%{ box-shadow: 0 0 8px 2px rgba(212,175,55,1), 0 0 18px 5px rgba(212,175,55,.55); }
+    0%,100%{ opacity: 0; }
+    50%{ opacity: 1; }
   }
   /* Se apaga al terminar el 1er pase: desvanecimiento rápido del dorado */
   .speedo-center-mark.is-gone{
