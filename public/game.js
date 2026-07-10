@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.20';
+const VERSION = 'v0.3.21';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -332,20 +332,22 @@ function tourneySkillFor(i){
 const CAMPAIGN_SAVE_KEY = 'rally_campaign_v1';
 const CAMPAIGN_SCRIPT = [
   // Nodo 0: arranca como una partida rápida normal. Sin nada raro… por ahora.
-  { id:'intro-match', type:'match', opp:{ name:'Tarata', hp:11, skill:0.35, sprite:'sprites/tarata.webp' } },
+  { id:'intro-match', type:'match', opp:{ name:'Tarata', hp:11, skill:0.35, sprite:'sprites/tarata.webp', spriteMove:'sprites/tarata_move.webp' } },
   // ⚠️ Ojo: si existe campaign/script en Firebase (editor /admin/), applyRemoteCampaign()
-  // REEMPLAZA esta cinta entera y los nodos remotos no traen `sprite`. Por eso además
-  // existe NPC_SPRITES (fallback por nombre de rival) más abajo.
+  // REEMPLAZA esta cinta entera y los nodos remotos no traen `sprite`/`spriteMove`. Por eso
+  // además existe NPC_SPRITES (fallback por nombre de rival) más abajo.
   // ← próximos nodos de la campaña van acá (escenas, partidas con mecánicas
   //    nuevas, giros de historia). Ejemplo:
   // { id:'s1', type:'scene', lines:['Cachito te mira fijo.', 'Algo cambió.'] },
 ];
 
 // Sprites de imagen por nombre de rival de campaña. Fallback para cuando el
-// nodo no trae `sprite` propio (típico: la cinta vino del editor /admin/ vía
-// campaign/script, que no conoce el campo). El `sprite` del nodo siempre gana.
+// nodo no trae `sprite`/`spriteMove` propios (típico: la cinta vino del editor
+// /admin/ vía campaign/script, que no conoce esos campos). Los del nodo siempre
+// ganan. `move` es opcional: si falta, el marker se queda con el sprite idle
+// todo el desplazamiento (ver flipMarker).
 const NPC_SPRITES = {
-  'Tarata': 'sprites/tarata.webp',
+  'Tarata': { idle:'sprites/tarata.webp', move:'sprites/tarata_move.webp' },
 };
 
 const Campaign = {
@@ -1148,6 +1150,7 @@ const G = {
   skinYou: null,    // emoji de skin (easter egg Messi) o null
   skinOpp: null,
   spriteOpp: null,  // url de imagen para el marker del rival (sprite de campaña) o null
+  spriteOppMove: null,  // url de imagen "en movimiento" del rival (o null: no hay variante)
   _duelResolved: false,
   _revealShown: false,
   you: { x:6, y:6, hp:100, prevX:6, prevY:6, buffs:{dmg:0, def:0} },
@@ -2165,6 +2168,12 @@ function flipMarker(cls, oldRect){
   const newRect = el.getBoundingClientRect();
   const dx = oldRect.left - newRect.left, dy = oldRect.top - newRect.top;
   if(!dx && !dy) return;
+  // Rival en movimiento: sprite "corriendo" mientras dura el deslizamiento,
+  // vuelve al idle (G.spriteOpp) apenas termina. Solo aplica si el nodo de
+  // campaña trae variante de movimiento (spriteOppMove); si no hay, el
+  // marker se queda con el idle todo el trayecto, sin romper nada.
+  const swapSprite = cls==='is-opp' && G.spriteOppMove && el.classList.contains('has-sprite');
+  if(swapSprite) el.style.backgroundImage = `url(${G.spriteOppMove})`;
   el.style.transition = 'none';
   el.style.transform = `translate(${dx}px, ${dy}px)`;
   requestAnimationFrame(()=>{
@@ -2175,7 +2184,10 @@ function flipMarker(cls, oldRect){
       // se limpia la transition inline para no pisar esa otra animación.
       el.style.transition = 'transform .35s ease-in-out';
       el.style.transform = '';
-      el.addEventListener('transitionend', ()=>{ el.style.transition = ''; }, {once:true});
+      el.addEventListener('transitionend', ()=>{
+        el.style.transition = '';
+        if(swapSprite && G.spriteOpp) el.style.backgroundImage = `url(${G.spriteOpp})`;
+      }, {once:true});
     });
   });
 }
@@ -4461,10 +4473,13 @@ function applyOppCosmetic(){
     if(o.accent) root.style.setProperty('--opp-accent', o.accent);
     else root.style.removeProperty('--opp-accent');
     App.oppName = o.name || '???';
-    G.spriteOpp = o.sprite || NPC_SPRITES[o.name] || null;
+    const fallback = NPC_SPRITES[o.name] || {};
+    G.spriteOpp = o.sprite || fallback.idle || null;
+    G.spriteOppMove = o.spriteMove || fallback.move || null;
     return;
   }
   G.spriteOpp = null;
+  G.spriteOppMove = null;
   if(Tourney.active){
     const r=TOURNEY_ROSTER[Tourney.index];
     root.style.setProperty('--opp-accent', r.accent);
