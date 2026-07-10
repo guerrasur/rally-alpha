@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.25';
+const VERSION = 'v0.3.26';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -534,8 +534,12 @@ const Chat = {
     this.unread = 0; this._updateBadge();
     w.classList.remove('is-open');
     w.style.display = 'flex';
+    // stopChat PRIMERO (evita listeners duplicados de una ronda anterior) y
+    // recién después el callback: stopChat también hace onChatMessage=null,
+    // así que al revés borraba el callback recién asignado y el chat quedaba
+    // mudo (no se mostraba ningún mensaje, ni propio ni del rival).
+    Net.stopChat();
     Net.onChatMessage = m => this.receive(m);
-    Net.stopChat();   // por si venía de una ronda anterior (bo5/revancha): evita listeners duplicados
     Net.listenChat();
   },
   unmount(){
@@ -669,8 +673,17 @@ const CFG = {
   duelCountdownMs: 800,
   duelCycleDuration: 1.8,
   cpuDesperateTrapRatio: 0.6,
-  cpuDesperateHpMin: 30,
+  cpuDesperateHpMin: 30,   // % del maxHp del rival (calibrado como 30/100; ver cpuDesperateHp)
 };
+
+// Umbral de "desesperación" de la CPU. cpuDesperateHpMin se calibró cuando
+// maxHp era 100 (30 = 30% de vida); al recortarse maxHp a 35 el valor absoluto
+// quedó cubriendo casi toda la partida (30 de 35 = 86%). Se interpreta como
+// PORCENTAJE del maxHp real del rival: sirve igual para práctica (35), torneo
+// offline (10→200) y campaña (hp por nodo).
+function cpuDesperateHp(){
+  return (G.opp.maxHp || CFG.maxHp) * CFG.cpuDesperateHpMin / 100;
+}
 
 // ===== 📝 Textos del juego (editables desde /admin/, v0.2.97) =====
 // Todo el texto que ve un jugador (mensajes, toasts, pantallas de resultado,
@@ -782,6 +795,10 @@ const TEXTS_ES = {
   msgMoving: 'Moviendo…',
   msgDuelImminent: 'Duelo inminente…',
   msgRepositioning: 'Reposicionando…',
+
+  // --- Globos de inicio de partida ---
+  bubbleYou: 'Vos',
+  bubbleRival: 'Rival',
 
   // --- Nombres de personajes ---
   oppNamePractice: 'Cachito',
@@ -997,6 +1014,9 @@ const TEXTS_EN = {
   msgMoving: 'Moving…',
   msgDuelImminent: 'Duel imminent…',
   msgRepositioning: 'Repositioning…',
+
+  bubbleYou: 'You',
+  bubbleRival: 'Rival',
 
   duelPerfectPrefix: '<b style="color:var(--perfect)">PERFECT</b> · ',
   duelVerdictWin: '{perfectPrefix}<b style="color:var(--good)">WINS</b> {name}',
@@ -1691,8 +1711,8 @@ function showStartBubbles(){
   // offline, online 1v1 y torneo online x4 (rival humano o CPU de relleno)
   // se muestra el nombre real (App.oppName ya lo trae siempre bien puesto).
   const showGenericRival = Campaign.active || (!G.online && !Tourney.active && !OT.active);
-  spawnStartBubble('.player-marker.is-you', 'Vos', 'is-you');
-  spawnStartBubble('.player-marker.is-opp', showGenericRival ? 'Rival' : App.oppName, 'is-opp');
+  spawnStartBubble('.player-marker.is-you', TEXTS.bubbleYou, 'is-you');
+  spawnStartBubble('.player-marker.is-opp', showGenericRival ? TEXTS.bubbleRival : App.oppName, 'is-opp');
 }
 function spawnStartBubble(selector, text, cls){
   const piece = document.querySelector(selector);
@@ -2030,7 +2050,7 @@ function cpuDecideMove(){
   const almostBoxed = nonTrap.length <= 1;          // casi sin salida
 
   // ¿Necesita un buff con urgencia? (HP bajo → quiere defensa; desventaja → daño)
-  const lowHp = G.opp.hp <= CFG.cpuDesperateHpMin;       // p.ej. < 30
+  const lowHp = G.opp.hp <= cpuDesperateHp();            // % de su vida máxima
   const losing = G.opp.hp < G.you.hp;
 
   // Helper: ¿esta casilla da acceso INMEDIATO a un power-up que la CPU necesita?
@@ -2467,12 +2487,12 @@ function applyCellEffect(player){
       // Cura grande inmediata
       player.hp = Math.min(player.maxHp || CFG.maxHp, player.hp + CFG.ringBigHeal);
       const who = (player===G.you)?App.playerName:App.oppName;
-      toast(`{ring} ${who} +${CFG.ringBigHeal} HP`);
+      toast(fillText('toastRingBig', {who, heal:CFG.ringBigHeal}));
     } else {
       // Cura goteo: 5 HP por ronda durante 5 rondas (incluida esta)
       player.ringDrip = CFG.ringDripRounds;
       const who = (player===G.you)?App.playerName:App.oppName;
-      toast(`{ring} ${who} +${CFG.ringDripHeal} HP x${CFG.ringDripRounds}`);
+      toast(fillText('toastRingDrip', {who, heal:CFG.ringDripHeal, rounds:CFG.ringDripRounds}));
     }
   }
   else if(cell.type==='chest'){
@@ -2821,7 +2841,7 @@ function scheduleCpuStop(){
 
   // Estado de la partida: desesperada/perdiendo arriesga el pase 1 (donde vive
   // el PERFECTO) y aprieta la puntería; cómoda juega seguro y algo relajado.
-  const desperate  = G.opp.hp <= CFG.cpuDesperateHpMin;
+  const desperate  = G.opp.hp <= cpuDesperateHp();
   const losingMatch = G.opp.hp < G.you.hp - 10;
   const comfortable = G.opp.hp > G.you.hp + 20;
   let pass1Prob = 0.6, aimTighten = 1.0;
@@ -4233,7 +4253,10 @@ const OT = {
     this.stopSpec();
     this.inMatch=true; this.myMatchId=mid; this.matchA=a; this.matchB=b; this.myDone=false;
     App.matchMode='single';
-    if(App.wallsMode) exitSpecialMode();
+    // Ni Paredes NI Caos en torneo x4 (antes solo se apagaba Paredes: un Caos
+    // activado antes generaba boards "C~…" que rompían al espectador y
+    // filtraban el modo a rivales que no lo eligieron).
+    if(App.wallsMode || App.chaosMode) exitSpecialMode();
     const oppSeat=(a===this.mySeat)?b:a;
     const me=this.players[this.mySeat], opp=this.players[oppSeat];
     App.oppName=opp.name;
@@ -4817,8 +4840,8 @@ $('mode-t4').addEventListener('click', async ()=>{
   const ok=await OT.enableTourney();
   if(ok){
     setModeUI('mode-t4');
-    // El Modo Paredes no está disponible en torneo online: apagarlo y ocultar el toggle.
-    if(App.wallsMode) exitSpecialMode();
+    // Paredes y Caos no están disponibles en torneo online: apagarlos y ocultar los toggles.
+    if(App.wallsMode || App.chaosMode) exitSpecialMode();
     updateSpecialToggles();
   }
 });
