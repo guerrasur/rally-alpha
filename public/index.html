@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally beta - v0.3.10</title>
-<link rel="icon" type="image/png" href="favicon.png?v=v0.3.10" />
-<link rel="apple-touch-icon" href="favicon.png?v=v0.3.10" />
-<link rel="stylesheet" href="style.css?v=v0.3.10" />
+<title>Rally beta - v0.3.11</title>
+<link rel="icon" type="image/png" href="favicon.png?v=v0.3.11" />
+<link rel="apple-touch-icon" href="favicon.png?v=v0.3.11" />
+<link rel="stylesheet" href="style.css?v=v0.3.11" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -21,7 +21,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.3.10</div>
+  <div class="version-tag" id="version-tag">v0.3.11</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -133,6 +133,7 @@
       <button class="btn btn--outline" id="btn-quick">Partida rápida</button>
       <button class="btn btn--outline" id="btn-tournament">🏆 Torneo</button>
       <button class="btn btn--outline" id="btn-walls">🧱 Paredes <span class="beta-tag">beta</span></button>
+      <button class="btn btn--outline" id="btn-chaos">🌀 Caos <span class="beta-tag">beta</span></button>
       <button class="btn btn--ghost" id="btn-offline-back" style="margin-top:4px; opacity:.75;">Volver</button>
     </div>
   </section>
@@ -161,6 +162,7 @@
             </button>
           </div>
           <button class="walls-toggle" id="walls-toggle">🧱 Modo Paredes <span class="beta-tag">beta</span><span class="walls-toggle__state" id="walls-state">off</span></button>
+          <button class="walls-toggle" id="chaos-toggle">🌀 Modo Caos <span class="beta-tag">beta</span><span class="walls-toggle__state" id="chaos-state">off</span></button>
         </div>
         <div id="ot-box" style="display:none;">
           <div id="ot-list"></div>
@@ -480,6 +482,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.3.10" defer></script>
+<script src="game.js?v=v0.3.11" defer></script>
 </body>
 </html>

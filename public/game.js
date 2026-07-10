@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.10';
+const VERSION = 'v0.3.11';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -262,11 +262,14 @@ const App = {
   scoreOpp: 0,
   roundHist: [],         // historial de rondas de la serie: 'you' | 'opp' (para los puntos)
   wallsMode: false,      // Modo Paredes (experimental)
+  chaosMode: false,      // Modo Caos (experimental): cofres, portales y más
 };
 
 // Entra/sale de modos con tablero especial (ajusta el tamaño global).
-function enterWallsMode(){ App.wallsMode = true;  CFG.boardSize = CFG.wallsBoardSize; }
-function exitSpecialMode(){ App.wallsMode = false; CFG.boardSize = CFG.boardSizeDefault; Walls.clear(); }
+// Paredes y Caos son mutuamente excluyentes: cada enter apaga al otro.
+function enterWallsMode(){ App.wallsMode = true;  App.chaosMode = false; CFG.boardSize = CFG.wallsBoardSize; }
+function enterChaosMode(){ App.chaosMode = true;  App.wallsMode = false; CFG.boardSize = CFG.boardSizeDefault; Walls.clear(); }
+function exitSpecialMode(){ App.wallsMode = false; App.chaosMode = false; CFG.boardSize = CFG.boardSizeDefault; Walls.clear(); }
 // La serie online es "mejor de 3": gana quien llega a 2 rondas. (El valor
 // interno del modo sigue siendo 'bo5' para no tocar el wire/las reglas.)
 const BO5_TARGET = 2;
@@ -480,7 +483,7 @@ const $ = id => document.getElementById(id);
 function show(screen){
   // Al volver al inicio sin partida activa, restaurar el tablero normal si
   // veníamos de un modo especial (evita arrastrar 9x9 + paredes al modo normal).
-  if(screen==='home' && App.wallsMode && !G.running){ exitSpecialMode(); }
+  if(screen==='home' && (App.wallsMode || App.chaosMode) && !G.running){ exitSpecialMode(); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('is-active'));
   $('screen-'+screen).classList.add('is-active');
   App.screen = screen;
@@ -640,6 +643,8 @@ const CFG = {
   ringHealUnder: 14,         // HP máximo del que lo agarra para la cura grande (era 40)
   ringDripHeal: 2,           // cura por ronda si no cumple (era 5 con maxHp 100)
   ringDripRounds: 5,         // cantidad de rondas de cura chica
+  chestCount: 2,        // 🌀 Modo Caos: cofres sorpresa en el tablero
+  chestHeal: 8,         // curación si el cofre sale "curación"
   duelCountdownMs: 800,
   duelCycleDuration: 1.8,
   cpuDesperateTrapRatio: 0.6,
@@ -711,6 +716,12 @@ const TEXTS = {
   userHintSession: 'Sesión iniciada. Podés entrar con este usuario desde cualquier dispositivo.',
   userHintNoPassword: 'Tu usuario todavía no tiene contraseña. Creá una para poder entrar desde otro dispositivo (y para no perderlo).',
   toastWallsNotOnlineTourney: 'El Modo Paredes no está disponible en el torneo online.',
+  toastChaosNotOnlineTourney: 'El Modo Caos no está disponible en el torneo online.',
+  chestGotAtk: '🎁 {name}: 🗡️ +daño',
+  chestGotDef: '🎁 {name}: ◈ +defensa',
+  chestGotHeal: '🎁 {name}: +{hp} HP',
+  chestTrap: '🎁 {name}: ¡era una trampa!',
+  chestTeleport: '🎁 {name}: ¡teletransporte!',
   toastLabAdminsOnly: 'El laboratorio es solo para admins.',
   toastCodeLength: 'El código tiene 4 caracteres.',
   toastPracticeMode: 'Modo práctica: jugás contra la CPU.',
@@ -998,13 +1009,22 @@ function buildBoard(){
   placeRandom('power_dmg', CFG.powerDmgCount * scale);
   placeRandom('power_def', CFG.powerDefCount * scale);
   placeRandom('down', CFG.downCount * scale);
+  // Modo Caos: cofres sorpresa + un par de portales enlazados.
+  if(App.chaosMode){
+    placeRandom('chest', CFG.chestCount);
+    placeRandom('portal', 2);
+    // Los portales van SIEMPRE de a dos: si no entraron ambos, no va ninguno.
+    if(countItems('portal') !== 2){
+      G.board.forEach(c=>{ if(c.type==='portal') c.type='empty'; });
+    }
+  }
 }
 function cellAt(x,y){ return G.board[y*CFG.boardSize + x]; }
 function countItems(type){ return G.board.filter(c => c.type === type).length; }
 
 // ---- Serialización del tablero para online ----
-const CELL_CODE = { empty:'e', power_dmg:'a', power_def:'d', down:'x', ring:'r' };
-const CODE_CELL = { e:'empty', a:'power_dmg', d:'power_def', x:'down', r:'ring' };
+const CELL_CODE = { empty:'e', power_dmg:'a', power_def:'d', down:'x', ring:'r', chest:'c', portal:'p' };
+const CODE_CELL = { e:'empty', a:'power_dmg', d:'power_def', x:'down', r:'ring', c:'chest', p:'portal' };
 function serializeBoard(){
   const cells = G.board.map(c => CELL_CODE[c.type] || 'e').join('');
   // En modo Paredes anteponemos tamaño y paredes: "W<size>~<paredes>~<celdas>".
@@ -1012,9 +1032,26 @@ function serializeBoard(){
   if(App.wallsMode){
     return `W${CFG.boardSize}~${Walls.serialize()}~${cells}`;
   }
+  // Modo Caos: prefijo "C~" para que el guest active el modo al deserializar
+  // (mismo truco que Paredes: el modo viaja en el board, no toca game/mode).
+  if(App.chaosMode){
+    return `C~${cells}`;
+  }
   return cells;
 }
 function deserializeBoard(str){
+  // ¿Formato Modo Caos? "C~<celdas>" (tablero normal 7x7, ítems nuevos)
+  if(typeof str==='string' && str[0]==='C' && str[1]==='~'){
+    enterChaosMode();
+    const cells = str.slice(2);
+    const n = CFG.boardSize;
+    G.board = [];
+    for(let y=0; y<n; y++) for(let x=0; x<n; x++){
+      const ch = cells[y*n + x] || 'e';
+      G.board.push({ x, y, type: CODE_CELL[ch] || 'empty' });
+    }
+    return;
+  }
   // ¿Formato con paredes? "W<size>~<paredes>~<celdas>"
   if(typeof str==='string' && str[0]==='W'){
     const firstSep = str.indexOf('~');
@@ -1023,6 +1060,7 @@ function deserializeBoard(str){
     const wallsStr = str.slice(firstSep+1, secondSep);
     const cells = str.slice(secondSep+1);
     App.wallsMode = true;
+    App.chaosMode = false;
     CFG.boardSize = size;
     Walls.deserialize(wallsStr);
     const n = size;
@@ -1035,6 +1073,7 @@ function deserializeBoard(str){
   }
   // Formato clásico (tablero normal).
   App.wallsMode = false;
+  App.chaosMode = false;
   CFG.boardSize = CFG.boardSizeDefault;
   Walls.clear();
   const n = CFG.boardSize;
@@ -1067,6 +1106,10 @@ function regenerateItems(){
   if(countItems('power_dmg') < CFG.maxPowerDmg){ const p=findEmpty(); if(p) cellAt(p.x,p.y).type='power_dmg'; }
   if(countItems('power_def') < CFG.maxPowerDef){ const p=findEmpty(); if(p) cellAt(p.x,p.y).type='power_def'; }
   const p=findEmpty(); if(p) cellAt(p.x,p.y).type='down';
+  // Modo Caos: reponer cofres hasta su cantidad inicial (los portales son fijos)
+  if(App.chaosMode && countItems('chest') < CFG.chestCount){
+    const cp=findEmpty(); if(cp) cellAt(cp.x,cp.y).type='chest';
+  }
   // Anillo multicolor: una vez por partida, raro, avanzada la partida, NO en torneo
   if(!Tourney.active && !G.ringSpawned && G.turnCount>=CFG.ringMinTurn && Math.random()<CFG.ringChancePerTurn){
     const rp=findEmpty();
@@ -1101,6 +1144,8 @@ function appendCellItemIcon(div, type){
   else if(type === 'power_def'){ const s=document.createElement('span'); s.className='item-def'; s.textContent='◈'; div.appendChild(s); }
   else if(type === 'down'){ const s=document.createElement('span'); s.className='down'; s.textContent='×'; div.appendChild(s); }
   else if(type === 'ring'){ const s=document.createElement('span'); s.className='item-ring'; div.appendChild(s); }
+  else if(type === 'chest'){ const s=document.createElement('span'); s.className='item-chest'; s.textContent='🎁'; div.appendChild(s); }
+  else if(type === 'portal'){ const s=document.createElement('span'); s.className='item-portal'; s.textContent='🌀'; div.appendChild(s); }
 }
 
 function renderBoard(){
@@ -1323,7 +1368,7 @@ function startGame(){
     // Si el nodo ANTERIOR de la campaña era un mapa con paredes, este no lo es:
     // volver al tablero normal antes de generar (fuera de campaña no aplica —
     // el modo Paredes de partida rápida usa wallsMode a propósito).
-    if(Campaign.active && App.wallsMode) exitSpecialMode();
+    if(Campaign.active && (App.wallsMode || App.chaosMode)) exitSpecialMode();
     buildBoard();
   }
   const n=CFG.boardSize;
@@ -1370,10 +1415,13 @@ function startOnlineGame(boardStr, role){
   Net.onBoardUpdate = (boardStr)=>{
     // Soporta formato con paredes ("W<size>|<paredes>|<celdas>"): solo cambian
     // los ítems, así que extraemos la parte de celdas. Las paredes no varían.
+    // Idem Modo Caos ("C~<celdas>").
     let cells = boardStr;
     if(typeof boardStr==='string' && boardStr[0]==='W'){
       const i2 = boardStr.indexOf('~', boardStr.indexOf('~')+1);
       cells = boardStr.slice(i2+1);
+    } else if(typeof boardStr==='string' && boardStr[0]==='C' && boardStr[1]==='~'){
+      cells = boardStr.slice(2);
     }
     if(cells.length !== CFG.boardSize*CFG.boardSize) return;
     for(let i=0;i<G.board.length;i++){
@@ -1801,22 +1849,46 @@ function resolveMoves(){
     G.opp.history.push(`${G.opp.x},${G.opp.y}`);
     if(G.opp.history.length>6) G.opp.history.shift();
   }
+  // Modo Caos — portales: pisar uno te reubica en el gemelo. Las posiciones
+  // FINALES se calculan ANTES del choque/FLIP para que choque, duelo y efectos
+  // de casilla se evalúen sobre las posiciones ya teleportadas (determinista:
+  // mismo board y mismos movimientos en ambos clientes). Si ambos entran al
+  // MISMO portal es un choque normal ahí y nadie viaja; si entran a portales
+  // distintos, se intercambian (cada gemelo es la entrada del otro).
+  G._teleYou=false; G._teleOpp=false;
+  let youDest={x:G.yourMove.x, y:G.yourMove.y}, oppDest={x:G.oppMove.x, y:G.oppMove.y};
+  if(App.chaosMode && !(youDest.x===oppDest.x && youDest.y===oppDest.y)){
+    const ty=portalTwin(youDest.x, youDest.y), to=portalTwin(oppDest.x, oppDest.y);
+    if(ty){ youDest=ty; G._teleYou=true; }
+    if(to){ oppDest=to; G._teleOpp=true; }
+  }
   // Si ambos caen en la MISMA casilla, renderBoard() les aplica su propio
   // transform de choque (.is-clash) — no animamos ese caso puntual para no
   // pelear con ese offset ya afinado.
-  const willClash = (G.yourMove.x===G.oppMove.x && G.yourMove.y===G.oppMove.y);
+  const willClash = (youDest.x===oppDest.x && youDest.y===oppDest.y);
   const youOldRect = willClash ? null : getMarkerRect('is-you');
   const oppOldRect = willClash ? null : getMarkerRect('is-opp');
-  G.you.x=G.yourMove.x; G.you.y=G.yourMove.y; G.opp.x=G.oppMove.x; G.opp.y=G.oppMove.y;
-  const sharedBuff = applySharedCellEffects();
+  G.you.x=youDest.x; G.you.y=youDest.y; G.opp.x=oppDest.x; G.opp.y=oppDest.y;
+  const sharedBuff = applySharedCellEffects();   // puede teleportar por cofre (flags G._tele*)
   applyRingDrip(G.you); applyRingDrip(G.opp);
   // La tregua se cumple en cuanto ambos se mueven: quitar la burbuja YA,
   // antes de redibujar, para que no quede un instante en la casilla nueva.
   const wasTruce = G.justDueled;
   G.justDueled = false;
   Sound.step(); haptic(10); renderBoard(); updateHud();
-  flipMarker('is-you', youOldRect);
-  flipMarker('is-opp', oppOldRect);
+  // Los teleportados (portal o cofre) no se deslizan con FLIP: aparecen en
+  // destino con su propio efecto visual (el próximo renderBoard limpia el fx).
+  flipMarker('is-you', G._teleYou ? null : youOldRect);
+  flipMarker('is-opp', G._teleOpp ? null : oppOldRect);
+  if(G._teleYou || G._teleOpp){
+    [[G._teleYou, G.you], [G._teleOpp, G.opp]].forEach(([tele, pl])=>{
+      if(!tele) return;
+      // data-x/data-y son canónicos (a prueba del espejo del guest)
+      const cell = document.querySelector(`.cell[data-x="${pl.x}"][data-y="${pl.y}"]`);
+      if(cell){ const fx=document.createElement('div'); fx.className='portal-fx'; cell.appendChild(fx); }
+    });
+    Sound.pickupDef && Sound.pickupDef(); haptic([10,25,10]);
+  }
   // Impacto visual al caer AMBOS en la misma casilla: onda expansiva one-shot
   // + pop de aterrizaje de las fichas (el próximo renderBoard() limpia todo).
   if(willClash){
@@ -1937,12 +2009,12 @@ function applySharedCellEffects(){
   const sameCell = (G.you.x===G.opp.x && G.you.y===G.opp.y);
   if(sameCell){
     const cell = cellAt(G.you.x, G.you.y);
-    if(cell.type==='power_dmg' || cell.type==='power_def' || cell.type==='ring'){
+    if(cell.type==='power_dmg' || cell.type==='power_def' || cell.type==='ring' || cell.type==='chest'){
       // Sorteo determinista: depende del turno y la posición (igual en ambos clientes)
       const seed = (G.turnCount*31 + G.you.x*7 + G.you.y*13) % 2;
       const youWins = (seed===0);
       const winner = youWins ? G.you : G.opp;
-      const itemEmoji = cell.type==='power_dmg' ? '🗡️' : (cell.type==='power_def' ? '◈' : '💍');
+      const itemEmoji = cell.type==='power_dmg' ? '🗡️' : (cell.type==='power_def' ? '◈' : (cell.type==='chest' ? '🎁' : '💍'));
       applyCellEffect(winner);                 // solo uno recibe el ítem/anillo
       cell.type='empty';                       // la casilla queda vacía para el otro
       // Devuelve la info para la ruleta visual (el sorteo ya está aplicado)
@@ -1988,6 +2060,67 @@ function applyCellEffect(player){
       toast(`{ring} ${who} +${CFG.ringDripHeal} HP x${CFG.ringDripRounds}`);
     }
   }
+  else if(cell.type==='chest'){
+    cell.type='empty';
+    applyChestEffect(player);
+  }
+}
+
+// ---- 🌀 Modo Caos: helpers de portal y cofre ----
+// Devuelve el portal GEMELO de la casilla (x,y), o null si (x,y) no es portal.
+// Los portales van siempre de a dos (garantizado en buildBoard).
+function portalTwin(x, y){
+  if(cellAt(x,y).type !== 'portal') return null;
+  const twin = G.board.find(c => c.type==='portal' && !(c.x===x && c.y===y));
+  return twin ? { x: twin.x, y: twin.y } : null;
+}
+
+// Cofre sorpresa: efecto aleatorio DETERMINISTA — mismo turno y posición dan
+// el mismo resultado en ambos clientes (cero Math.random, como el sorteo de
+// ítems compartidos). El teleport marca G._teleYou/_teleOpp para que
+// resolveMoves no anime con FLIP a quien viajó.
+function applyChestEffect(player){
+  const roll = (G.turnCount*31 + player.x*7 + player.y*13) % 5;
+  const who = (player===G.you) ? App.playerName : App.oppName;
+  if(roll===0){
+    player.buffs.dmg += CFG.powerDmgValue; Sound.pickupAtk();
+    toast(fillText('chestGotAtk', {name:who}));
+  } else if(roll===1){
+    player.buffs.def += CFG.powerDefValue; Sound.pickupDef();
+    toast(fillText('chestGotDef', {name:who}));
+  } else if(roll===2){
+    player.hp = Math.min(player.maxHp || CFG.maxHp, player.hp + CFG.chestHeal);
+    Sound.pickupDef();
+    toast(fillText('chestGotHeal', {name:who, hp:CFG.chestHeal}));
+  } else if(roll===3){
+    // Trampa: mismo daño y misma piedad que las cruces (nunca mata)
+    player.hp = Math.max(1, player.hp - CFG.downDamage);
+    Sound.trap();
+    toast(fillText('chestTrap', {name:who}));
+  } else {
+    // Teleport a una casilla vacía elegida determinísticamente
+    const n = CFG.boardSize;
+    const idx = (G.turnCount*17 + player.x*5 + player.y*11) % (n*n);
+    const spot = findEmptySpotFrom(idx);
+    if(spot){
+      player.x = spot.x; player.y = spot.y;
+      if(player===G.you) G._teleYou = true; else G._teleOpp = true;
+    }
+    Sound.pickupDef && Sound.pickupDef();
+    toast(fillText('chestTeleport', {name:who}));
+  }
+}
+
+// Primera casilla VACÍA y desocupada desde un índice dado, escaneo circular
+// (determinista: mismo board + mismo índice = misma casilla en ambos clientes).
+function findEmptySpotFrom(idx){
+  const total = CFG.boardSize * CFG.boardSize;
+  for(let i=0; i<total; i++){
+    const c = G.board[(idx + i) % total];
+    const occupied = (G.you.x===c.x && G.you.y===c.y) || (G.opp.x===c.x && G.opp.y===c.y);
+    if(c.type==='empty' && !occupied) return { x: c.x, y: c.y };
+  }
+  return null;
 }
 
 // Aplica el goteo de curación del anillo (llamado cada ronda/turno)
@@ -4016,7 +4149,7 @@ async function startCreateRoom(){
   $('lobby-created').style.display='flex'; $('lobby-join').style.display='none'; show('lobby');
   $('mode-select').style.display='flex'; $('btn-share').style.display='block';
   $('ot-box').style.display='none'; setModeUI(App.matchMode==='bo5'?'mode-bo5':'mode-single');
-  updateWallsToggle();
+  updateSpecialToggles();
   const goBtn = $('btn-online-start'); if(goBtn) goBtn.style.display='none';
   $('wait-text').textContent=TEXTS.waitTextWaitingOpp;
   $('code-out').textContent='····';
@@ -4148,11 +4281,11 @@ function setModeUI(id){
 }
 $('mode-single').addEventListener('click', ()=>{
   if(OT.active){ if(!OT.disableTourney()) return; }
-  App.matchMode='single'; setModeUI('mode-single'); updateWallsToggle();
+  App.matchMode='single'; setModeUI('mode-single'); updateSpecialToggles();
 });
 $('mode-bo5').addEventListener('click', ()=>{
   if(OT.active){ if(!OT.disableTourney()) return; }
-  App.matchMode='bo5'; setModeUI('mode-bo5'); updateWallsToggle();
+  App.matchMode='bo5'; setModeUI('mode-bo5'); updateSpecialToggles();
 });
 $('mode-t4').addEventListener('click', async ()=>{
   if(OT.active) return;
@@ -4161,20 +4294,35 @@ $('mode-t4').addEventListener('click', async ()=>{
     setModeUI('mode-t4');
     // El Modo Paredes no está disponible en torneo online: apagarlo y ocultar el toggle.
     if(App.wallsMode) exitSpecialMode();
-    updateWallsToggle();
+    updateSpecialToggles();
   }
 });
-// Toggle 🧱 Modo Paredes del lobby (solo host, no disponible en torneo online).
-function updateWallsToggle(){
-  const t=$('walls-toggle'); if(!t) return;
-  t.style.display = OT.active ? 'none' : 'flex';
-  t.classList.toggle('is-on', App.wallsMode);
-  $('walls-state').textContent = App.wallsMode ? 'on' : 'off';
+// Toggles 🧱 Paredes / 🌀 Caos del lobby (solo host, no disponibles en torneo
+// online). Son mutuamente excluyentes: activar uno apaga al otro (los enter
+// ya lo garantizan), y este refresco pinta ambos estados juntos.
+function updateSpecialToggles(){
+  const w=$('walls-toggle');
+  if(w){
+    w.style.display = OT.active ? 'none' : 'flex';
+    w.classList.toggle('is-on', App.wallsMode);
+    $('walls-state').textContent = App.wallsMode ? 'on' : 'off';
+  }
+  const c=$('chaos-toggle');
+  if(c){
+    c.style.display = OT.active ? 'none' : 'flex';
+    c.classList.toggle('is-on', App.chaosMode);
+    $('chaos-state').textContent = App.chaosMode ? 'on' : 'off';
+  }
 }
 $('walls-toggle').addEventListener('click', ()=>{
   if(OT.active){ toast(TEXTS.toastWallsNotOnlineTourney); return; }
   if(App.wallsMode) exitSpecialMode(); else enterWallsMode();
-  updateWallsToggle();
+  updateSpecialToggles();
+});
+$('chaos-toggle').addEventListener('click', ()=>{
+  if(OT.active){ toast(TEXTS.toastChaosNotOnlineTourney); return; }
+  if(App.chaosMode) exitSpecialMode(); else enterChaosMode();
+  updateSpecialToggles();
 });
 $('btn-ot-start').addEventListener('click', ()=>OT.start());
 $('btn-ot-room').addEventListener('click', ()=>OT.backToLobby());
@@ -4541,6 +4689,16 @@ $('btn-walls').addEventListener('click', ()=>{
   readName(); Tourney.active=false; applyOppCosmetic();
   App.online=false; App.oppName=TEXTS.oppNamePractice;
   enterWallsMode();
+  beginGame();
+});
+
+// Modo Caos (menú offline): igual que Paredes pero con los ítems nuevos
+// (cofres 🎁 y portales 🌀) en el tablero normal 7x7. Online se activa con
+// el toggle 🌀 del lobby (prefijo "C~" en el board).
+$('btn-chaos').addEventListener('click', ()=>{
+  readName(); Tourney.active=false; applyOppCosmetic();
+  App.online=false; App.oppName=TEXTS.oppNamePractice;
+  enterChaosMode();
   beginGame();
 });
 
