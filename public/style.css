@@ -627,7 +627,12 @@
   }
   .cell .player-marker.has-skin::after{ display:none; }
   .cell .player-marker.has-sprite{
-    background-color: transparent;
+    /* La imagen va por var --sprite-url + !important a propósito: una regla de
+       torneo más abajo (.is-you{background:var(--you-accent)}) tiene la misma
+       especificidad y, al ir después, su shorthand reseteaba el background-image
+       y repintaba el color sólido tapando el sprite. !important le gana. */
+    background-image: var(--sprite-url) !important;
+    background-color: transparent !important;
     background-size: cover;
     background-position: center;
     box-shadow: none !important;
@@ -1158,7 +1163,10 @@
   .tp-chip.is-king{ border-color:#D4AF37; }
 
   /* ===== Torneo online (x4) ===== */
-  .cell .player-marker.is-you{ background: var(--you-accent, var(--accent)); }
+  /* Solo el COLOR (tinte del jugador en torneo online). Antes era `background:`
+     (shorthand) y, al ir después de .has-sprite con igual especificidad, rompía
+     el pintado del sprite de la ficha propia (skin). Debe quedar background-color. */
+  .cell .player-marker.is-you{ background-color: var(--you-accent, var(--accent)); }
   .p-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; flex:0 0 auto; }
   #ot-box{ width:100%; max-width:300px; flex-direction:column; gap:8px; }
   .ot-row{ display:flex; align-items:center; gap:10px; padding:9px 13px;
