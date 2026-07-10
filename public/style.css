@@ -623,6 +623,7 @@
   }
   .cell .player-marker.has-skin::after{ display:none; }
   .cell .player-marker.has-sprite{
+    background-color: transparent;
     background-size: cover;
     background-position: center;
     box-shadow: none !important;
