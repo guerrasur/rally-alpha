@@ -276,7 +276,8 @@
   }
 
   .home-foot{ text-align:center; font-size:12px; color:var(--muted); letter-spacing:.02em; line-height:1.5; }
-  .page-credit{ text-align:center; font-size:11px; color:var(--muted); opacity:.6; letter-spacing:.02em; line-height:1.6; margin-top:18px; }
+  .page-credit{ text-align:center; font-size:9px; color:var(--muted); opacity:.6; letter-spacing:.02em; line-height:1.6; margin-top:18px; }
+  .page-credit a{ color:inherit; text-decoration:underline; }
 
   /* flex-start + margin:auto en los hijos: centrado cuando entra, scroll cuando
      el contenido crece (p.ej. torneo x4 con lista + botón de inicio). */
@@ -416,6 +417,11 @@
     padding: 2px 5px;
   }
   .buff-chip.is-ring .sym{ font-size: 12px; }
+  .buff-chip.is-boots{
+    background: rgba(90,160,90,0.14);
+    color: var(--good, #3a7d3a);
+    border: 1px solid rgba(90,160,90,0.35);
+  }
 
   .board-wrap{
     flex:1;
@@ -477,6 +483,87 @@
     font-size: clamp(16px, 4.5vw, 24px);
     line-height: 1;
     font-weight: 800;
+  }
+  /* 🌀 Modo Caos: cofre sorpresa y portal (emojis, tamaño de los otros ítems) */
+  .cell .item-chest{
+    font-size: clamp(15px, 4.2vw, 22px);
+    line-height: 1;
+  }
+  .cell .item-portal{
+    font-size: clamp(16px, 4.5vw, 24px);
+    line-height: 1;
+    animation: portalSpin 6s linear infinite;
+    will-change: transform;   /* capa propia: el giro no repinta la celda */
+  }
+  @keyframes portalSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+  /* Remolino one-shot en la casilla de destino de un teleport (portal o cofre);
+     el próximo renderBoard lo limpia solo, igual que .clash-fx */
+  .portal-fx{
+    position:absolute; left:50%; top:50%; width:100%; height:100%;
+    border-radius:50%; border:2.5px dashed var(--accent);
+    pointer-events:none; z-index:3; opacity:0;
+    animation: portalIn .6s ease-out;
+  }
+  @keyframes portalIn{
+    0%{ transform:translate(-50%,-50%) scale(2.2) rotate(0deg); opacity:.85; }
+    100%{ transform:translate(-50%,-50%) scale(.4) rotate(200deg); opacity:0; }
+  }
+  /* 💣 Bomba: quieta hasta que alguien la pisa; armada, late. ⛰️ terreno alto */
+  .cell .item-bomb{
+    font-size: clamp(15px, 4.2vw, 22px);
+    line-height: 1;
+  }
+  .cell .item-bomb.is-armed{
+    animation: bombPulse .8s ease-in-out infinite;
+    will-change: transform;   /* capa propia: el latido no repinta la celda */
+  }
+  @keyframes bombPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.25); } }
+  .cell .item-high{
+    font-size: clamp(15px, 4.2vw, 22px);
+    line-height: 1;
+    opacity: .85;
+  }
+  .cell .item-boots{
+    font-size: clamp(15px, 4.2vw, 22px);
+    line-height: 1;
+  }
+  /* Aviso sutil en el área de una bomba armada (nada estridente) */
+  .cell.is-blast-warn{
+    box-shadow: inset 0 0 0 1.5px rgba(200,120,40,0.45);
+  }
+  /* Flash one-shot de explosión (el próximo renderBoard lo limpia solo) */
+  .bomb-fx{
+    position:absolute; inset:0;
+    border-radius:6px;
+    background: radial-gradient(circle, rgba(255,170,60,0.75) 0%, rgba(255,90,40,0.35) 60%, transparent 100%);
+    pointer-events:none; z-index:3; opacity:0;
+    animation: bombFlash .55s ease-out;
+  }
+  @keyframes bombFlash{ 0%{ opacity:.95; transform:scale(.6); } 100%{ opacity:0; transform:scale(1.15); } }
+  @media (prefers-reduced-motion: reduce){
+    .cell .item-portal{ animation:none; }
+    .portal-fx{ animation:none; }
+    .cell .item-bomb.is-armed{ animation:none; }
+    .bomb-fx{ animation:none; }
+  }
+  /* Duelo en curso (body.is-dueling, ver setDuelOverlayShown): el overlay es
+     semitransparente y el tablero se sigue pintando abajo — pausar TODOS los
+     loops decorativos del board para que no compitan con el rAF de la aguja
+     (en móvil la trababan). Si se agrega otra animación infinita a una celda,
+     sumarla acá. */
+  body.is-dueling .cell .item-portal,
+  body.is-dueling .cell .item-bomb.is-armed,
+  body.is-dueling .cell .item-ring,
+  body.is-dueling .cell.is-both-here::before{
+    animation-play-state: paused;
+  }
+  /* Y además: NO componer nada del juego debajo del overlay durante el duelo.
+     Con --overlay al 96% el compositor mezclaba tablero+HUD completos en cada
+     frame (a DPR 3 en móvil es un overdraw enorme que traba la aguja).
+     visibility:hidden mantiene el layout (los getBoundingClientRect siguen
+     midiendo bien) y con 96% de opacidad el cambio es imperceptible. */
+  body.is-dueling #screen-game > *:not(.duel-overlay){
+    visibility: hidden;
   }
   .cell .item-ring{
     width: clamp(20px, 5.5vw, 30px);
@@ -748,11 +835,24 @@
     width: 3px;
     opacity: 1;
     background: linear-gradient(180deg, #F7DC7E, #D4AF37);
+    /* Glow base ESTÁTICO; el pulso vive en el ::after animando SOLO opacity
+       (compositado por GPU). Antes se animaba box-shadow acá (perfectShine,
+       v0.2.70): repintado por CPU de la zona del track en CADA frame durante
+       todo el pase 1 — trababa la aguja en móvil. Nunca animar sombras/filter
+       en loop dentro del velocímetro. */
+    box-shadow: 0 0 4px 1px rgba(212,175,55,.75), 0 0 10px 2px rgba(212,175,55,.35);
+  }
+  .speedo-center-mark.is-live::after{
+    content:'';
+    position:absolute; inset:0;
+    border-radius: inherit;
+    box-shadow: 0 0 8px 2px rgba(212,175,55,1), 0 0 18px 5px rgba(212,175,55,.55);
     animation: perfectShine .9s ease-in-out infinite;
+    will-change: opacity;
   }
   @keyframes perfectShine{
-    0%,100%{ box-shadow: 0 0 4px 1px rgba(212,175,55,.75), 0 0 10px 2px rgba(212,175,55,.35); }
-    50%{ box-shadow: 0 0 8px 2px rgba(212,175,55,1), 0 0 18px 5px rgba(212,175,55,.55); }
+    0%,100%{ opacity: 0; }
+    50%{ opacity: 1; }
   }
   /* Se apaga al terminar el 1er pase: desvanecimiento rápido del dorado */
   .speedo-center-mark.is-gone{

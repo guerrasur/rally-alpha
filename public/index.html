@@ -4,10 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#EAEAE7" />
-<title>Rally beta - v0.3.10</title>
-<link rel="icon" type="image/png" href="favicon.png?v=v0.3.10" />
-<link rel="apple-touch-icon" href="favicon.png?v=v0.3.10" />
-<link rel="stylesheet" href="style.css?v=v0.3.10" />
+<title>Rally - Partidas Online</title>
+<meta name="description" content="Rally (Rallyyy) es un juego casual para jugar con amigos o en solitario. Duelos rápidos, modos variados y partidas online gratis y sin registro." />
+<link rel="icon" type="image/png" href="favicon.png?v=v0.3.17" />
+<link rel="apple-touch-icon" href="favicon.png?v=v0.3.17" />
+<link rel="stylesheet" href="style.css?v=v0.3.17" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -18,10 +19,23 @@
   var m=document.querySelector('meta[name="theme-color"]');
   if(m) m.setAttribute('content', t==='dark' ? '#141416' : '#EAEAE7');
 })();
+/* Elige idioma ANTES del primer paint (mismo motivo que el tema arriba).
+   Si el jugador ya eligió idioma, se respeta. Si no, se detecta el idioma
+   del navegador: español → 'es', cualquier otro → 'en' por defecto. */
+(function(){
+  var l=null;
+  try{ l=localStorage.getItem('rally_lang'); }catch(e){}
+  if(l!=='es' && l!=='en'){
+    var nav=(navigator.language||navigator.userLanguage||'en').toLowerCase();
+    l = nav.indexOf('es')===0 ? 'es' : 'en';
+  }
+  document.documentElement.setAttribute('lang', l);
+  document.documentElement.setAttribute('data-lang', l);
+})();
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.3.10</div>
+  <div class="version-tag" id="version-tag">v0.3.17</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -53,6 +67,15 @@
       </g>
     </svg>
   </button>
+  <button class="theme-toggle" id="btn-lang" aria-label="Cambiar idioma">
+    <svg class="theme-toggle__svg" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"></circle>
+      <ellipse cx="12" cy="12" rx="4" ry="9"></ellipse>
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <path d="M4.5 7.5c1.9 1.2 4.7 2 7.5 2s5.6-.8 7.5-2"></path>
+      <path d="M4.5 16.5c1.9-1.2 4.7-2 7.5-2s5.6.8 7.5 2"></path>
+    </svg>
+  </button>
   <button class="theme-toggle" id="btn-user" aria-label="Usuario">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="8" r="4"></circle>
@@ -72,7 +95,7 @@
 
     <div class="field-group">
       <div>
-        <label class="label" for="name-input">Tu nombre</label>
+        <label class="label" for="name-input" id="name-label">Tu nombre</label>
         <input class="input" id="name-input" type="text" placeholder="Jugador" autocomplete="off" maxlength="40" />
       </div>
     </div>
@@ -80,7 +103,7 @@
     <div class="actions">
       <button class="btn btn--primary" id="btn-create">Crear sala</button>
       <button class="btn btn--outline" id="btn-join">Unirme con código</button>
-      <div class="actions-divider"><span>sin conexión</span></div>
+      <div class="actions-divider"><span id="divider-offline">sin conexión</span></div>
       <button class="btn btn--ink" id="btn-offline">Jugar solo</button>
     </div>
 
@@ -89,16 +112,16 @@
 
   <section class="screen screen--info" id="screen-info">
     <div class="info-wrap">
-      <h2>Cómo se juega</h2>
+      <h2 id="info-h1">Cómo se juega</h2>
       <p id="info-intro"></p>
 
-      <h3>Elementos del tablero</h3>
+      <h3 id="info-h2">Elementos del tablero</h3>
       <div class="info-item"><span class="ico">🗡️</span><span class="txt" id="info-item-dmg"></span></div>
       <div class="info-item"><span class="ico">◈</span><span class="txt" id="info-item-def"></span></div>
       <div class="info-item"><span class="ico">✖️</span><span class="txt" id="info-item-trap"></span></div>
       <div class="info-item"><span class="ico"><span class="ring-ic"></span></span><span class="txt" id="info-item-ring"></span></div>
 
-      <h3>El duelo</h3>
+      <h3 id="info-h3">El duelo</h3>
       <p id="info-duel-intro"></p>
       <div class="info-zone-row"><span class="swatch" style="background:var(--good)"></span> <span id="info-zone-green"></span></div>
       <div class="info-zone-row"><span class="swatch" style="background:var(--warn)"></span> <span id="info-zone-yellow"></span></div>
@@ -108,14 +131,15 @@
       <p id="info-perfect-cancels"></p>
       <p id="info-score-decay"></p>
 
-      <h3>Detalles</h3>
+      <h3 id="info-h4">Detalles</h3>
       <p id="info-mercy"></p>
       <p id="info-walls"></p>
+      <p id="info-chaos"></p>
 
       <div class="info-ver" id="info-ver"></div>
 
       <button class="btn btn--ghost" id="btn-info-back" style="margin-top:8px;">Volver</button>
-      <p class="page-credit">Sin © 2026<br>Creado por lucio</p>
+      <p class="page-credit" id="page-credit">Sin © 2026<br>Creado por lucio<br><a href="https://guerra-sur.web.app/" target="_blank" rel="noopener">guerra-sur.web.app</a></p>
     </div>
   </section>
 
@@ -123,16 +147,17 @@
     <div class="brand">
       <div class="brand__mark">
         <span class="brand__dot"></span>
-        <span class="brand__kicker">modo offline</span>
+        <span class="brand__kicker" id="offline-kicker">modo offline</span>
       </div>
       <h1 class="brand__name">Offline</h1>
-      <p class="brand__tag">Jugá sin conexión contra la máquina.</p>
+      <p class="brand__tag" id="offline-tag">Jugá sin conexión contra la máquina.</p>
     </div>
     <div class="actions">
       <button class="btn btn--primary" id="btn-campaign">Campaña</button>
       <button class="btn btn--outline" id="btn-quick">Partida rápida</button>
       <button class="btn btn--outline" id="btn-tournament">🏆 Torneo</button>
-      <button class="btn btn--outline" id="btn-walls">🧱 Paredes <span class="beta-tag">beta</span></button>
+      <button class="btn btn--outline" id="btn-walls"><span id="btn-walls-label">🧱 Paredes</span> <span class="beta-tag">beta</span></button>
+      <button class="btn btn--outline" id="btn-chaos"><span id="btn-chaos-label">🌀 Caos</span> <span class="beta-tag">beta</span></button>
       <button class="btn btn--ghost" id="btn-offline-back" style="margin-top:4px; opacity:.75;">Volver</button>
     </div>
   </section>
@@ -140,27 +165,28 @@
   <section class="screen screen--lobby" id="screen-lobby">
     <div id="lobby-created" style="display:flex; flex-direction:column; align-items:center; gap:34px;">
       <div class="lobby-status">
-        <span class="lobby-eyebrow">Compartí este código</span>
+        <span class="lobby-eyebrow" id="lobby-eyebrow-share">Compartí este código</span>
         <div class="code-display" id="code-out">––––</div>
-        <p class="lobby-hint">Tu rival lo ingresa en "Unirme con código" y empiezan.</p>
+        <p class="lobby-hint" id="lobby-hint">Tu rival lo ingresa en "Unirme con código" y empiezan.</p>
         <button class="btn btn--outline" id="btn-share" style="max-width:260px;">🔗 Compartir invitación</button>
         <div class="mode-select" id="mode-select">
-          <span class="mode-select__label">Modo de juego</span>
+          <span class="mode-select__label" id="mode-select-label">Modo de juego</span>
           <div class="mode-select__opts">
             <button class="mode-opt" id="mode-single" data-mode="single">
-              <span class="mode-opt__name">Partida única</span>
-              <span class="mode-opt__desc">Un duelo y listo.</span>
+              <span class="mode-opt__name" id="mode-single-name">Partida única</span>
+              <span class="mode-opt__desc" id="mode-single-desc">Un duelo y listo.</span>
             </button>
             <button class="mode-opt is-on" id="mode-bo5" data-mode="bo5">
-              <span class="mode-opt__name">Mejor de 3</span>
-              <span class="mode-opt__desc">Serie: gana el primero en llegar a 2.</span>
+              <span class="mode-opt__name" id="mode-bo5-name">Mejor de 3</span>
+              <span class="mode-opt__desc" id="mode-bo5-desc">Serie: gana el primero en llegar a 2.</span>
             </button>
             <button class="mode-opt" id="mode-t4" data-mode="t4">
-              <span class="mode-opt__name">🏆 Torneo x4</span>
-              <span class="mode-opt__desc">Hasta 4 jugadores, llaves eliminatorias.</span>
+              <span class="mode-opt__name" id="mode-t4-name">🏆 Torneo x4</span>
+              <span class="mode-opt__desc" id="mode-t4-desc">Hasta 4 jugadores, llaves eliminatorias.</span>
             </button>
           </div>
-          <button class="walls-toggle" id="walls-toggle">🧱 Modo Paredes <span class="beta-tag">beta</span><span class="walls-toggle__state" id="walls-state">off</span></button>
+          <button class="walls-toggle" id="walls-toggle"><span id="walls-toggle-label">🧱 Modo Paredes</span> <span class="beta-tag">beta</span><span class="walls-toggle__state" id="walls-state">off</span></button>
+          <button class="walls-toggle" id="chaos-toggle"><span id="chaos-toggle-label">🌀 Modo Caos</span> <span class="beta-tag">beta</span><span class="walls-toggle__state" id="chaos-state">off</span></button>
         </div>
         <div id="ot-box" style="display:none;">
           <div id="ot-list"></div>
@@ -176,9 +202,9 @@
 
     <div id="lobby-join" style="display:none; flex-direction:column; align-items:center; gap:30px;">
       <div class="lobby-status">
-        <label class="label" for="join-name" style="align-self:flex-start;">Tu nombre</label>
+        <label class="label" for="join-name" id="join-name-label" style="align-self:flex-start;">Tu nombre</label>
         <input class="input" id="join-name" type="text" placeholder="Jugador" autocomplete="off" maxlength="40" style="max-width:260px;" />
-        <span class="lobby-eyebrow" style="margin-top:14px;">Ingresá el código</span>
+        <span class="lobby-eyebrow" id="lobby-eyebrow-code" style="margin-top:14px;">Ingresá el código</span>
         <input class="input code-input" id="code-in" type="text" maxlength="4" placeholder="––––" autocomplete="off" />
       </div>
       <div class="actions" style="width:100%;">
@@ -211,7 +237,7 @@
     </div>
 
     <div class="tourney-bar" id="tourney-bar" style="display:none;">
-      <span class="tourney-bar__label">🏆 Torneo</span>
+      <span class="tourney-bar__label" id="tourney-bar-label">🏆 Torneo</span>
       <span class="tourney-bar__count" id="tourney-count">1/8</span>
     </div>
 
@@ -343,7 +369,7 @@
     <div class="roulette-overlay" id="roulette-overlay" style="display:none;">
       <div class="roulette-box">
         <div class="roulette-item" id="roulette-item">🗡️</div>
-        <div class="roulette-caption">¿quién se lo lleva?</div>
+        <div class="roulette-caption" id="roulette-caption">¿quién se lo lleva?</div>
         <div class="roulette-names">
           <span class="roulette-name" id="roulette-name-you">Vos</span>
           <span class="roulette-name" id="roulette-name-opp">Rival</span>
@@ -371,7 +397,7 @@
 
   <section class="screen" id="screen-othub">
     <div class="result-verdict" style="text-align:center;">
-      <span class="result-eyebrow">Torneo online</span>
+      <span class="result-eyebrow" id="othub-eyebrow">Torneo online</span>
       <h2 class="result-title" id="othub-title" style="font-size:34px;">—</h2>
       <p class="result-score" id="othub-sub" style="font-size:15px;">—</p>
     </div>
@@ -391,7 +417,7 @@
 
   <section class="screen screen--bracket" id="screen-bracket">
     <div class="bracket-head">
-      <span class="bracket-eyebrow">Torneo</span>
+      <span class="bracket-eyebrow" id="bracket-eyebrow">Torneo</span>
       <h2 class="bracket-title" id="bracket-title">Próximo combate</h2>
     </div>
     <div class="bracket-grid">
@@ -416,14 +442,14 @@
   <!-- Campaña: menú de confirmación de inicio (fondo plano, se desvanece al confirmar) -->
   <div class="user-overlay" id="user-overlay" hidden>
     <div class="user-box">
-      <span class="camp-eyebrow">Cuenta</span>
+      <span class="camp-eyebrow" id="user-eyebrow">Cuenta</span>
       <h2 class="camp-title" id="user-title">Creá tu <b>usuario</b></h2>
       <p class="user-hint" id="user-hint"></p>
       <div class="user-stats" id="user-stats" style="display:none;">
-        <div class="user-stats__row"><span>Partidas ganadas</span><b id="us-gamesWon">0</b></div>
-        <div class="user-stats__row"><span>Kills</span><b id="us-kills">0</b></div>
-        <div class="user-stats__row"><span>Torneos ganados</span><b id="us-tournamentsWon">0</b></div>
-        <div class="user-stats__ach">🏆 Logros <span class="user-stats__soon">Todavía no</span></div>
+        <div class="user-stats__row"><span id="us-label-gamesWon">Partidas ganadas</span><b id="us-gamesWon">0</b></div>
+        <div class="user-stats__row"><span id="us-label-kills">Kills</span><b id="us-kills">0</b></div>
+        <div class="user-stats__row"><span id="us-label-tournamentsWon">Torneos ganados</span><b id="us-tournamentsWon">0</b></div>
+        <div class="user-stats__ach"><span id="us-label-achievements">🏆 Logros</span> <span class="user-stats__soon" id="us-label-soon">Todavía no</span></div>
       </div>
       <input class="input" id="user-input" type="text" placeholder="usuario" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="15" />
       <input class="input" id="user-pass" type="password" placeholder="contraseña" autocomplete="off" maxlength="40" />
@@ -439,7 +465,7 @@
 
   <div class="camp-overlay" id="camp-overlay" hidden>
     <div class="camp-box" id="camp-box">
-      <span class="camp-eyebrow">Campaña</span>
+      <span class="camp-eyebrow" id="camp-eyebrow">Campaña</span>
       <h2 class="camp-title" id="camp-title">¿Comenzar campaña?</h2>
       <div class="camp-actions">
         <button class="btn btn--primary" id="camp-yes">Comenzar</button>
@@ -451,17 +477,17 @@
   <section class="screen screen--lab" id="screen-lab">
     <div class="lab-head">
       <h2 class="lab-title">🧪 Laboratorio</h2>
-      <p class="lab-sub">Ajustá el balance en vivo. Los cambios aplican a las próximas partidas.</p>
+      <p class="lab-sub" id="lab-sub">Ajustá el balance en vivo. Los cambios aplican a las próximas partidas.</p>
     </div>
     <div class="lab-body" id="lab-body"><!-- sliders generados por JS --></div>
-    <div class="lab-group">Debug</div>
+    <div class="lab-group" id="lab-group-debug">Debug</div>
     <label class="lab-toggle">
       <input type="checkbox" id="lab-force-perfect">
-      <span>Forzar PERFECTO siempre (testing)</span>
+      <span id="lab-force-perfect-label">Forzar PERFECTO siempre (testing)</span>
     </label>
-    <div class="lab-group">Acciones rápidas</div>
+    <div class="lab-group" id="lab-group-actions">Acciones rápidas</div>
     <div class="lab-actions">
-      <button class="btn btn--outline" id="lab-spawn-ring"><span class="ring-ic"></span> Spawnear anillo</button>
+      <button class="btn btn--outline" id="lab-spawn-ring"><span class="ring-ic"></span> <span id="lab-spawn-ring-label">Spawnear anillo</span></button>
     </div>
     <div class="lab-actions">
       <button class="btn btn--outline" id="lab-export">⬇ Exportar JSON</button>
@@ -480,6 +506,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.3.10" defer></script>
+<script src="game.js?v=v0.3.17" defer></script>
 </body>
 </html>

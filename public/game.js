@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.10';
+const VERSION = 'v0.3.17';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -183,13 +183,12 @@ const User = {
     // El botón es un ícono (top-controls, junto al tema) — no tocar su SVG.
     const btn = $('btn-user');
     if(btn){
-      btn.title = this.name ? ('Usuario: '+this.name) : 'Crear usuario';
+      btn.title = this.name ? fillText('userTooltipNamed', {name:this.name}) : TEXTS.userTooltipCreate;
       btn.classList.toggle('has-user', !!this.name);
     }
     const foot = $('home-foot');
     if(foot){
-      const base = DEMO ? 'Modo práctica activo. Conectá Firebase para jugar online con un amigo.'
-                        : 'Online activo · creá una sala y pasá el código.';
+      const base = DEMO ? TEXTS.homeFootDemo : TEXTS.homeFootOnline;
       foot.textContent = this.name ? ('👤 '+this.name+' · '+base) : base;
     }
   },
@@ -262,11 +261,14 @@ const App = {
   scoreOpp: 0,
   roundHist: [],         // historial de rondas de la serie: 'you' | 'opp' (para los puntos)
   wallsMode: false,      // Modo Paredes (experimental)
+  chaosMode: false,      // Modo Caos (experimental): cofres, portales y más
 };
 
 // Entra/sale de modos con tablero especial (ajusta el tamaño global).
-function enterWallsMode(){ App.wallsMode = true;  CFG.boardSize = CFG.wallsBoardSize; }
-function exitSpecialMode(){ App.wallsMode = false; CFG.boardSize = CFG.boardSizeDefault; Walls.clear(); }
+// Paredes y Caos son mutuamente excluyentes: cada enter apaga al otro.
+function enterWallsMode(){ App.wallsMode = true;  App.chaosMode = false; CFG.boardSize = CFG.wallsBoardSize; }
+function enterChaosMode(){ App.chaosMode = true;  App.wallsMode = false; CFG.boardSize = CFG.boardSizeDefault; Walls.clear(); }
+function exitSpecialMode(){ App.wallsMode = false; App.chaosMode = false; CFG.boardSize = CFG.boardSizeDefault; Walls.clear(); }
 // La serie online es "mejor de 3": gana quien llega a 2 rondas. (El valor
 // interno del modo sigue siendo 'bo5' para no tocar el wire/las reglas.)
 const BO5_TARGET = 2;
@@ -480,7 +482,7 @@ const $ = id => document.getElementById(id);
 function show(screen){
   // Al volver al inicio sin partida activa, restaurar el tablero normal si
   // veníamos de un modo especial (evita arrastrar 9x9 + paredes al modo normal).
-  if(screen==='home' && App.wallsMode && !G.running){ exitSpecialMode(); }
+  if(screen==='home' && (App.wallsMode || App.chaosMode) && !G.running){ exitSpecialMode(); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('is-active'));
   $('screen-'+screen).classList.add('is-active');
   App.screen = screen;
@@ -489,6 +491,8 @@ function show(screen){
   // usuario solo en el inicio.
   const tb = $('btn-theme');
   if(tb) tb.classList.toggle('is-hidden', screen === 'game');
+  const lb = $('btn-lang');
+  if(lb) lb.classList.toggle('is-hidden', screen === 'game');
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', screen !== 'home');
   const ub = $('btn-user');
@@ -640,6 +644,16 @@ const CFG = {
   ringHealUnder: 14,         // HP máximo del que lo agarra para la cura grande (era 40)
   ringDripHeal: 2,           // cura por ronda si no cumple (era 5 con maxHp 100)
   ringDripRounds: 5,         // cantidad de rondas de cura chica
+  chestCount: 2,        // 🌀 Modo Caos: cofres sorpresa en el tablero
+  chestHeal: 8,         // curación si el cofre sale "curación"
+  bombCount: 2,         // 🌀 Modo Caos: bombas en el tablero
+  bombFuse: 2,          // resoluciones de turno entre armado y explosión
+  bombDamage: 12,       // daño de la explosión (con piedad: nunca mata)
+  bombArea: 0,          // 0 = cruz (5 casillas) · 1 = 3x3 (9 casillas)
+  highCount: 3,         // 🌀 Modo Caos: casillas de terreno alto
+  highBonus: 2,         // daño extra por duelar parado en terreno alto
+  bootsCount: 1,        // 🌀 Modo Caos: botas de doble paso en el tablero
+  bootsRange: 2,        // alcance del movimiento con botas (radio, 1 pick)
   duelCountdownMs: 800,
   duelCycleDuration: 1.8,
   cpuDesperateTrapRatio: 0.6,
@@ -652,7 +666,7 @@ const CFG = {
 // archivo. Mismo patrón que CFG/config/: defaults acá, overrides opcionales
 // en Firebase (nodo `texts/`, sparse), aplicados una vez al cargar por
 // applyRemoteTexts(). Los `{placeholder}` se rellenan en runtime con fillText().
-const TEXTS = {
+const TEXTS_ES = {
   // --- Desconexión / abandono / inactividad ---
   abandonFlavorPool: 'Al parecer sos intimidante\nTe tuvieron miedo\nLo llamaron a comer',
   toastOpponentWaiting: 'Rival desconectado… esperando reconexión',
@@ -711,6 +725,16 @@ const TEXTS = {
   userHintSession: 'Sesión iniciada. Podés entrar con este usuario desde cualquier dispositivo.',
   userHintNoPassword: 'Tu usuario todavía no tiene contraseña. Creá una para poder entrar desde otro dispositivo (y para no perderlo).',
   toastWallsNotOnlineTourney: 'El Modo Paredes no está disponible en el torneo online.',
+  toastChaosNotOnlineTourney: 'El Modo Caos no está disponible en el torneo online.',
+  chestGotAtk: '🎁 {name}: 🗡️ +daño',
+  chestGotDef: '🎁 {name}: ◈ +defensa',
+  chestGotHeal: '🎁 {name}: +{hp} HP',
+  chestTrap: '🎁 {name}: ¡era una trampa!',
+  chestTeleport: '🎁 {name}: ¡teletransporte!',
+  bombArmed: '💣 Bomba activada: ¡alejate!',
+  bombExploded: '💥 ¡BUM!',
+  bootsPicked: '👟 {name}: doble paso en el próximo turno',
+  infoChaos: '<b>Modo Caos</b> (beta): cofres sorpresa 🎁, portales 🌀, bombas con mecha 💣, terreno alto ⛰️ y botas de doble paso 👟. En el menú offline o con el toggle 🌀 online (no en torneo x4).',
   toastLabAdminsOnly: 'El laboratorio es solo para admins.',
   toastCodeLength: 'El código tiene 4 caracteres.',
   toastPracticeMode: 'Modo práctica: jugás contra la CPU.',
@@ -836,7 +860,252 @@ const TEXTS = {
   campaignToBeContinued: 'Continuará…',
   waitTextCpuFill: 'Los lugares libres se completan con CPUs',
   waitTextHostWillStart: 'Esperando que el anfitrión inicie…',
+
+  // --- Textos antes hardcodeados en JS (v0.3.16, i18n) ---
+  btnCampaign: 'Campaña',
+  btnCampaignContinue: '▶ Continuar campaña',
+  userTitleRegister: 'Creá tu <b>usuario</b>',
+  userTitleLogin: 'Iniciar <b>sesión</b>',
+  userBtnRegister: 'Crear cuenta',
+  userBtnLogin: 'Entrar',
+  userBtnCreatePassword: 'Crear contraseña',
+  userSwitchToLogin: '¿Ya tenés usuario? Iniciá sesión',
+  userSwitchToRegister: '¿No tenés usuario? Creá uno',
+  userSwitchOther: 'Entrar con otro usuario',
+  btnRematch: 'Revancha',
+  bracketTitleStart: '¡Comienza el torneo!',
+  bracketTitleNext: 'Próximo combate',
+  userTooltipNamed: 'Usuario: {name}',
+  userTooltipCreate: 'Crear usuario',
+  homeFootDemo: 'Modo práctica activo. Conectá Firebase para jugar online con un amigo.',
+  homeFootOnline: 'Online activo · creá una sala y pasá el código.',
 };
+
+// ===== 🌐 Idioma (v0.3.16) =====
+// Traducciones al inglés de TEXTS_ES. Claves ausentes acá (p.ej. nombres
+// propios de personajes: rosterNameX, cpuNamesPool, oppNamePractice,
+// campaignOpp1Name) se dejan sin traducir a propósito — son nombres, no
+// cambian entre idiomas. TEXTS_ES sigue siendo la base editable desde
+// /admin/ (los overrides remotos solo aplican en español, ver refreshTexts()).
+const TEXTS_EN = {
+  abandonFlavorPool: 'Seems like you\'re intimidating\nThey got scared\nSomeone called them for dinner',
+  toastOpponentWaiting: 'Opponent disconnected… waiting for reconnection',
+  msgOpponentWaiting: '⚠️ Opponent disconnected — waiting…',
+  toastOpponentBack: 'Opponent reconnected ✓',
+  toastTourneyOppLeft: 'Your rival left — you advance',
+  resultAbandonNote: '(by forfeit…)',
+  resultVictoryTitle: 'VICTORY',
+  toastSeriesOppLeft: 'Your rival left the series.',
+  toastRoomOppLeft: 'Your rival left the room.',
+  toastRoomClosed: 'The room was closed.',
+  toastIdleAutoMove: 'You moved automatically due to inactivity ({streak}/{max})',
+  toastIdleForfeit: 'You were disconnected for inactivity — you lost the match.',
+  toastMoveError: 'Error sending move.',
+
+  howtoTitle: 'How to play',
+  howtoText: 'Move around the board. Grab swords and shields, and avoid the crosses. When you meet your rival, duel.',
+  howtoLegendAtk: '+damage next duel',
+  howtoLegendDef: '+defense next duel',
+  howtoLegendDown: 'direct damage',
+  howtoHint: 'In the duel: stop the needle in the green zone.',
+
+  infoIntro: 'Move one tile per turn (diagonals included). Both players choose and move at the same time. Goal: reach the duel with an advantage and empty your rival\'s health.',
+  infoItemDmg: '<b>Damage power.</b> Adds damage to your hits. It stacks.',
+  infoItemDef: '<b>Defense power.</b> Reduces the damage you take. It also stacks.',
+  infoItemTrap: '<b>Trap.</b> Costs you health if you step on it, but it never kills you. Better to avoid it.',
+  infoItemRing: '<b>Ring.</b> Rare. Heals a lot at once if you\'re badly hurt, or bit by bit over several rounds if not.',
+  infoDuelIntro: 'When you meet your rival, a reflex duel starts: stop the needle in the best possible zone.',
+  infoZoneGreen: '<b>Green</b> — good hit.',
+  infoZoneYellow: '<b>Yellow</b> — medium hit.',
+  infoZoneOrange: '<b>Orange</b> — weak hit.',
+  infoZoneRed: '<b>Red</b> — almost no damage.',
+  infoPerfect: 'In the center of the green there\'s a thin strip: the <b>PERFECT</b>. It\'s worth double and doubles your damage power, but only on the <b>first pass</b>.',
+  infoPerfectCancels: 'A PERFECT <b>cancels your rival\'s powers</b> if they didn\'t also land a perfect.',
+  infoScoreDecay: 'The more passes it takes you to stop, the less red is worth. The higher score wins; the loser still deals some damage.',
+  infoMercy: 'Winning a duel or stepping on a trap never kills you: only <b>losing</b> a duel can. Shared item: even coin flip.',
+  infoWalls: '<b>Walls Mode</b> (beta): bigger map with walls that block straight passage, can be bordered diagonally. In the offline menu or with the 🧱 online toggle (not in the 4-player tournament).',
+
+  toastRingBig: '{ring} {who} +{heal} HP',
+  toastRingDrip: '{ring} {who} +{heal} HP x{rounds}',
+  toastTourneyFinal: 'To the final! ⚔️',
+  toastNeedConnection: 'The online tournament needs a connection.',
+  toastCreateRoomFirst: 'Create the room first.',
+  toastChangeModeBeforeJoin: 'Change the mode before your rival joins.',
+  toastTourneyFull: 'There are already players in the tournament.',
+  toastTourneyStartFail: 'Could not start the tournament.',
+  toastCreateRoomFail: 'Could not create the room. Check your connection.',
+  waitTextWaitingOpp: 'Waiting for rival…',
+  waitTextOppLeft: 'Your rival left — waiting for another…',
+  waitTextPracticeAvailable: 'Practice mode available',
+  userHintRegister: 'Unique and permanent, always lowercase. With a password you\'ll be able to log in from any device. Each match\'s nickname is chosen separately, as always.',
+  userHintLogin: 'Log in with your username and password.',
+  userHintSession: 'Session started. You can log in with this username from any device.',
+  userHintNoPassword: 'Your username doesn\'t have a password yet. Create one to log in from another device (and to not lose it).',
+  toastWallsNotOnlineTourney: 'Walls Mode isn\'t available in the online tournament.',
+  toastChaosNotOnlineTourney: 'Chaos Mode isn\'t available in the online tournament.',
+  chestGotAtk: '🎁 {name}: 🗡️ +damage',
+  chestGotDef: '🎁 {name}: ◈ +defense',
+  chestGotHeal: '🎁 {name}: +{hp} HP',
+  chestTrap: '🎁 {name}: it was a trap!',
+  chestTeleport: '🎁 {name}: teleport!',
+  bombArmed: '💣 Bomb armed: get away!',
+  bombExploded: '💥 BOOM!',
+  bootsPicked: '👟 {name}: double step next turn',
+  infoChaos: '<b>Chaos Mode</b> (beta): surprise chests 🎁, portals 🌀, timed bombs 💣, high ground ⛰️ and double-step boots 👟. In the offline menu or with the 🌀 online toggle (not in the 4-player tournament).',
+  toastLabAdminsOnly: 'The lab is admins-only.',
+  toastCodeLength: 'The code is 4 characters.',
+  toastPracticeMode: 'Practice mode: you play against the CPU.',
+  toastRoomNotFound: 'That room doesn\'t exist.',
+  toastRoomFull: 'The room is already full.',
+  toastJoinFail: 'Could not join the room.',
+  toastConnectionError: 'Connection error.',
+  toastWaitForCode: 'Wait for the code to be generated.',
+  toastLinkCopiedClipboard: 'Link copied to clipboard ✓',
+  toastLinkCopied: 'Link copied ✓',
+  toastYourLink: 'Your link: {url}',
+  toastInviteDetected: 'Invite detected · pick your name and join',
+  toastUserCreated: 'User "{user}" created ✓',
+  toastSessionStarted: 'Session started: {user} ✓',
+  toastPasswordCreated: 'Password created ✓',
+  toastSessionClosed: 'Session closed',
+
+  errUserFormat: 'Username: 3 to 15 characters, lowercase, numbers or _',
+  errPassShort: 'The password needs at least 6 characters.',
+  errUserTaken: 'That username already exists.',
+  errCredentials: 'Incorrect username or password.',
+  errAlreadyLoggedIn: 'You already logged in with a password.',
+  errNoPassword: 'You don\'t have a password yet — create one first.',
+  errNoUser: 'Create your username first.',
+  errNoConnection: 'Connection error. Try again.',
+
+  msgTruce: 'Truce 🛡️ — choose where to move',
+  msgChooseCell: 'Choose an adjacent tile to move to',
+  msgOppChoseFirst: 'Your rival already chose — your turn to move',
+  msgWaitingOpp: 'Waiting for rival…',
+  msgMoving: 'Moving…',
+  msgDuelImminent: 'Duel imminent…',
+  msgRepositioning: 'Repositioning…',
+
+  duelPerfectPrefix: '<b style="color:var(--perfect)">PERFECT</b> · ',
+  duelVerdictWin: '{perfectPrefix}<b style="color:var(--good)">WINS</b> {name}',
+  duelVerdictLose: '{perfectPrefix}<b style="color:var(--bad)">WINS</b> {name}',
+  duelVerdictTie: '<b style="color:var(--warn)">TIE</b>',
+  duelTitleEncounter: 'Encounter!',
+  duelTitleStopGreen: 'Stop in green',
+  duelCountdownGo: 'GO!',
+  duelResultTitle: 'Result',
+  duelTieTitle: 'Tie',
+  duelTieSub: 'Nobody loses health — both get ejected',
+  duelWinTitle: 'You won the duel',
+  duelLoseTitle: 'You lost the duel',
+  duelPerfectSub: '⭐ PERFECT by {name}',
+  duelPassLabel: 'pass {pass}/{max}',
+  duelLastPassLabel: 'last pass',
+  zoneNamePerfect: 'PERFECT',
+  zoneNameGreen: 'Green',
+  zoneNameYellow: 'Yellow',
+  zoneNameOrange: 'Orange',
+  zoneNameRed: 'Red',
+
+  resultFinalEyebrow: 'Final',
+  resultBo5Eyebrow: 'Best of 3 · {scoreYou}–{scoreOpp}',
+  resultTieTitle: 'Tie',
+  resultWinTitle: 'You won',
+  resultLoseTitle: 'You lost',
+  resultWinRoundTitle: 'You won the round',
+  resultLoseRoundTitle: 'You lost the round',
+  resultWinSeriesTitle: '🏆 You won the series',
+  resultLoseSeriesTitle: 'You lost the series',
+  resultScoreRounds: 'Rounds: <b>{scoreYou}</b> – <b>{scoreOpp}</b>',
+  resultScoreHp: '<b>{youHp}</b> HP vs <b>{oppHp}</b> HP',
+  campaignRetryLabel: 'Retry',
+  tourneyChampionTitle: 'Champion!',
+  tourneyChampionScore: 'You beat <b>{name}</b> and won the tournament with <b>{hp}</b> HP left.',
+  tourneyRoundEyebrow: 'Rival {i}/{n}',
+  tourneyBeatOpp: 'You beat {name}',
+  tourneyHpLeft: 'You have <b>{hp}</b> HP left. Next rival is tougher and smarter.',
+  tourneyEliminatedTitle: 'Eliminated',
+  tourneyEliminatedScore: 'You made it to rival <b>{i}/{n}</b> ({name}).',
+  tourneyRetryLabel: 'Retry rival',
+  tourneyChampionEyebrow: '🏆 Tournament',
+  tourneyEyebrow: 'Tournament',
+
+  otChampionTitle: '🏆 You won the tournament',
+  otLostFinalTitle: 'You lost the final',
+  otFinishedTitle: 'Tournament finished',
+  otInProgressTitle: 'Tournament',
+  otEliminatedSub: 'You can spectate the other matches',
+  otSemiWonTitle: 'Semifinal won',
+  otWaitingFinalist: 'Waiting for the other finalist…',
+  otChampionSub: 'Champion: {dot} <b>{name}</b>',
+  otSemi1Label: 'Semifinal 1',
+  otSemi2Label: 'Semifinal 2',
+  otFinalLabel: 'Final',
+  otSpectateBtn: '👁 Spectate',
+  specConnecting: 'Connecting…',
+  specMatchWon: '🏁 {name} won',
+  specCpuVsCpu: '🤖 CPU vs CPU match — resolves itself…',
+  specDuelInProgress: '⚔️ Duel in progress!',
+  specDuelTie: '🤝 Tie ({scoreA}-{scoreB})',
+  specDuelWon: '⚔️ {name} won ({scoreA}-{scoreB})',
+  specTurn: 'Turn {n}',
+  specWaitingData: 'Waiting for data…',
+  otTagYou: 'you',
+  otTagHost: 'host',
+  otTagCpu: 'CPU',
+  otSlotFree: '— free —',
+  otSlotFreeTag: 'CPU on start',
+  campaignStartConfirm: 'Start the campaign as <b>{name}</b>?',
+  campaignToBeContinued: 'To be continued…',
+  waitTextCpuFill: 'Free slots are filled with CPUs',
+  waitTextHostWillStart: 'Waiting for the host to start…',
+
+  btnCampaign: 'Campaign',
+  btnCampaignContinue: '▶ Continue campaign',
+  userTitleRegister: 'Create your <b>username</b>',
+  userTitleLogin: 'Log <b>in</b>',
+  userBtnRegister: 'Create account',
+  userBtnLogin: 'Log in',
+  userBtnCreatePassword: 'Create password',
+  userSwitchToLogin: 'Already have a username? Log in',
+  userSwitchToRegister: 'No username yet? Create one',
+  userSwitchOther: 'Log in with another username',
+  btnRematch: 'Rematch',
+  bracketTitleStart: 'The tournament begins!',
+  bracketTitleNext: 'Next match',
+  userTooltipNamed: 'User: {name}',
+  userTooltipCreate: 'Create account',
+  homeFootDemo: 'Practice mode active. Connect Firebase to play online with a friend.',
+  homeFootOnline: 'Online active · create a room and share the code.',
+};
+
+// Idioma activo: 'es' (default) o 'en'. Se guarda en localStorage ('rally_lang')
+// y se detecta del navegador si el jugador nunca lo eligió (index.html aplica
+// esto mismo ANTES del primer paint para setear <html lang>; acá se replica
+// la detección para que TEXTS arranque ya en el idioma correcto).
+let LANG = 'es';
+(function(){
+  try{
+    const stored = localStorage.getItem('rally_lang');
+    if(stored==='es' || stored==='en'){ LANG = stored; return; }
+  }catch(e){}
+  const attr = document.documentElement.getAttribute('lang');
+  if(attr==='es' || attr==='en'){ LANG = attr; return; }
+  const nav = (navigator.language || 'en').toLowerCase();
+  LANG = nav.indexOf('es')===0 ? 'es' : 'en';
+})();
+
+// TEXTS: copia de trabajo que lee el resto del juego (TEXTS.foo / fillText).
+// Se repuebla desde TEXTS_ES (+ overrides de TEXTS_EN si LANG==='en') cada vez
+// que cambia el idioma o llegan textos remotos. Los overrides de /admin/ solo
+// tocan TEXTS_ES: el panel edita el texto en español, que es la fuente.
+const TEXTS = {};
+function refreshTexts(){
+  for(const k in TEXTS_ES) TEXTS[k] = TEXTS_ES[k];
+  if(LANG === 'en') for(const k in TEXTS_EN) TEXTS[k] = TEXTS_EN[k];
+}
+refreshTexts();
+
 // Rellena {placeholders} de un texto con los valores dados: fillText('Hola {name}', {name:'Lucio'}) → 'Hola Lucio'.
 function fillText(key, vars){
   let s = TEXTS[key] != null ? TEXTS[key] : key;
@@ -1013,13 +1282,25 @@ function buildBoard(){
   placeRandom('power_dmg', CFG.powerDmgCount * scale);
   placeRandom('power_def', CFG.powerDefCount * scale);
   placeRandom('down', CFG.downCount * scale);
+  // Modo Caos: cofres, bombas, terreno alto + un par de portales enlazados.
+  if(App.chaosMode){
+    placeRandom('chest', CFG.chestCount);
+    placeRandom('bomb', CFG.bombCount);
+    placeRandom('high', CFG.highCount);
+    placeRandom('boots', CFG.bootsCount);
+    placeRandom('portal', 2);
+    // Los portales van SIEMPRE de a dos: si no entraron ambos, no va ninguno.
+    if(countItems('portal') !== 2){
+      G.board.forEach(c=>{ if(c.type==='portal') c.type='empty'; });
+    }
+  }
 }
 function cellAt(x,y){ return G.board[y*CFG.boardSize + x]; }
 function countItems(type){ return G.board.filter(c => c.type === type).length; }
 
 // ---- Serialización del tablero para online ----
-const CELL_CODE = { empty:'e', power_dmg:'a', power_def:'d', down:'x', ring:'r' };
-const CODE_CELL = { e:'empty', a:'power_dmg', d:'power_def', x:'down', r:'ring' };
+const CELL_CODE = { empty:'e', power_dmg:'a', power_def:'d', down:'x', ring:'r', chest:'c', portal:'p', bomb:'b', bomb_armed:'B', high:'h', boots:'o' };
+const CODE_CELL = { e:'empty', a:'power_dmg', d:'power_def', x:'down', r:'ring', c:'chest', p:'portal', b:'bomb', B:'bomb_armed', h:'high', o:'boots' };
 function serializeBoard(){
   const cells = G.board.map(c => CELL_CODE[c.type] || 'e').join('');
   // En modo Paredes anteponemos tamaño y paredes: "W<size>~<paredes>~<celdas>".
@@ -1027,9 +1308,26 @@ function serializeBoard(){
   if(App.wallsMode){
     return `W${CFG.boardSize}~${Walls.serialize()}~${cells}`;
   }
+  // Modo Caos: prefijo "C~" para que el guest active el modo al deserializar
+  // (mismo truco que Paredes: el modo viaja en el board, no toca game/mode).
+  if(App.chaosMode){
+    return `C~${cells}`;
+  }
   return cells;
 }
 function deserializeBoard(str){
+  // ¿Formato Modo Caos? "C~<celdas>" (tablero normal 7x7, ítems nuevos)
+  if(typeof str==='string' && str[0]==='C' && str[1]==='~'){
+    enterChaosMode();
+    const cells = str.slice(2);
+    const n = CFG.boardSize;
+    G.board = [];
+    for(let y=0; y<n; y++) for(let x=0; x<n; x++){
+      const ch = cells[y*n + x] || 'e';
+      G.board.push({ x, y, type: CODE_CELL[ch] || 'empty' });
+    }
+    return;
+  }
   // ¿Formato con paredes? "W<size>~<paredes>~<celdas>"
   if(typeof str==='string' && str[0]==='W'){
     const firstSep = str.indexOf('~');
@@ -1038,6 +1336,7 @@ function deserializeBoard(str){
     const wallsStr = str.slice(firstSep+1, secondSep);
     const cells = str.slice(secondSep+1);
     App.wallsMode = true;
+    App.chaosMode = false;
     CFG.boardSize = size;
     Walls.deserialize(wallsStr);
     const n = size;
@@ -1050,6 +1349,7 @@ function deserializeBoard(str){
   }
   // Formato clásico (tablero normal).
   App.wallsMode = false;
+  App.chaosMode = false;
   CFG.boardSize = CFG.boardSizeDefault;
   Walls.clear();
   const n = CFG.boardSize;
@@ -1082,6 +1382,17 @@ function regenerateItems(){
   if(countItems('power_dmg') < CFG.maxPowerDmg){ const p=findEmpty(); if(p) cellAt(p.x,p.y).type='power_dmg'; }
   if(countItems('power_def') < CFG.maxPowerDef){ const p=findEmpty(); if(p) cellAt(p.x,p.y).type='power_def'; }
   const p=findEmpty(); if(p) cellAt(p.x,p.y).type='down';
+  // Modo Caos: reponer cofres y bombas hasta su cantidad inicial (las armadas
+  // cuentan para el cap; portales y terreno alto son fijos)
+  if(App.chaosMode && countItems('chest') < CFG.chestCount){
+    const cp=findEmpty(); if(cp) cellAt(cp.x,cp.y).type='chest';
+  }
+  if(App.chaosMode && (countItems('bomb') + countItems('bomb_armed')) < CFG.bombCount){
+    const bp=findEmpty(); if(bp) cellAt(bp.x,bp.y).type='bomb';
+  }
+  if(App.chaosMode && countItems('boots') < CFG.bootsCount){
+    const op=findEmpty(); if(op) cellAt(op.x,op.y).type='boots';
+  }
   // Anillo multicolor: una vez por partida, raro, avanzada la partida, NO en torneo
   if(!Tourney.active && !G.ringSpawned && G.turnCount>=CFG.ringMinTurn && Math.random()<CFG.ringChancePerTurn){
     const rp=findEmpty();
@@ -1116,6 +1427,12 @@ function appendCellItemIcon(div, type){
   else if(type === 'power_def'){ const s=document.createElement('span'); s.className='item-def'; s.textContent='◈'; div.appendChild(s); }
   else if(type === 'down'){ const s=document.createElement('span'); s.className='down'; s.textContent='×'; div.appendChild(s); }
   else if(type === 'ring'){ const s=document.createElement('span'); s.className='item-ring'; div.appendChild(s); }
+  else if(type === 'chest'){ const s=document.createElement('span'); s.className='item-chest'; s.textContent='🎁'; div.appendChild(s); }
+  else if(type === 'portal'){ const s=document.createElement('span'); s.className='item-portal'; s.textContent='🌀'; div.appendChild(s); }
+  else if(type === 'bomb'){ const s=document.createElement('span'); s.className='item-bomb'; s.textContent='💣'; div.appendChild(s); }
+  else if(type === 'bomb_armed'){ const s=document.createElement('span'); s.className='item-bomb is-armed'; s.textContent='💣'; div.appendChild(s); }
+  else if(type === 'high'){ const s=document.createElement('span'); s.className='item-high'; s.textContent='⛰️'; div.appendChild(s); }
+  else if(type === 'boots'){ const s=document.createElement('span'); s.className='item-boots'; s.textContent='👟'; div.appendChild(s); }
 }
 
 function renderBoard(){
@@ -1124,7 +1441,15 @@ function renderBoard(){
   boardEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
   boardEl.style.gridTemplateRows = `repeat(${n}, 1fr)`;
   boardEl.classList.toggle('is-large', n >= 9);
-  const reachable = G.phase === 'choose' ? getReachable(G.you.x, G.you.y) : [];
+  const youRange = (App.chaosMode && G.you.boots) ? CFG.bootsRange : 1;   // 👟 doble paso
+  const reachable = G.phase === 'choose' ? getReachable(G.you.x, G.you.y, youRange) : [];
+  // 💣 Área de las bombas armadas: aviso sutil en las casillas afectadas
+  const blastWarn = new Set();
+  if(App.chaosMode){
+    G.board.forEach(c=>{
+      if(c.type==='bomb_armed') bombArea(c.x, c.y).forEach(a=>blastWarn.add(a.x+','+a.y));
+    });
+  }
   // Recorremos en orden VISUAL. Para cada celda visual, hallamos su coord canónica.
   for(let vy=0; vy<n; vy++){
     for(let vx=0; vx<n; vx++){
@@ -1133,6 +1458,7 @@ function renderBoard(){
       const x = cn.x, y = cn.y;
       const cell = cellAt(x,y);
       const div = document.createElement('div'); div.className = 'cell'; div.dataset.x = x; div.dataset.y = y;
+      if(blastWarn.has(x+','+y)) div.classList.add('is-blast-warn');
       appendCellItemIcon(div, cell.type);
       const youHere = (G.you.x === x && G.you.y === y);
       const oppHere = (G.opp.x === x && G.opp.y === y);
@@ -1270,13 +1596,17 @@ const Walls = {
   }
 };
 
-function getReachable(x, y){
+// range opcional (default 1): las botas 👟 del Modo Caos habilitan radio 2 por
+// un turno. Solo el paso adyacente chequea paredes — Caos y Paredes son
+// mutuamente excluyentes, así que el radio 2 nunca convive con paredes.
+function getReachable(x, y, range){
+  const r = range || 1;
   const n = CFG.boardSize, out = [];
-  for(let dy=-1; dy<=1; dy++) for(let dx=-1; dx<=1; dx++){
+  for(let dy=-r; dy<=r; dy++) for(let dx=-r; dx<=r; dx++){
     if(dx===0&&dy===0) continue;
     const nx=x+dx, ny=y+dy;
     if(nx>=0&&nx<n&&ny>=0&&ny<n){
-      if(Walls.blocks(x, y, nx, ny)) continue;   // pared entre medio: no se puede pasar
+      if(Math.max(Math.abs(dx),Math.abs(dy))===1 && Walls.blocks(x, y, nx, ny)) continue;
       out.push({x:nx,y:ny});
     }
   }
@@ -1338,7 +1668,7 @@ function startGame(){
     // Si el nodo ANTERIOR de la campaña era un mapa con paredes, este no lo es:
     // volver al tablero normal antes de generar (fuera de campaña no aplica —
     // el modo Paredes de partida rápida usa wallsMode a propósito).
-    if(Campaign.active && App.wallsMode) exitSpecialMode();
+    if(Campaign.active && (App.wallsMode || App.chaosMode)) exitSpecialMode();
     buildBoard();
   }
   const n=CFG.boardSize;
@@ -1353,7 +1683,7 @@ function startGame(){
                : Tourney.active  ? TOURNEY_YOU_HP : CFG.maxHp;
   G.you = {x:n-1,y:n-1,hp:youHp,maxHp:youMax,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   G.opp = {x:0,y:0,hp:oppHp,maxHp:oppHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0;
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[];
   resolveSkins();   // easter egg Messi (offline: solo aplica tu propia skin)
   updateHud(); renderBoard(); startChoosePhase();
   showStartBubbles();
@@ -1375,7 +1705,7 @@ function startOnlineGame(boardStr, role){
     G.you = {x:0,  y:0,  hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
     G.opp = {x:n-1,y:n-1,hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   }
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0;
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[];
   resolveSkins();   // easter egg Messi: define skins/nombre según ambos jugadores
   show('game');
   updateHud(); renderBoard();
@@ -1385,10 +1715,13 @@ function startOnlineGame(boardStr, role){
   Net.onBoardUpdate = (boardStr)=>{
     // Soporta formato con paredes ("W<size>|<paredes>|<celdas>"): solo cambian
     // los ítems, así que extraemos la parte de celdas. Las paredes no varían.
+    // Idem Modo Caos ("C~<celdas>").
     let cells = boardStr;
     if(typeof boardStr==='string' && boardStr[0]==='W'){
       const i2 = boardStr.indexOf('~', boardStr.indexOf('~')+1);
       cells = boardStr.slice(i2+1);
+    } else if(typeof boardStr==='string' && boardStr[0]==='C' && boardStr[1]==='~'){
+      cells = boardStr.slice(2);
     }
     if(cells.length !== CFG.boardSize*CFG.boardSize) return;
     for(let i=0;i<G.board.length;i++){
@@ -1417,7 +1750,7 @@ function onOpponentLeft(){
   if(!G.online || G.phase==='gameover') return;
   G.running=false; G.phase='gameover'; G.online=false;
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
-  $('duel-overlay').classList.remove('is-show');
+  setDuelOverlayShown(false);
   if(OT.active && OT.inMatch){
     toast(TEXTS.toastTourneyOppLeft);
     OT.onMyMatchEnd(Math.max(1, G.you.hp), 0);
@@ -1551,8 +1884,12 @@ function bestConvenientMove(me){
     if(t==='power_dmg') score += 6;
     else if(t==='power_def') score += 5;
     else if(t==='ring') score += 8;
+    else if(t==='chest') score += 5;
+    else if(t==='boots') score += 4;
+    else if(t==='high') score += 1.5;
     else if(t==='empty') score += 1;
     else if(t==='down'){ score -= 14; if(boxedIn) score += 13; }
+    if(App.chaosMode) score -= bombThreatAt(p.x, p.y);   // 💣 evitar el área de explosión
     score += Math.random() * 0.5;   // desempate suave
     return { x:p.x, y:p.y, score };
   });
@@ -1592,8 +1929,23 @@ function onOnlineMovesReady(moves){
   resolveMoves();
 }
 
+// 💣 Peligro de bomba para la IA: cuánto castigar pararse en (x,y).
+// Inminente (explota en la PRÓXIMA resolución: detonateBombs usa el mismo
+// turnCount que esta fase de elección) = casi el daño real; si falta mecha,
+// castigo chico (puede pasar de largo).
+function bombThreatAt(x, y){
+  if(!App.chaosMode || !G.bombs || !G.bombs.length) return 0;
+  let threat = 0;
+  G.bombs.forEach(b=>{
+    if(!bombArea(b.x, b.y).some(c=>c.x===x && c.y===y)) return;
+    threat = Math.max(threat, (G.turnCount - b.armedTurn >= CFG.bombFuse) ? 12 : 3);
+  });
+  return threat;
+}
+
 function cpuDecideMove(){
-  let reachable = getReachable(G.opp.x, G.opp.y);
+  // 👟 Con botas, la CPU también elige en radio 2
+  let reachable = getReachable(G.opp.x, G.opp.y, (App.chaosMode && G.opp.boots) ? CFG.bootsRange : 1);
   const n = CFG.boardSize;
 
   // Rasgo de Marlene: a veces puede moverse 2 casilleros en cualquier dirección
@@ -1648,6 +2000,8 @@ function cpuDecideMove(){
       if(t==='power_dmg') val = 6;
       else if(t==='power_def') val = 5;
       else if(t==='ring') val = 7 + (((G.opp.maxHp||CFG.maxHp) - G.opp.hp)/(G.opp.maxHp||CFG.maxHp))*8;
+      else if(t==='chest') val = 5;      // 🎁 en promedio conviene
+      else if(t==='boots') val = 4;      // 👟 movilidad para el próximo turno
       if(!val) continue;
       const d = Math.max(Math.abs(tx-G.opp.x), Math.abs(ty-G.opp.y));
       const discounted = val - d * 1.2;
@@ -1670,6 +2024,13 @@ function cpuDecideMove(){
       if(losing) score += 2;                              // extra si va perdiendo
     }
     if(cell.type === 'empty')     score += 1;   // base: moverse a vacío es bueno
+    // 🌀 Modo Caos: valoración simple de los ítems nuevos
+    if(cell.type === 'chest')  score += 5;      // 🎁 sorpresa: en promedio conviene
+    if(cell.type === 'boots')  score += 4;      // 👟 doble paso
+    if(cell.type === 'bomb')   score += 1;      // armarla puede ser jugada, sin regalarse
+    if(cell.type === 'high')   score += 1.5;    // ⛰️ bonus si hay duelo
+    if(cell.type === 'portal') score += 0.5;    // 🌀 movilidad
+    if(App.chaosMode) score -= bombThreatAt(p.x, p.y);   // 💣 no pararse donde explota
 
     if(cell.type === 'down'){
       // Regla central: una trampa es la PEOR opción por defecto (−10 HP real).
@@ -1816,22 +2177,58 @@ function resolveMoves(){
     G.opp.history.push(`${G.opp.x},${G.opp.y}`);
     if(G.opp.history.length>6) G.opp.history.shift();
   }
+  // Modo Caos — portales: pisar uno te reubica en el gemelo. Las posiciones
+  // FINALES se calculan ANTES del choque/FLIP para que choque, duelo y efectos
+  // de casilla se evalúen sobre las posiciones ya teleportadas (determinista:
+  // mismo board y mismos movimientos en ambos clientes). Si ambos entran al
+  // MISMO portal es un choque normal ahí y nadie viaja; si entran a portales
+  // distintos, se intercambian (cada gemelo es la entrada del otro).
+  G._teleYou=false; G._teleOpp=false;
+  let youDest={x:G.yourMove.x, y:G.yourMove.y}, oppDest={x:G.oppMove.x, y:G.oppMove.y};
+  if(App.chaosMode && !(youDest.x===oppDest.x && youDest.y===oppDest.y)){
+    const ty=portalTwin(youDest.x, youDest.y), to=portalTwin(oppDest.x, oppDest.y);
+    if(ty){ youDest=ty; G._teleYou=true; }
+    if(to){ oppDest=to; G._teleOpp=true; }
+  }
   // Si ambos caen en la MISMA casilla, renderBoard() les aplica su propio
   // transform de choque (.is-clash) — no animamos ese caso puntual para no
   // pelear con ese offset ya afinado.
-  const willClash = (G.yourMove.x===G.oppMove.x && G.yourMove.y===G.oppMove.y);
+  const willClash = (youDest.x===oppDest.x && youDest.y===oppDest.y);
   const youOldRect = willClash ? null : getMarkerRect('is-you');
   const oppOldRect = willClash ? null : getMarkerRect('is-opp');
-  G.you.x=G.yourMove.x; G.you.y=G.yourMove.y; G.opp.x=G.oppMove.x; G.opp.y=G.oppMove.y;
-  const sharedBuff = applySharedCellEffects();
+  G.you.x=youDest.x; G.you.y=youDest.y; G.opp.x=oppDest.x; G.opp.y=oppDest.y;
+  // 👟 Doble paso: el buff cubría ESTE movimiento y se consume (lo haya usado
+  // o no) ANTES de los efectos — pisar otras botas ahora lo re-otorga.
+  if(App.chaosMode){ G.you.boots=false; G.opp.boots=false; }
+  const sharedBuff = applySharedCellEffects();   // puede teleportar por cofre (flags G._tele*)
   applyRingDrip(G.you); applyRingDrip(G.opp);
+  // 💣 Bombas con mecha vencida: detonar ANTES del render (piedad: no matan)
+  const blastCells = App.chaosMode ? detonateBombs() : null;
   // La tregua se cumple en cuanto ambos se mueven: quitar la burbuja YA,
   // antes de redibujar, para que no quede un instante en la casilla nueva.
   const wasTruce = G.justDueled;
   G.justDueled = false;
   Sound.step(); haptic(10); renderBoard(); updateHud();
-  flipMarker('is-you', youOldRect);
-  flipMarker('is-opp', oppOldRect);
+  // Los teleportados (portal o cofre) no se deslizan con FLIP: aparecen en
+  // destino con su propio efecto visual (el próximo renderBoard limpia el fx).
+  flipMarker('is-you', G._teleYou ? null : youOldRect);
+  flipMarker('is-opp', G._teleOpp ? null : oppOldRect);
+  if(G._teleYou || G._teleOpp){
+    [[G._teleYou, G.you], [G._teleOpp, G.opp]].forEach(([tele, pl])=>{
+      if(!tele) return;
+      // data-x/data-y son canónicos (a prueba del espejo del guest)
+      const cell = document.querySelector(`.cell[data-x="${pl.x}"][data-y="${pl.y}"]`);
+      if(cell){ const fx=document.createElement('div'); fx.className='portal-fx'; cell.appendChild(fx); }
+    });
+    Sound.pickupDef && Sound.pickupDef(); haptic([10,25,10]);
+  }
+  // 💥 Flash one-shot en las casillas alcanzadas por una explosión
+  if(blastCells){
+    blastCells.forEach(c=>{
+      const cell = document.querySelector(`.cell[data-x="${c.x}"][data-y="${c.y}"]`);
+      if(cell){ const fx=document.createElement('div'); fx.className='bomb-fx'; cell.appendChild(fx); }
+    });
+  }
   // Impacto visual al caer AMBOS en la misma casilla: onda expansiva one-shot
   // + pop de aterrizaje de las fichas (el próximo renderBoard() limpia todo).
   if(willClash){
@@ -1952,12 +2349,12 @@ function applySharedCellEffects(){
   const sameCell = (G.you.x===G.opp.x && G.you.y===G.opp.y);
   if(sameCell){
     const cell = cellAt(G.you.x, G.you.y);
-    if(cell.type==='power_dmg' || cell.type==='power_def' || cell.type==='ring'){
+    if(cell.type==='power_dmg' || cell.type==='power_def' || cell.type==='ring' || cell.type==='chest' || cell.type==='boots'){
       // Sorteo determinista: depende del turno y la posición (igual en ambos clientes)
       const seed = (G.turnCount*31 + G.you.x*7 + G.you.y*13) % 2;
       const youWins = (seed===0);
       const winner = youWins ? G.you : G.opp;
-      const itemEmoji = cell.type==='power_dmg' ? '🗡️' : (cell.type==='power_def' ? '◈' : '💍');
+      const itemEmoji = { power_dmg:'🗡️', power_def:'◈', chest:'🎁', boots:'👟', ring:'💍' }[cell.type];
       applyCellEffect(winner);                 // solo uno recibe el ítem/anillo
       cell.type='empty';                       // la casilla queda vacía para el otro
       // Devuelve la info para la ruleta visual (el sorteo ya está aplicado)
@@ -1968,6 +2365,11 @@ function applySharedCellEffects(){
       applyCellEffect(G.you);
       // la casilla ya se consumió; aplicar daño al otro manualmente
       G.opp.hp = Math.max(1, G.opp.hp - CFG.downDamage);
+      return null;
+    }
+    if(cell.type==='bomb'){
+      // Bomba compartida: se arma UNA vez (ambos están parados encima)
+      applyCellEffect(G.you);
       return null;
     }
     return null; // casilla vacía
@@ -2003,6 +2405,124 @@ function applyCellEffect(player){
       toast(`{ring} ${who} +${CFG.ringDripHeal} HP x${CFG.ringDripRounds}`);
     }
   }
+  else if(cell.type==='chest'){
+    cell.type='empty';
+    applyChestEffect(player);
+  }
+  else if(cell.type==='boots'){
+    cell.type='empty';
+    player.boots = true;   // el PRÓXIMO movimiento puede ser a radio 2 (un pick)
+    Sound.pickupDef && Sound.pickupDef();
+    toast(fillText('bootsPicked', {name:(player===G.you)?App.playerName:App.oppName}));
+  }
+  else if(cell.type==='bomb'){
+    // Pisarla la ARMA: explota CFG.bombFuse resoluciones después (detonateBombs).
+    // armedTurn usa el turnCount PRE-incremento (applyCellEffect corre antes
+    // del turnCount++ de resolveMoves) — igual en ambos clientes.
+    cell.type='bomb_armed';
+    if(!G.bombs) G.bombs=[];
+    G.bombs.push({ x: player.x, y: player.y, armedTurn: G.turnCount });
+    Sound.trap && Sound.trap();
+    toast(TEXTS.bombArmed);
+  }
+}
+
+// ---- 💣 Modo Caos: bombas ----
+// Casillas afectadas por la explosión: cruz (5) o 3x3 (9) según CFG.bombArea.
+function bombArea(bx, by){
+  const cells = [{x:bx, y:by}];
+  const deltas = CFG.bombArea
+    ? [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]]
+    : [[0,-1],[-1,0],[1,0],[0,1]];
+  const n = CFG.boardSize;
+  deltas.forEach(([dx,dy])=>{
+    const x=bx+dx, y=by+dy;
+    if(x>=0 && y>=0 && x<n && y<n) cells.push({x,y});
+  });
+  return cells;
+}
+
+// Detona las bombas cuya mecha venció (turnCount PRE-incremento, ver el
+// armado). Corre en resolveMoves ANTES del render: determinista, ambos
+// clientes computan lo mismo. Piedad como las trampas: nunca mata (floor 1).
+// Devuelve las casillas afectadas (para el fx post-render) o null.
+function detonateBombs(){
+  if(!G.bombs || !G.bombs.length) return null;
+  const due = G.bombs.filter(b => G.turnCount - b.armedTurn >= CFG.bombFuse);
+  if(!due.length) return null;
+  G.bombs = G.bombs.filter(b => G.turnCount - b.armedTurn < CFG.bombFuse);
+  const hitCells = [];
+  let someoneHit = false;
+  due.forEach(b=>{
+    cellAt(b.x, b.y).type = 'empty';
+    bombArea(b.x, b.y).forEach(c=>{
+      hitCells.push(c);
+      [G.you, G.opp].forEach(pl=>{
+        if(pl.x===c.x && pl.y===c.y){ pl.hp = Math.max(1, pl.hp - CFG.bombDamage); someoneHit = true; }
+      });
+    });
+  });
+  Sound.trap && Sound.trap();
+  haptic(someoneHit ? [20,50,20] : [12,25,12]);
+  toast(TEXTS.bombExploded);
+  return hitCells;
+}
+
+// ---- 🌀 Modo Caos: helpers de portal y cofre ----
+// Devuelve el portal GEMELO de la casilla (x,y), o null si (x,y) no es portal.
+// Los portales van siempre de a dos (garantizado en buildBoard).
+function portalTwin(x, y){
+  if(cellAt(x,y).type !== 'portal') return null;
+  const twin = G.board.find(c => c.type==='portal' && !(c.x===x && c.y===y));
+  return twin ? { x: twin.x, y: twin.y } : null;
+}
+
+// Cofre sorpresa: efecto aleatorio DETERMINISTA — mismo turno y posición dan
+// el mismo resultado en ambos clientes (cero Math.random, como el sorteo de
+// ítems compartidos). El teleport marca G._teleYou/_teleOpp para que
+// resolveMoves no anime con FLIP a quien viajó.
+function applyChestEffect(player){
+  const roll = (G.turnCount*31 + player.x*7 + player.y*13) % 5;
+  const who = (player===G.you) ? App.playerName : App.oppName;
+  if(roll===0){
+    player.buffs.dmg += CFG.powerDmgValue; Sound.pickupAtk();
+    toast(fillText('chestGotAtk', {name:who}));
+  } else if(roll===1){
+    player.buffs.def += CFG.powerDefValue; Sound.pickupDef();
+    toast(fillText('chestGotDef', {name:who}));
+  } else if(roll===2){
+    player.hp = Math.min(player.maxHp || CFG.maxHp, player.hp + CFG.chestHeal);
+    Sound.pickupDef();
+    toast(fillText('chestGotHeal', {name:who, hp:CFG.chestHeal}));
+  } else if(roll===3){
+    // Trampa: mismo daño y misma piedad que las cruces (nunca mata)
+    player.hp = Math.max(1, player.hp - CFG.downDamage);
+    Sound.trap();
+    toast(fillText('chestTrap', {name:who}));
+  } else {
+    // Teleport a una casilla vacía elegida determinísticamente
+    const n = CFG.boardSize;
+    const idx = (G.turnCount*17 + player.x*5 + player.y*11) % (n*n);
+    const spot = findEmptySpotFrom(idx);
+    if(spot){
+      player.x = spot.x; player.y = spot.y;
+      if(player===G.you) G._teleYou = true; else G._teleOpp = true;
+    }
+    Sound.pickupDef && Sound.pickupDef();
+    toast(fillText('chestTeleport', {name:who}));
+  }
+}
+
+// Primera casilla VACÍA y desocupada desde un índice dado, escaneo circular
+// (determinista: mismo board + mismo índice = misma casilla en ambos clientes).
+function findEmptySpotFrom(idx){
+  const total = CFG.boardSize * CFG.boardSize;
+  for(let i=0; i<total; i++){
+    const c = G.board[(idx + i) % total];
+    const occupied = (G.you.x===c.x && G.you.y===c.y) || (G.opp.x===c.x && G.opp.y===c.y);
+    if(c.type==='empty' && !occupied) return { x: c.x, y: c.y };
+  }
+  return null;
 }
 
 // Aplica el goteo de curación del anillo (llamado cada ronda/turno)
@@ -2040,9 +2560,20 @@ function ejectPlayers(){
   Sound.eject(); haptic([15,30,15,30,15]);
 }
 
+// Muestra/oculta el overlay de duelo. Además pausa las animaciones CSS
+// decorativas del tablero (portal girando, bomba latiendo, anillo, marco de
+// choque) vía body.is-dueling: el overlay es SEMITRANSPARENTE (--overlay 0.96)
+// así que el board se sigue pintando abajo, y esos loops infinitos compiten
+// con el rAF de la aguja — en móvil se veía "lageada" (misma familia que el
+// fix v0.2.95 de layout-thrashing; regresión reportada al salir Modo Caos).
+function setDuelOverlayShown(on){
+  $('duel-overlay').classList.toggle('is-show', on);
+  document.body.classList.toggle('is-dueling', on);
+}
+
 // DOM/estado compartido por el countdown del duelo, offline y online.
 function showDuelCountdownUI(){
-  $('duel-overlay').classList.add('is-show');
+  setDuelOverlayShown(true);
   $('duel-result').style.display='none';
   $('duel-game').style.display='none';
   $('duel-countdown').style.display='block';
@@ -2326,8 +2857,16 @@ function computeDuelDamages(){
   }
   // Si ambos perfectos, no se anula nada (buffs cuentan normal).
 
-  const yourDmg = duelDamage(rawYou, youPerfect, youDmgEff, oppDefEff);
-  const oppDmg  = duelDamage(rawOpp, oppPerfect, oppDmgEff, youDefEff, cpuDmgMult());
+  let yourDmg = duelDamage(rawYou, youPerfect, youDmgEff, oppDefEff);
+  let oppDmg  = duelDamage(rawOpp, oppPerfect, oppDmgEff, youDefEff, cpuDmgMult());
+  // ⛰️ Modo Caos: duelar parado en terreno alto suma un bonus chico al daño
+  // propio. Va DESPUÉS de duelDamage: no cambia quién gana el duelo (eso es
+  // solo el score crudo), no lo anula el perfecto rival, y solo aplica si el
+  // golpe conecta (daño > 0).
+  if(App.chaosMode){
+    if(yourDmg > 0 && cellAt(G.you.x, G.you.y).type==='high') yourDmg += CFG.highBonus;
+    if(oppDmg  > 0 && cellAt(G.opp.x, G.opp.y).type==='high') oppDmg  += CFG.highBonus;
+  }
   return { yourDmg, oppDmg, youPerfect, oppPerfect };
 }
 // Multiplicador de daño del rival CPU según su rasgo (Alex pega más fuerte)
@@ -2575,7 +3114,7 @@ function resolveDuel(){
   $('duel-result').style.display='flex'; $('duel-game').style.display='none';
   updateHud();
   setTimeout(()=>{
-    $('duel-overlay').classList.remove('is-show');
+    setDuelOverlayShown(false);
     if(G.you.hp<=0||G.opp.hp<=0){ endGame(); return; }
     if(isTie) ejectPlayers();
     renderBoard(); updateHud(); startChoosePhase();
@@ -2719,7 +3258,7 @@ function finishDuelOnline(){
 
   const duelId = duelIdFor();
   setTimeout(()=>{
-    $('duel-overlay').classList.remove('is-show');
+    setDuelOverlayShown(false);
     G._duelResolved = false;
     if(G.you.hp<=0||G.opp.hp<=0){ endGame(); return; }
     if(isTie){
@@ -2789,6 +3328,8 @@ function renderBuffs(elId,player){
   if(buffs.def>0){ const c=document.createElement('span'); c.className='buff-chip is-def'; c.innerHTML=`<span class="sym">◈</span> +${buffs.def}`; el.appendChild(c); }
   // Efecto del anillo activo (goteo de curación): solo el ícono, sin texto.
   if(player.ringDrip && player.ringDrip>0){ const c=document.createElement('span'); c.className='buff-chip is-ring'; c.innerHTML=`<span class="ring-ic"></span>`; el.appendChild(c); }
+  // 👟 Doble paso listo para el próximo movimiento (Modo Caos)
+  if(player.boots){ const c=document.createElement('span'); c.className='buff-chip is-boots'; c.innerHTML=`<span class="sym">👟</span> x2`; el.appendChild(c); }
 }
 function setMsg(text,active=false){ const el=$('turn-msg'); el.textContent=text; el.classList.toggle('is-active',active); }
 
@@ -3104,6 +3645,7 @@ const Net = {
   // HOST: sube el tablero serializado y marca la sala como "playing"
   async pushStart(boardStr){
     if(!this.ref) return;
+    this._lastBoardStr = boardStr;
     await this.ref.child('game').set({
       board: boardStr,
       turn: 0,
@@ -3118,18 +3660,30 @@ const Net = {
   // ('game/board'), así que stopListenStart() debe sacar SOLO su propio
   // listener y no un .off() a secas (eso se llevaría puesto también el de
   // listenBoard, cortando la actualización de ítems del guest a mitad de ronda).
+  // ⚠️ .on('value') dispara INMEDIATAMENTE con el valor actual: al armarse
+  // entre rondas de una serie (o en la pantalla de fin), game/board todavía
+  // tiene el tablero VIEJO de la ronda que acaba de terminar, y ese primer
+  // evento arrancaba la ronda al instante (pantalla de resultado que "se pasa
+  // en menos de 1 segundo") sobre un board que el host pisaba 3s después
+  // (segunda ronda injugable). Fix: _lastBoardStr recuerda el último board
+  // visto en el wire; al armar el listener se congela ese valor como "viejo"
+  // y solo un board DISTINTO dispara onStart (el host siempre genera un board
+  // nuevo tras resetForRematch, así que el string nunca se repite).
   _startCb: null,
+  _lastBoardStr: null,
   listenStart(){
     if(!this.ref) return;
+    this.stopListenStart();   // idempotente: nunca dos listeners de start a la vez
+    const stale = this._lastBoardStr;   // board de la ronda que acaba de terminar (o null)
     this._startCb = s=>{
       const b = s.val();
-      if(b && this.onStart){
-        // Leer el modo elegido por el host (guest lo recibe)
-        this.ref.child('game/mode').get().then(ms=>{
-          App.matchMode = ms.val() || 'single';
-          this.onStart(b);
-        }).catch(()=>this.onStart(b));
-      }
+      if(!b || b===stale || !this.onStart) return;
+      this._lastBoardStr = b;
+      // Leer el modo elegido por el host (guest lo recibe)
+      this.ref.child('game/mode').get().then(ms=>{
+        App.matchMode = ms.val() || 'single';
+        this.onStart(b);
+      }).catch(()=>this.onStart(b));
     };
     this.ref.child('game/board').on('value', this._startCb);
   },
@@ -3183,6 +3737,7 @@ const Net = {
   // HOST: sube el board actualizado tras regenerar items
   async pushBoard(boardStr){
     if(!this.ref) return;
+    this._lastBoardStr = boardStr;
     await this.ref.child('game/board').set(boardStr);
   },
 
@@ -3191,6 +3746,7 @@ const Net = {
     if(!this.ref) return;
     this.ref.child('game/board').on('value', s=>{
       const b = s.val();
+      if(b) this._lastBoardStr = b;   // recuerda el board vigente (ver listenStart)
       if(b && this.onBoardUpdate) this.onBoardUpdate(b);
     });
   },
@@ -3344,7 +3900,7 @@ const Net = {
       if(this._duelRef){ this._duelRef.off(); this._duelRef=null; }
       if(this.ref){ this.ref.child('game/board').off(); this.ref.off(); }
     } catch(e){}
-    this.ref=null; this.role=null;
+    this.ref=null; this.role=null; this._startCb=null; this._lastBoardStr=null;
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
     this.onOpponentWaiting=null; this.onOpponentBack=null;
@@ -3368,6 +3924,7 @@ const Net = {
       }
     } catch(e){ console.warn('[Rally] Net.leave', e); }
     this.ref=null; this.code=null; this.role=null; this.onReady=null;
+    this._startCb=null; this._lastBoardStr=null;
     this.onGuestLeft=null; this._sawGuest=false;
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
@@ -3933,7 +4490,7 @@ function showTourneyBracket(onGo){
   const youHp = (Tourney._carryHp!=null) ? Tourney._carryHp : TOURNEY_YOU_HP;
   $('bracket-you-name').textContent = App.playerName;
   $('bracket-you-hp').textContent = youHp+' HP';
-  $('bracket-title').textContent = (Tourney.index===0) ? '¡Comienza el torneo!' : 'Próximo combate';
+  $('bracket-title').textContent = (Tourney.index===0) ? TEXTS.bracketTitleStart : TEXTS.bracketTitleNext;
 
   const wrap = $('bracket-rivals'); wrap.innerHTML='';
   const order = TOURNEY_ROSTER.map((r,i)=>i).reverse();  // Rey Julian (jefe) arriba
@@ -4015,7 +4572,7 @@ async function startCreateRoom(){
   $('lobby-created').style.display='flex'; $('lobby-join').style.display='none'; show('lobby');
   $('mode-select').style.display='flex'; $('btn-share').style.display='block';
   $('ot-box').style.display='none'; setModeUI(App.matchMode==='bo5'?'mode-bo5':'mode-single');
-  updateWallsToggle();
+  updateSpecialToggles();
   const goBtn = $('btn-online-start'); if(goBtn) goBtn.style.display='none';
   $('wait-text').textContent=TEXTS.waitTextWaitingOpp;
   $('code-out').textContent='····';
@@ -4082,17 +4639,17 @@ const UserUI = {
     $('user-stats').style.display = (m==='session') ? 'block' : 'none';
     primary.disabled=false;
     if(m==='register'){
-      $('user-title').innerHTML='Creá tu <b>usuario</b>';
+      $('user-title').innerHTML=TEXTS.userTitleRegister;
       $('user-hint').textContent=TEXTS.userHintRegister;
       $('user-pass').style.display='block';
-      primary.style.display='block'; primary.textContent='Crear cuenta';
-      $('user-switch').textContent='¿Ya tenés usuario? Iniciá sesión';
+      primary.style.display='block'; primary.textContent=TEXTS.userBtnRegister;
+      $('user-switch').textContent=TEXTS.userSwitchToLogin;
     } else if(m==='login'){
-      $('user-title').innerHTML='Iniciar <b>sesión</b>';
+      $('user-title').innerHTML=TEXTS.userTitleLogin;
       $('user-hint').textContent=TEXTS.userHintLogin;
       $('user-pass').style.display='block';
-      primary.style.display='block'; primary.textContent='Entrar';
-      $('user-switch').textContent='¿No tenés usuario? Creá uno';
+      primary.style.display='block'; primary.textContent=TEXTS.userBtnLogin;
+      $('user-switch').textContent=TEXTS.userSwitchToRegister;
     } else {   // session
       $('user-title').innerHTML='👤 <b>'+escHtml(User.name||'')+'</b>';
       if(User.hasPassword()){
@@ -4102,9 +4659,9 @@ const UserUI = {
       } else {
         $('user-hint').textContent=TEXTS.userHintNoPassword;
         $('user-pass').style.display='block';
-        primary.style.display='block'; primary.textContent='Crear contraseña';
+        primary.style.display='block'; primary.textContent=TEXTS.userBtnCreatePassword;
       }
-      $('user-switch').textContent='Entrar con otro usuario';
+      $('user-switch').textContent=TEXTS.userSwitchOther;
       loadProfileStats();
     }
   },
@@ -4147,11 +4704,11 @@ function setModeUI(id){
 }
 $('mode-single').addEventListener('click', ()=>{
   if(OT.active){ if(!OT.disableTourney()) return; }
-  App.matchMode='single'; setModeUI('mode-single'); updateWallsToggle();
+  App.matchMode='single'; setModeUI('mode-single'); updateSpecialToggles();
 });
 $('mode-bo5').addEventListener('click', ()=>{
   if(OT.active){ if(!OT.disableTourney()) return; }
-  App.matchMode='bo5'; setModeUI('mode-bo5'); updateWallsToggle();
+  App.matchMode='bo5'; setModeUI('mode-bo5'); updateSpecialToggles();
 });
 $('mode-t4').addEventListener('click', async ()=>{
   if(OT.active) return;
@@ -4160,20 +4717,35 @@ $('mode-t4').addEventListener('click', async ()=>{
     setModeUI('mode-t4');
     // El Modo Paredes no está disponible en torneo online: apagarlo y ocultar el toggle.
     if(App.wallsMode) exitSpecialMode();
-    updateWallsToggle();
+    updateSpecialToggles();
   }
 });
-// Toggle 🧱 Modo Paredes del lobby (solo host, no disponible en torneo online).
-function updateWallsToggle(){
-  const t=$('walls-toggle'); if(!t) return;
-  t.style.display = OT.active ? 'none' : 'flex';
-  t.classList.toggle('is-on', App.wallsMode);
-  $('walls-state').textContent = App.wallsMode ? 'on' : 'off';
+// Toggles 🧱 Paredes / 🌀 Caos del lobby (solo host, no disponibles en torneo
+// online). Son mutuamente excluyentes: activar uno apaga al otro (los enter
+// ya lo garantizan), y este refresco pinta ambos estados juntos.
+function updateSpecialToggles(){
+  const w=$('walls-toggle');
+  if(w){
+    w.style.display = OT.active ? 'none' : 'flex';
+    w.classList.toggle('is-on', App.wallsMode);
+    $('walls-state').textContent = App.wallsMode ? 'on' : 'off';
+  }
+  const c=$('chaos-toggle');
+  if(c){
+    c.style.display = OT.active ? 'none' : 'flex';
+    c.classList.toggle('is-on', App.chaosMode);
+    $('chaos-state').textContent = App.chaosMode ? 'on' : 'off';
+  }
 }
 $('walls-toggle').addEventListener('click', ()=>{
   if(OT.active){ toast(TEXTS.toastWallsNotOnlineTourney); return; }
   if(App.wallsMode) exitSpecialMode(); else enterWallsMode();
-  updateWallsToggle();
+  updateSpecialToggles();
+});
+$('chaos-toggle').addEventListener('click', ()=>{
+  if(OT.active){ toast(TEXTS.toastChaosNotOnlineTourney); return; }
+  if(App.chaosMode) exitSpecialMode(); else enterChaosMode();
+  updateSpecialToggles();
 });
 $('btn-ot-start').addEventListener('click', ()=>OT.start());
 $('btn-ot-room').addEventListener('click', ()=>OT.backToLobby());
@@ -4186,7 +4758,7 @@ $('btn-offline').addEventListener('click', ()=>{ readName(); updateCampaignBtn()
 // retoma automáticamente en el nodo guardado (sin volver a confirmar).
 function updateCampaignBtn(){
   Campaign.load();
-  $('btn-campaign').textContent = Campaign.hasProgress() ? '▶ Continuar campaña' : 'Campaña';
+  $('btn-campaign').textContent = Campaign.hasProgress() ? TEXTS.btnCampaignContinue : TEXTS.btnCampaign;
 }
 $('btn-campaign').addEventListener('click', ()=>{
   readName(); exitSpecialMode(); App.online=false; Tourney.active=false;
@@ -4246,10 +4818,10 @@ $('btn-join-go').addEventListener('click', async ()=>{
 $('btn-lobby-back').addEventListener('click', ()=>{ if(OT.active){ OT.leaveTournament(); return; } Net.leave(); show('home'); });
 $('btn-join-back').addEventListener('click', ()=>show('home'));
 $('code-in').addEventListener('input', e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
-$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent=TEXTS.btnRematch; $('btn-again').style.display='block'; Net.leave(); show('home'); });
 $('btn-mute').addEventListener('click', ()=>{ App.muted=!App.muted; $('btn-mute').textContent=App.muted?'♪ off':'♪ on'; });
 $('btn-again').addEventListener('click', ()=>{ show('game'); startGame(); });
-$('btn-home').addEventListener('click', ()=>{ Chat.unmount(); Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent='Revancha'; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-home').addEventListener('click', ()=>{ Chat.unmount(); Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent=TEXTS.btnRematch; $('btn-again').style.display='block'; Net.leave(); show('home'); });
 
 // Chat en vivo (solo online): abrir/cerrar panel y enviar mensajes.
 $('chat-toggle').addEventListener('click', ()=> Chat.toggle());
@@ -4320,6 +4892,8 @@ function toggleTheme(){
   // en toda pestaña salvo la partida (mismo criterio que show()).
   const tb = $('btn-theme');
   if(tb) tb.classList.toggle('is-hidden', App.screen === 'game');
+  const lb = $('btn-lang');
+  if(lb) lb.classList.toggle('is-hidden', App.screen === 'game');
   const ib = $('btn-info');
   if(ib) ib.classList.toggle('is-hidden', App.screen !== 'home');
   const ub = $('btn-user');
@@ -4327,6 +4901,141 @@ function toggleTheme(){
 })();
 $('btn-theme').addEventListener('click', toggleTheme);
 $('btn-theme-game').addEventListener('click', toggleTheme);
+
+// ===== 🌐 Idioma (v0.3.16) =====
+// Traduce el HTML estático (botones/labels que nunca pasan por TEXTS) al
+// vuelo. La versión en español se cachea del propio DOM la primera vez
+// (así queda una sola fuente de verdad: el HTML) y STATIC_I18N_EN trae el
+// override en inglés por id de elemento.
+const STATIC_I18N_EN = {
+  'btn-info': {aria:'Information'},
+  'btn-theme': {aria:'Toggle theme'},
+  'btn-lang': {aria:'Change language'},
+  'btn-user': {aria:'Account'},
+  'name-label': {text:'Your name'},
+  'name-input': {placeholder:'Player'},
+  'btn-create': {text:'Create room'},
+  'btn-join': {text:'Join with code'},
+  'divider-offline': {text:'offline'},
+  'btn-offline': {text:'Play solo'},
+  'info-h1': {text:'How to play'},
+  'info-h2': {text:'Board elements'},
+  'info-h3': {text:'The duel'},
+  'info-h4': {text:'Details'},
+  'btn-info-back': {text:'Back'},
+  'page-credit': {html:'No © 2026<br>Made by lucio<br><a href="https://guerra-sur.web.app/" target="_blank" rel="noopener">guerra-sur.web.app</a>'},
+  'offline-kicker': {text:'offline mode'},
+  'offline-tag': {text:'Play offline against the machine.'},
+  'btn-quick': {text:'Quick match'},
+  'btn-tournament': {text:'🏆 Tournament'},
+  'btn-walls-label': {text:'🧱 Walls'},
+  'btn-chaos-label': {text:'🌀 Chaos'},
+  'btn-offline-back': {text:'Back'},
+  'lobby-eyebrow-share': {text:'Share this code'},
+  'lobby-hint': {text:'Your rival enters it in "Join with code" and you start.'},
+  'btn-share': {text:'🔗 Share invite'},
+  'mode-select-label': {text:'Game mode'},
+  'mode-single-name': {text:'Single match'},
+  'mode-single-desc': {text:'One duel and done.'},
+  'mode-bo5-name': {text:'Best of 3'},
+  'mode-bo5-desc': {text:'Series: first to 2 wins.'},
+  'mode-t4-name': {text:'🏆 4-player tournament'},
+  'mode-t4-desc': {text:'Up to 4 players, single elimination.'},
+  'walls-toggle-label': {text:'🧱 Walls Mode'},
+  'chaos-toggle-label': {text:'🌀 Chaos Mode'},
+  'btn-demo-start': {text:'Start practice (vs CPU)'},
+  'btn-lobby-back': {text:'Exit'},
+  'join-name-label': {text:'Your name'},
+  'join-name': {placeholder:'Player'},
+  'lobby-eyebrow-code': {text:'Enter the code'},
+  'btn-join-go': {text:'Join'},
+  'btn-join-back': {text:'Back'},
+  'tourney-bar-label': {text:'🏆 Tournament'},
+  'btn-howto-ok': {text:'Got it'},
+  'btn-leave': {text:'exit'},
+  'chat-input': {placeholder:'Message…'},
+  'chat-send': {aria:'Send'},
+  'chat-toggle': {aria:'Chat'},
+  'duel-stop': {text:'Stop'},
+  'roulette-caption': {text:'who gets it?'},
+  'btn-to-room': {text:'Back to room'},
+  'btn-home': {text:'Back to menu'},
+  'othub-eyebrow': {text:'Online tournament'},
+  'btn-ot-room': {text:'Back to room'},
+  'btn-ot-exit': {text:'Leave tournament'},
+  'btn-spec-back': {text:'◂ Back to tournament'},
+  'bracket-eyebrow': {text:'Tournament'},
+  'bracket-go': {text:'Fight ▸'},
+  'scene-continue': {text:'Continue ▸'},
+  'user-eyebrow': {text:'Account'},
+  'us-label-gamesWon': {text:'Games won'},
+  'us-label-tournamentsWon': {text:'Tournaments won'},
+  'us-label-achievements': {text:'🏆 Achievements'},
+  'us-label-soon': {text:'Coming soon'},
+  'user-input': {placeholder:'username'},
+  'user-pass': {placeholder:'password'},
+  'user-cancel': {text:'Back'},
+  'camp-eyebrow': {text:'Campaign'},
+  'camp-yes': {text:'Start'},
+  'camp-no': {text:'Back'},
+  'lab-sub': {text:'Adjust the balance live. Changes apply to upcoming matches.'},
+  'lab-group-actions': {text:'Quick actions'},
+  'lab-force-perfect-label': {text:'Always force PERFECT (testing)'},
+  'lab-spawn-ring-label': {text:'Spawn ring'},
+  'lab-export': {text:'⬇ Export JSON'},
+  'lab-import': {text:'⬆ Import JSON'},
+  'lab-reset': {text:'Reset values'},
+  'lab-back': {text:'Back'},
+  'lab-json': {placeholder:'Paste JSON here to import, or export to copy it.'},
+};
+const TITLE_EN = 'Rally - Online Matches';
+const DESC_EN = 'Rally (Rallyyy) is a casual game to play with friends or alone. Quick duels, several modes, free online matches with no signup.';
+let _staticI18nEsCache = null;
+function applyStaticLang(){
+  if(!_staticI18nEsCache){
+    _staticI18nEsCache = { title: document.title, desc: '' };
+    const metaEs = document.querySelector('meta[name="description"]');
+    if(metaEs) _staticI18nEsCache.desc = metaEs.getAttribute('content');
+    for(const id in STATIC_I18N_EN){
+      const el = $(id); if(!el) continue;
+      const spec = STATIC_I18N_EN[id], cache = {};
+      if(spec.text!=null) cache.text = el.textContent;
+      if(spec.html!=null) cache.html = el.innerHTML;
+      if(spec.placeholder!=null) cache.placeholder = el.getAttribute('placeholder');
+      if(spec.aria!=null) cache.aria = el.getAttribute('aria-label');
+      _staticI18nEsCache[id] = cache;
+    }
+  }
+  const en = LANG === 'en';
+  document.title = en ? TITLE_EN : _staticI18nEsCache.title;
+  const meta = document.querySelector('meta[name="description"]');
+  if(meta) meta.setAttribute('content', en ? DESC_EN : _staticI18nEsCache.desc);
+  for(const id in STATIC_I18N_EN){
+    const el = $(id); if(!el) continue;
+    const use = en ? STATIC_I18N_EN[id] : _staticI18nEsCache[id];
+    if(use.text!=null) el.textContent = use.text;
+    if(use.html!=null) el.innerHTML = use.html;
+    if(use.placeholder!=null) el.setAttribute('placeholder', use.placeholder);
+    if(use.aria!=null) el.setAttribute('aria-label', use.aria);
+  }
+}
+function applyLang(){
+  refreshTexts();
+  applyTextsToDom();
+  applyStaticLang();
+  updateCampaignBtn();
+  User.updateUI();
+}
+function toggleLang(){
+  LANG = LANG === 'es' ? 'en' : 'es';
+  try { localStorage.setItem('rally_lang', LANG); } catch(e){}
+  document.documentElement.setAttribute('lang', LANG);
+  document.documentElement.setAttribute('data-lang', LANG);
+  applyLang();
+  haptic(8);
+}
+applyLang();
+$('btn-lang').addEventListener('click', toggleLang);
 
 // Botón de usuario: reservado para un update futuro (stats/logros/perfil).
 // Por ahora no hace nada al tocarlo.
@@ -4358,6 +5067,16 @@ const LAB_PARAMS = [
   ['redBaseScore','Puntaje Rojo (base)',0,10,1,'Duelo'],
   ['duelCycleDuration','Velocidad aguja (seg/ciclo)',0.8,3,0.1,'Duelo'],
   ['duelMaxPasses','Pases máximos',2,8,1,'Duelo'],
+  ['chestCount','Cantidad 🎁 inicial',0,6,1,'Modo Caos'],
+  ['chestHeal','Curación del cofre',0,20,1,'Modo Caos'],
+  ['bombCount','Cantidad 💣 inicial',0,6,1,'Modo Caos'],
+  ['bombFuse','Mecha (turnos)',1,5,1,'Modo Caos'],
+  ['bombDamage','Daño de bomba',0,30,1,'Modo Caos'],
+  ['bombArea','Área (0=cruz · 1=3x3)',0,1,1,'Modo Caos'],
+  ['highCount','Cantidad ⛰️ inicial',0,8,1,'Modo Caos'],
+  ['highBonus','Bonus de terreno alto',0,10,1,'Modo Caos'],
+  ['bootsCount','Cantidad 👟 inicial',0,4,1,'Modo Caos'],
+  ['bootsRange','Alcance con botas',2,3,1,'Modo Caos'],
 ];
 const CFG_DEFAULTS = JSON.parse(JSON.stringify(CFG));  // copia original para restaurar
 
@@ -4392,9 +5111,9 @@ function applyRemoteTexts(){
     const t = s.val(); if(!t) return;
     let n=0;
     for(const k in t){
-      if(typeof TEXTS[k]==='string' && typeof t[k]==='string' && TEXTS[k]!==t[k]){ TEXTS[k]=t[k]; n++; }
+      if(typeof TEXTS_ES[k]==='string' && typeof t[k]==='string' && TEXTS_ES[k]!==t[k]){ TEXTS_ES[k]=t[k]; n++; }
     }
-    if(n){ console.log('[Rally] Textos remotos aplicados:', n, 'valores'); applyTextsToDom(); }
+    if(n){ console.log('[Rally] Textos remotos aplicados:', n, 'valores'); refreshTexts(); applyTextsToDom(); }
   }).catch(()=>{});
 }
 applyRemoteTexts();
@@ -4441,7 +5160,9 @@ function applyRemoteCharacters(){
         r.name = o.name.trim();
         // applyTextsToDom() re-aplica nombres desde TEXTS: mantener coherencia.
         // Un override explícito en texts/rosterName{i} sigue teniendo prioridad
-        // (llega por applyRemoteTexts y pisa esta clave).
+        // (llega por applyRemoteTexts y pisa esta clave). Nombres propios: no
+        // dependen del idioma, se escriben en TEXTS_ES y TEXTS por igual.
+        TEXTS_ES['rosterName'+i] = r.name;
         TEXTS['rosterName'+i] = r.name;
       }
       if(typeof o.emoji==='string') r.emoji = o.emoji;
@@ -4479,6 +5200,7 @@ function applyTextsToDom(){
   $('info-score-decay').textContent = TEXTS.infoScoreDecay;
   $('info-mercy').innerHTML = TEXTS.infoMercy;
   $('info-walls').innerHTML = TEXTS.infoWalls;
+  $('info-chaos').innerHTML = TEXTS.infoChaos;
   TOURNEY_ROSTER.forEach((r,i)=>{ r.name = TEXTS['rosterName'+i] || r.name; });
   // Solo aplica a la campaña DEFAULT: con campaña remota (editor) manda el
   // nombre del editor, y además el nodo 0 puede no ser una partida (guard).
@@ -4540,6 +5262,16 @@ $('btn-walls').addEventListener('click', ()=>{
   readName(); Tourney.active=false; applyOppCosmetic();
   App.online=false; App.oppName=TEXTS.oppNamePractice;
   enterWallsMode();
+  beginGame();
+});
+
+// Modo Caos (menú offline): igual que Paredes pero con los ítems nuevos
+// (cofres 🎁 y portales 🌀) en el tablero normal 7x7. Online se activa con
+// el toggle 🌀 del lobby (prefijo "C~" en el board).
+$('btn-chaos').addEventListener('click', ()=>{
+  readName(); Tourney.active=false; applyOppCosmetic();
+  App.online=false; App.oppName=TEXTS.oppNamePractice;
+  enterChaosMode();
   beginGame();
 });
 
