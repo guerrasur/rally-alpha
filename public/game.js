@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.15';
+const VERSION = 'v0.3.16';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -861,7 +861,7 @@ const TEXTS_ES = {
   waitTextCpuFill: 'Los lugares libres se completan con CPUs',
   waitTextHostWillStart: 'Esperando que el anfitrión inicie…',
 
-  // --- Textos antes hardcodeados en JS (v0.3.15, i18n) ---
+  // --- Textos antes hardcodeados en JS (v0.3.16, i18n) ---
   btnCampaign: 'Campaña',
   btnCampaignContinue: '▶ Continuar campaña',
   userTitleRegister: 'Creá tu <b>usuario</b>',
@@ -881,7 +881,7 @@ const TEXTS_ES = {
   homeFootOnline: 'Online activo · creá una sala y pasá el código.',
 };
 
-// ===== 🌐 Idioma (v0.3.15) =====
+// ===== 🌐 Idioma (v0.3.16) =====
 // Traducciones al inglés de TEXTS_ES. Claves ausentes acá (p.ej. nombres
 // propios de personajes: rosterNameX, cpuNamesPool, oppNamePractice,
 // campaignOpp1Name) se dejan sin traducir a propósito — son nombres, no
@@ -4887,7 +4887,7 @@ function toggleTheme(){
 $('btn-theme').addEventListener('click', toggleTheme);
 $('btn-theme-game').addEventListener('click', toggleTheme);
 
-// ===== 🌐 Idioma (v0.3.15) =====
+// ===== 🌐 Idioma (v0.3.16) =====
 // Traduce el HTML estático (botones/labels que nunca pasan por TEXTS) al
 // vuelo. La versión en español se cachea del propio DOM la primera vez
 // (así queda una sola fuente de verdad: el HTML) y STATIC_I18N_EN trae el
@@ -4908,7 +4908,7 @@ const STATIC_I18N_EN = {
   'info-h3': {text:'The duel'},
   'info-h4': {text:'Details'},
   'btn-info-back': {text:'Back'},
-  'page-credit': {html:'No © 2026<br>Made by lucio'},
+  'page-credit': {html:'No © 2026<br>Made by lucio<br><a href="https://guerra-sur.web.app/" target="_blank" rel="noopener">guerra-sur.web.app</a>'},
   'offline-kicker': {text:'offline mode'},
   'offline-tag': {text:'Play offline against the machine.'},
   'btn-quick': {text:'Quick match'},
