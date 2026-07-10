@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.11';
+const VERSION = 'v0.3.12';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -645,6 +645,14 @@ const CFG = {
   ringDripRounds: 5,         // cantidad de rondas de cura chica
   chestCount: 2,        // 🌀 Modo Caos: cofres sorpresa en el tablero
   chestHeal: 8,         // curación si el cofre sale "curación"
+  bombCount: 2,         // 🌀 Modo Caos: bombas en el tablero
+  bombFuse: 2,          // resoluciones de turno entre armado y explosión
+  bombDamage: 12,       // daño de la explosión (con piedad: nunca mata)
+  bombArea: 0,          // 0 = cruz (5 casillas) · 1 = 3x3 (9 casillas)
+  highCount: 3,         // 🌀 Modo Caos: casillas de terreno alto
+  highBonus: 2,         // daño extra por duelar parado en terreno alto
+  bootsCount: 1,        // 🌀 Modo Caos: botas de doble paso en el tablero
+  bootsRange: 2,        // alcance del movimiento con botas (radio, 1 pick)
   duelCountdownMs: 800,
   duelCycleDuration: 1.8,
   cpuDesperateTrapRatio: 0.6,
@@ -722,6 +730,10 @@ const TEXTS = {
   chestGotHeal: '🎁 {name}: +{hp} HP',
   chestTrap: '🎁 {name}: ¡era una trampa!',
   chestTeleport: '🎁 {name}: ¡teletransporte!',
+  bombArmed: '💣 Bomba activada: ¡alejate!',
+  bombExploded: '💥 ¡BUM!',
+  bootsPicked: '👟 {name}: doble paso en el próximo turno',
+  infoChaos: '<b>Modo Caos</b> (beta): cofres sorpresa 🎁, portales 🌀, bombas con mecha 💣, terreno alto ⛰️ y botas de doble paso 👟. En el menú offline o con el toggle 🌀 online (no en torneo x4).',
   toastLabAdminsOnly: 'El laboratorio es solo para admins.',
   toastCodeLength: 'El código tiene 4 caracteres.',
   toastPracticeMode: 'Modo práctica: jugás contra la CPU.',
@@ -1009,9 +1021,12 @@ function buildBoard(){
   placeRandom('power_dmg', CFG.powerDmgCount * scale);
   placeRandom('power_def', CFG.powerDefCount * scale);
   placeRandom('down', CFG.downCount * scale);
-  // Modo Caos: cofres sorpresa + un par de portales enlazados.
+  // Modo Caos: cofres, bombas, terreno alto + un par de portales enlazados.
   if(App.chaosMode){
     placeRandom('chest', CFG.chestCount);
+    placeRandom('bomb', CFG.bombCount);
+    placeRandom('high', CFG.highCount);
+    placeRandom('boots', CFG.bootsCount);
     placeRandom('portal', 2);
     // Los portales van SIEMPRE de a dos: si no entraron ambos, no va ninguno.
     if(countItems('portal') !== 2){
@@ -1023,8 +1038,8 @@ function cellAt(x,y){ return G.board[y*CFG.boardSize + x]; }
 function countItems(type){ return G.board.filter(c => c.type === type).length; }
 
 // ---- Serialización del tablero para online ----
-const CELL_CODE = { empty:'e', power_dmg:'a', power_def:'d', down:'x', ring:'r', chest:'c', portal:'p' };
-const CODE_CELL = { e:'empty', a:'power_dmg', d:'power_def', x:'down', r:'ring', c:'chest', p:'portal' };
+const CELL_CODE = { empty:'e', power_dmg:'a', power_def:'d', down:'x', ring:'r', chest:'c', portal:'p', bomb:'b', bomb_armed:'B', high:'h', boots:'o' };
+const CODE_CELL = { e:'empty', a:'power_dmg', d:'power_def', x:'down', r:'ring', c:'chest', p:'portal', b:'bomb', B:'bomb_armed', h:'high', o:'boots' };
 function serializeBoard(){
   const cells = G.board.map(c => CELL_CODE[c.type] || 'e').join('');
   // En modo Paredes anteponemos tamaño y paredes: "W<size>~<paredes>~<celdas>".
@@ -1106,9 +1121,16 @@ function regenerateItems(){
   if(countItems('power_dmg') < CFG.maxPowerDmg){ const p=findEmpty(); if(p) cellAt(p.x,p.y).type='power_dmg'; }
   if(countItems('power_def') < CFG.maxPowerDef){ const p=findEmpty(); if(p) cellAt(p.x,p.y).type='power_def'; }
   const p=findEmpty(); if(p) cellAt(p.x,p.y).type='down';
-  // Modo Caos: reponer cofres hasta su cantidad inicial (los portales son fijos)
+  // Modo Caos: reponer cofres y bombas hasta su cantidad inicial (las armadas
+  // cuentan para el cap; portales y terreno alto son fijos)
   if(App.chaosMode && countItems('chest') < CFG.chestCount){
     const cp=findEmpty(); if(cp) cellAt(cp.x,cp.y).type='chest';
+  }
+  if(App.chaosMode && (countItems('bomb') + countItems('bomb_armed')) < CFG.bombCount){
+    const bp=findEmpty(); if(bp) cellAt(bp.x,bp.y).type='bomb';
+  }
+  if(App.chaosMode && countItems('boots') < CFG.bootsCount){
+    const op=findEmpty(); if(op) cellAt(op.x,op.y).type='boots';
   }
   // Anillo multicolor: una vez por partida, raro, avanzada la partida, NO en torneo
   if(!Tourney.active && !G.ringSpawned && G.turnCount>=CFG.ringMinTurn && Math.random()<CFG.ringChancePerTurn){
@@ -1146,6 +1168,10 @@ function appendCellItemIcon(div, type){
   else if(type === 'ring'){ const s=document.createElement('span'); s.className='item-ring'; div.appendChild(s); }
   else if(type === 'chest'){ const s=document.createElement('span'); s.className='item-chest'; s.textContent='🎁'; div.appendChild(s); }
   else if(type === 'portal'){ const s=document.createElement('span'); s.className='item-portal'; s.textContent='🌀'; div.appendChild(s); }
+  else if(type === 'bomb'){ const s=document.createElement('span'); s.className='item-bomb'; s.textContent='💣'; div.appendChild(s); }
+  else if(type === 'bomb_armed'){ const s=document.createElement('span'); s.className='item-bomb is-armed'; s.textContent='💣'; div.appendChild(s); }
+  else if(type === 'high'){ const s=document.createElement('span'); s.className='item-high'; s.textContent='⛰️'; div.appendChild(s); }
+  else if(type === 'boots'){ const s=document.createElement('span'); s.className='item-boots'; s.textContent='👟'; div.appendChild(s); }
 }
 
 function renderBoard(){
@@ -1154,7 +1180,15 @@ function renderBoard(){
   boardEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
   boardEl.style.gridTemplateRows = `repeat(${n}, 1fr)`;
   boardEl.classList.toggle('is-large', n >= 9);
-  const reachable = G.phase === 'choose' ? getReachable(G.you.x, G.you.y) : [];
+  const youRange = (App.chaosMode && G.you.boots) ? CFG.bootsRange : 1;   // 👟 doble paso
+  const reachable = G.phase === 'choose' ? getReachable(G.you.x, G.you.y, youRange) : [];
+  // 💣 Área de las bombas armadas: aviso sutil en las casillas afectadas
+  const blastWarn = new Set();
+  if(App.chaosMode){
+    G.board.forEach(c=>{
+      if(c.type==='bomb_armed') bombArea(c.x, c.y).forEach(a=>blastWarn.add(a.x+','+a.y));
+    });
+  }
   // Recorremos en orden VISUAL. Para cada celda visual, hallamos su coord canónica.
   for(let vy=0; vy<n; vy++){
     for(let vx=0; vx<n; vx++){
@@ -1163,6 +1197,7 @@ function renderBoard(){
       const x = cn.x, y = cn.y;
       const cell = cellAt(x,y);
       const div = document.createElement('div'); div.className = 'cell'; div.dataset.x = x; div.dataset.y = y;
+      if(blastWarn.has(x+','+y)) div.classList.add('is-blast-warn');
       appendCellItemIcon(div, cell.type);
       const youHere = (G.you.x === x && G.you.y === y);
       const oppHere = (G.opp.x === x && G.opp.y === y);
@@ -1300,13 +1335,17 @@ const Walls = {
   }
 };
 
-function getReachable(x, y){
+// range opcional (default 1): las botas 👟 del Modo Caos habilitan radio 2 por
+// un turno. Solo el paso adyacente chequea paredes — Caos y Paredes son
+// mutuamente excluyentes, así que el radio 2 nunca convive con paredes.
+function getReachable(x, y, range){
+  const r = range || 1;
   const n = CFG.boardSize, out = [];
-  for(let dy=-1; dy<=1; dy++) for(let dx=-1; dx<=1; dx++){
+  for(let dy=-r; dy<=r; dy++) for(let dx=-r; dx<=r; dx++){
     if(dx===0&&dy===0) continue;
     const nx=x+dx, ny=y+dy;
     if(nx>=0&&nx<n&&ny>=0&&ny<n){
-      if(Walls.blocks(x, y, nx, ny)) continue;   // pared entre medio: no se puede pasar
+      if(Math.max(Math.abs(dx),Math.abs(dy))===1 && Walls.blocks(x, y, nx, ny)) continue;
       out.push({x:nx,y:ny});
     }
   }
@@ -1383,7 +1422,7 @@ function startGame(){
                : Tourney.active  ? TOURNEY_YOU_HP : CFG.maxHp;
   G.you = {x:n-1,y:n-1,hp:youHp,maxHp:youMax,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   G.opp = {x:0,y:0,hp:oppHp,maxHp:oppHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0;
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[];
   resolveSkins();   // easter egg Messi (offline: solo aplica tu propia skin)
   updateHud(); renderBoard(); startChoosePhase();
   showStartBubbles();
@@ -1405,7 +1444,7 @@ function startOnlineGame(boardStr, role){
     G.you = {x:0,  y:0,  hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
     G.opp = {x:n-1,y:n-1,hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   }
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0;
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[];
   resolveSkins();   // easter egg Messi: define skins/nombre según ambos jugadores
   show('game');
   updateHud(); renderBoard();
@@ -1584,8 +1623,12 @@ function bestConvenientMove(me){
     if(t==='power_dmg') score += 6;
     else if(t==='power_def') score += 5;
     else if(t==='ring') score += 8;
+    else if(t==='chest') score += 5;
+    else if(t==='boots') score += 4;
+    else if(t==='high') score += 1.5;
     else if(t==='empty') score += 1;
     else if(t==='down'){ score -= 14; if(boxedIn) score += 13; }
+    if(App.chaosMode) score -= bombThreatAt(p.x, p.y);   // 💣 evitar el área de explosión
     score += Math.random() * 0.5;   // desempate suave
     return { x:p.x, y:p.y, score };
   });
@@ -1625,8 +1668,23 @@ function onOnlineMovesReady(moves){
   resolveMoves();
 }
 
+// 💣 Peligro de bomba para la IA: cuánto castigar pararse en (x,y).
+// Inminente (explota en la PRÓXIMA resolución: detonateBombs usa el mismo
+// turnCount que esta fase de elección) = casi el daño real; si falta mecha,
+// castigo chico (puede pasar de largo).
+function bombThreatAt(x, y){
+  if(!App.chaosMode || !G.bombs || !G.bombs.length) return 0;
+  let threat = 0;
+  G.bombs.forEach(b=>{
+    if(!bombArea(b.x, b.y).some(c=>c.x===x && c.y===y)) return;
+    threat = Math.max(threat, (G.turnCount - b.armedTurn >= CFG.bombFuse) ? 12 : 3);
+  });
+  return threat;
+}
+
 function cpuDecideMove(){
-  let reachable = getReachable(G.opp.x, G.opp.y);
+  // 👟 Con botas, la CPU también elige en radio 2
+  let reachable = getReachable(G.opp.x, G.opp.y, (App.chaosMode && G.opp.boots) ? CFG.bootsRange : 1);
   const n = CFG.boardSize;
 
   // Rasgo de Marlene: a veces puede moverse 2 casilleros en cualquier dirección
@@ -1681,6 +1739,8 @@ function cpuDecideMove(){
       if(t==='power_dmg') val = 6;
       else if(t==='power_def') val = 5;
       else if(t==='ring') val = 7 + (((G.opp.maxHp||CFG.maxHp) - G.opp.hp)/(G.opp.maxHp||CFG.maxHp))*8;
+      else if(t==='chest') val = 5;      // 🎁 en promedio conviene
+      else if(t==='boots') val = 4;      // 👟 movilidad para el próximo turno
       if(!val) continue;
       const d = Math.max(Math.abs(tx-G.opp.x), Math.abs(ty-G.opp.y));
       const discounted = val - d * 1.2;
@@ -1703,6 +1763,13 @@ function cpuDecideMove(){
       if(losing) score += 2;                              // extra si va perdiendo
     }
     if(cell.type === 'empty')     score += 1;   // base: moverse a vacío es bueno
+    // 🌀 Modo Caos: valoración simple de los ítems nuevos
+    if(cell.type === 'chest')  score += 5;      // 🎁 sorpresa: en promedio conviene
+    if(cell.type === 'boots')  score += 4;      // 👟 doble paso
+    if(cell.type === 'bomb')   score += 1;      // armarla puede ser jugada, sin regalarse
+    if(cell.type === 'high')   score += 1.5;    // ⛰️ bonus si hay duelo
+    if(cell.type === 'portal') score += 0.5;    // 🌀 movilidad
+    if(App.chaosMode) score -= bombThreatAt(p.x, p.y);   // 💣 no pararse donde explota
 
     if(cell.type === 'down'){
       // Regla central: una trampa es la PEOR opción por defecto (−10 HP real).
@@ -1869,8 +1936,13 @@ function resolveMoves(){
   const youOldRect = willClash ? null : getMarkerRect('is-you');
   const oppOldRect = willClash ? null : getMarkerRect('is-opp');
   G.you.x=youDest.x; G.you.y=youDest.y; G.opp.x=oppDest.x; G.opp.y=oppDest.y;
+  // 👟 Doble paso: el buff cubría ESTE movimiento y se consume (lo haya usado
+  // o no) ANTES de los efectos — pisar otras botas ahora lo re-otorga.
+  if(App.chaosMode){ G.you.boots=false; G.opp.boots=false; }
   const sharedBuff = applySharedCellEffects();   // puede teleportar por cofre (flags G._tele*)
   applyRingDrip(G.you); applyRingDrip(G.opp);
+  // 💣 Bombas con mecha vencida: detonar ANTES del render (piedad: no matan)
+  const blastCells = App.chaosMode ? detonateBombs() : null;
   // La tregua se cumple en cuanto ambos se mueven: quitar la burbuja YA,
   // antes de redibujar, para que no quede un instante en la casilla nueva.
   const wasTruce = G.justDueled;
@@ -1888,6 +1960,13 @@ function resolveMoves(){
       if(cell){ const fx=document.createElement('div'); fx.className='portal-fx'; cell.appendChild(fx); }
     });
     Sound.pickupDef && Sound.pickupDef(); haptic([10,25,10]);
+  }
+  // 💥 Flash one-shot en las casillas alcanzadas por una explosión
+  if(blastCells){
+    blastCells.forEach(c=>{
+      const cell = document.querySelector(`.cell[data-x="${c.x}"][data-y="${c.y}"]`);
+      if(cell){ const fx=document.createElement('div'); fx.className='bomb-fx'; cell.appendChild(fx); }
+    });
   }
   // Impacto visual al caer AMBOS en la misma casilla: onda expansiva one-shot
   // + pop de aterrizaje de las fichas (el próximo renderBoard() limpia todo).
@@ -2009,12 +2088,12 @@ function applySharedCellEffects(){
   const sameCell = (G.you.x===G.opp.x && G.you.y===G.opp.y);
   if(sameCell){
     const cell = cellAt(G.you.x, G.you.y);
-    if(cell.type==='power_dmg' || cell.type==='power_def' || cell.type==='ring' || cell.type==='chest'){
+    if(cell.type==='power_dmg' || cell.type==='power_def' || cell.type==='ring' || cell.type==='chest' || cell.type==='boots'){
       // Sorteo determinista: depende del turno y la posición (igual en ambos clientes)
       const seed = (G.turnCount*31 + G.you.x*7 + G.you.y*13) % 2;
       const youWins = (seed===0);
       const winner = youWins ? G.you : G.opp;
-      const itemEmoji = cell.type==='power_dmg' ? '🗡️' : (cell.type==='power_def' ? '◈' : (cell.type==='chest' ? '🎁' : '💍'));
+      const itemEmoji = { power_dmg:'🗡️', power_def:'◈', chest:'🎁', boots:'👟', ring:'💍' }[cell.type];
       applyCellEffect(winner);                 // solo uno recibe el ítem/anillo
       cell.type='empty';                       // la casilla queda vacía para el otro
       // Devuelve la info para la ruleta visual (el sorteo ya está aplicado)
@@ -2025,6 +2104,11 @@ function applySharedCellEffects(){
       applyCellEffect(G.you);
       // la casilla ya se consumió; aplicar daño al otro manualmente
       G.opp.hp = Math.max(1, G.opp.hp - CFG.downDamage);
+      return null;
+    }
+    if(cell.type==='bomb'){
+      // Bomba compartida: se arma UNA vez (ambos están parados encima)
+      applyCellEffect(G.you);
       return null;
     }
     return null; // casilla vacía
@@ -2064,6 +2148,63 @@ function applyCellEffect(player){
     cell.type='empty';
     applyChestEffect(player);
   }
+  else if(cell.type==='boots'){
+    cell.type='empty';
+    player.boots = true;   // el PRÓXIMO movimiento puede ser a radio 2 (un pick)
+    Sound.pickupDef && Sound.pickupDef();
+    toast(fillText('bootsPicked', {name:(player===G.you)?App.playerName:App.oppName}));
+  }
+  else if(cell.type==='bomb'){
+    // Pisarla la ARMA: explota CFG.bombFuse resoluciones después (detonateBombs).
+    // armedTurn usa el turnCount PRE-incremento (applyCellEffect corre antes
+    // del turnCount++ de resolveMoves) — igual en ambos clientes.
+    cell.type='bomb_armed';
+    if(!G.bombs) G.bombs=[];
+    G.bombs.push({ x: player.x, y: player.y, armedTurn: G.turnCount });
+    Sound.trap && Sound.trap();
+    toast(TEXTS.bombArmed);
+  }
+}
+
+// ---- 💣 Modo Caos: bombas ----
+// Casillas afectadas por la explosión: cruz (5) o 3x3 (9) según CFG.bombArea.
+function bombArea(bx, by){
+  const cells = [{x:bx, y:by}];
+  const deltas = CFG.bombArea
+    ? [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]]
+    : [[0,-1],[-1,0],[1,0],[0,1]];
+  const n = CFG.boardSize;
+  deltas.forEach(([dx,dy])=>{
+    const x=bx+dx, y=by+dy;
+    if(x>=0 && y>=0 && x<n && y<n) cells.push({x,y});
+  });
+  return cells;
+}
+
+// Detona las bombas cuya mecha venció (turnCount PRE-incremento, ver el
+// armado). Corre en resolveMoves ANTES del render: determinista, ambos
+// clientes computan lo mismo. Piedad como las trampas: nunca mata (floor 1).
+// Devuelve las casillas afectadas (para el fx post-render) o null.
+function detonateBombs(){
+  if(!G.bombs || !G.bombs.length) return null;
+  const due = G.bombs.filter(b => G.turnCount - b.armedTurn >= CFG.bombFuse);
+  if(!due.length) return null;
+  G.bombs = G.bombs.filter(b => G.turnCount - b.armedTurn < CFG.bombFuse);
+  const hitCells = [];
+  let someoneHit = false;
+  due.forEach(b=>{
+    cellAt(b.x, b.y).type = 'empty';
+    bombArea(b.x, b.y).forEach(c=>{
+      hitCells.push(c);
+      [G.you, G.opp].forEach(pl=>{
+        if(pl.x===c.x && pl.y===c.y){ pl.hp = Math.max(1, pl.hp - CFG.bombDamage); someoneHit = true; }
+      });
+    });
+  });
+  Sound.trap && Sound.trap();
+  haptic(someoneHit ? [20,50,20] : [12,25,12]);
+  toast(TEXTS.bombExploded);
+  return hitCells;
 }
 
 // ---- 🌀 Modo Caos: helpers de portal y cofre ----
@@ -2444,8 +2585,16 @@ function computeDuelDamages(){
   }
   // Si ambos perfectos, no se anula nada (buffs cuentan normal).
 
-  const yourDmg = duelDamage(rawYou, youPerfect, youDmgEff, oppDefEff);
-  const oppDmg  = duelDamage(rawOpp, oppPerfect, oppDmgEff, youDefEff, cpuDmgMult());
+  let yourDmg = duelDamage(rawYou, youPerfect, youDmgEff, oppDefEff);
+  let oppDmg  = duelDamage(rawOpp, oppPerfect, oppDmgEff, youDefEff, cpuDmgMult());
+  // ⛰️ Modo Caos: duelar parado en terreno alto suma un bonus chico al daño
+  // propio. Va DESPUÉS de duelDamage: no cambia quién gana el duelo (eso es
+  // solo el score crudo), no lo anula el perfecto rival, y solo aplica si el
+  // golpe conecta (daño > 0).
+  if(App.chaosMode){
+    if(yourDmg > 0 && cellAt(G.you.x, G.you.y).type==='high') yourDmg += CFG.highBonus;
+    if(oppDmg  > 0 && cellAt(G.opp.x, G.opp.y).type==='high') oppDmg  += CFG.highBonus;
+  }
   return { yourDmg, oppDmg, youPerfect, oppPerfect };
 }
 // Multiplicador de daño del rival CPU según su rasgo (Alex pega más fuerte)
@@ -2907,6 +3056,8 @@ function renderBuffs(elId,player){
   if(buffs.def>0){ const c=document.createElement('span'); c.className='buff-chip is-def'; c.innerHTML=`<span class="sym">◈</span> +${buffs.def}`; el.appendChild(c); }
   // Efecto del anillo activo (goteo de curación): solo el ícono, sin texto.
   if(player.ringDrip && player.ringDrip>0){ const c=document.createElement('span'); c.className='buff-chip is-ring'; c.innerHTML=`<span class="ring-ic"></span>`; el.appendChild(c); }
+  // 👟 Doble paso listo para el próximo movimiento (Modo Caos)
+  if(player.boots){ const c=document.createElement('span'); c.className='buff-chip is-boots'; c.innerHTML=`<span class="sym">👟</span> x2`; el.appendChild(c); }
 }
 function setMsg(text,active=false){ const el=$('turn-msg'); el.textContent=text; el.classList.toggle('is-active',active); }
 
@@ -4507,6 +4658,16 @@ const LAB_PARAMS = [
   ['redBaseScore','Puntaje Rojo (base)',0,10,1,'Duelo'],
   ['duelCycleDuration','Velocidad aguja (seg/ciclo)',0.8,3,0.1,'Duelo'],
   ['duelMaxPasses','Pases máximos',2,8,1,'Duelo'],
+  ['chestCount','Cantidad 🎁 inicial',0,6,1,'Modo Caos'],
+  ['chestHeal','Curación del cofre',0,20,1,'Modo Caos'],
+  ['bombCount','Cantidad 💣 inicial',0,6,1,'Modo Caos'],
+  ['bombFuse','Mecha (turnos)',1,5,1,'Modo Caos'],
+  ['bombDamage','Daño de bomba',0,30,1,'Modo Caos'],
+  ['bombArea','Área (0=cruz · 1=3x3)',0,1,1,'Modo Caos'],
+  ['highCount','Cantidad ⛰️ inicial',0,8,1,'Modo Caos'],
+  ['highBonus','Bonus de terreno alto',0,10,1,'Modo Caos'],
+  ['bootsCount','Cantidad 👟 inicial',0,4,1,'Modo Caos'],
+  ['bootsRange','Alcance con botas',2,3,1,'Modo Caos'],
 ];
 const CFG_DEFAULTS = JSON.parse(JSON.stringify(CFG));  // copia original para restaurar
 
@@ -4628,6 +4789,7 @@ function applyTextsToDom(){
   $('info-score-decay').textContent = TEXTS.infoScoreDecay;
   $('info-mercy').innerHTML = TEXTS.infoMercy;
   $('info-walls').innerHTML = TEXTS.infoWalls;
+  $('info-chaos').innerHTML = TEXTS.infoChaos;
   TOURNEY_ROSTER.forEach((r,i)=>{ r.name = TEXTS['rosterName'+i] || r.name; });
   // Solo aplica a la campaña DEFAULT: con campaña remota (editor) manda el
   // nombre del editor, y además el nodo 0 puede no ser una partida (guard).
