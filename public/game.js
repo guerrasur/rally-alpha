@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.17';
+const VERSION = 'v0.3.18';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -332,7 +332,7 @@ function tourneySkillFor(i){
 const CAMPAIGN_SAVE_KEY = 'rally_campaign_v1';
 const CAMPAIGN_SCRIPT = [
   // Nodo 0: arranca como una partida rápida normal. Sin nada raro… por ahora.
-  { id:'intro-match', type:'match', opp:{ name:'Tarata', hp:11, skill:0.35 } },
+  { id:'intro-match', type:'match', opp:{ name:'Tarata', hp:11, skill:0.35, sprite:'sprites/tarata.webp' } },
   // ← próximos nodos de la campaña van acá (escenas, partidas con mecánicas
   //    nuevas, giros de historia). Ejemplo:
   // { id:'s1', type:'scene', lines:['Cachito te mira fijo.', 'Algo cambió.'] },
@@ -1137,6 +1137,7 @@ const G = {
   flip: false,      // true para el invitado (tablero espejado 180°)
   skinYou: null,    // emoji de skin (easter egg Messi) o null
   skinOpp: null,
+  spriteOpp: null,  // url de imagen para el marker del rival (sprite de campaña) o null
   _duelResolved: false,
   _revealShown: false,
   you: { x:6, y:6, hp:100, prevX:6, prevY:6, buffs:{dmg:0, def:0} },
@@ -1475,7 +1476,8 @@ function renderBoard(){
       if(oppHere){
         const m=document.createElement('div'); m.className='player-marker is-opp';
         if(shielded) m.classList.add('has-shield');
-        if(G.skinOpp){ m.classList.add('has-skin'); m.textContent=G.skinOpp; }
+        if(G.spriteOpp){ m.classList.add('has-sprite'); m.style.backgroundImage = `url(${G.spriteOpp})`; }
+        else if(G.skinOpp){ m.classList.add('has-skin'); m.textContent=G.skinOpp; }
         if(bothHere) m.classList.add('is-clash');
         div.appendChild(m);
       }
@@ -4449,8 +4451,10 @@ function applyOppCosmetic(){
     if(o.accent) root.style.setProperty('--opp-accent', o.accent);
     else root.style.removeProperty('--opp-accent');
     App.oppName = o.name || '???';
+    G.spriteOpp = o.sprite || null;
     return;
   }
+  G.spriteOpp = null;
   if(Tourney.active){
     const r=TOURNEY_ROSTER[Tourney.index];
     root.style.setProperty('--opp-accent', r.accent);

@@ -622,6 +622,13 @@
     font-size: 22px; line-height: 1;
   }
   .cell .player-marker.has-skin::after{ display:none; }
+  .cell .player-marker.has-sprite{
+    background-size: cover;
+    background-position: center;
+    box-shadow: none !important;
+    width: 82%; height: 82%;
+  }
+  .cell .player-marker.has-sprite::after{ display:none; }
   /* Burbuja de tregua post-duelo: visible, estática, contenida en la casilla */
   .cell .player-marker.has-shield::before{
     content:'';
