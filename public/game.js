@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.19';
+const VERSION = 'v0.3.20';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -333,10 +333,20 @@ const CAMPAIGN_SAVE_KEY = 'rally_campaign_v1';
 const CAMPAIGN_SCRIPT = [
   // Nodo 0: arranca como una partida rápida normal. Sin nada raro… por ahora.
   { id:'intro-match', type:'match', opp:{ name:'Tarata', hp:11, skill:0.35, sprite:'sprites/tarata.webp' } },
+  // ⚠️ Ojo: si existe campaign/script en Firebase (editor /admin/), applyRemoteCampaign()
+  // REEMPLAZA esta cinta entera y los nodos remotos no traen `sprite`. Por eso además
+  // existe NPC_SPRITES (fallback por nombre de rival) más abajo.
   // ← próximos nodos de la campaña van acá (escenas, partidas con mecánicas
   //    nuevas, giros de historia). Ejemplo:
   // { id:'s1', type:'scene', lines:['Cachito te mira fijo.', 'Algo cambió.'] },
 ];
+
+// Sprites de imagen por nombre de rival de campaña. Fallback para cuando el
+// nodo no trae `sprite` propio (típico: la cinta vino del editor /admin/ vía
+// campaign/script, que no conoce el campo). El `sprite` del nodo siempre gana.
+const NPC_SPRITES = {
+  'Tarata': 'sprites/tarata.webp',
+};
 
 const Campaign = {
   active:false,   // true mientras el jugador está DENTRO de la campaña
@@ -4451,7 +4461,7 @@ function applyOppCosmetic(){
     if(o.accent) root.style.setProperty('--opp-accent', o.accent);
     else root.style.removeProperty('--opp-accent');
     App.oppName = o.name || '???';
-    G.spriteOpp = o.sprite || null;
+    G.spriteOpp = o.sprite || NPC_SPRITES[o.name] || null;
     return;
   }
   G.spriteOpp = null;
