@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.23';
+const VERSION = 'v0.3.24';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1526,14 +1526,14 @@ function renderBoard(){
         const m=document.createElement('div'); m.className='player-marker is-you';
         if(shielded) m.classList.add('has-shield');
         if(G.skinYou){ m.classList.add('has-skin'); m.textContent=G.skinYou; }
-        else if(G.spriteYou){ m.classList.add('has-sprite'); m.style.backgroundImage = `url(${G.spriteYou})`; }
+        else if(G.spriteYou){ m.classList.add('has-sprite'); m.style.setProperty('--sprite-url', `url(${G.spriteYou})`); }
         if(bothHere) m.classList.add('is-clash');
         div.appendChild(m);
       }
       if(oppHere){
         const m=document.createElement('div'); m.className='player-marker is-opp';
         if(shielded) m.classList.add('has-shield');
-        if(G.spriteOpp){ m.classList.add('has-sprite'); m.style.backgroundImage = `url(${G.spriteOpp})`; }
+        if(G.spriteOpp){ m.classList.add('has-sprite'); m.style.setProperty('--sprite-url', `url(${G.spriteOpp})`); }
         else if(G.skinOpp){ m.classList.add('has-skin'); m.textContent=G.skinOpp; }
         if(bothHere) m.classList.add('is-clash');
         div.appendChild(m);
@@ -2217,7 +2217,7 @@ function flipMarker(cls, oldRect){
   // campaña trae variante de movimiento (spriteOppMove); si no hay, el
   // marker se queda con el idle todo el trayecto, sin romper nada.
   const swapSprite = cls==='is-opp' && G.spriteOppMove && el.classList.contains('has-sprite');
-  if(swapSprite) el.style.backgroundImage = `url(${G.spriteOppMove})`;
+  if(swapSprite) el.style.setProperty('--sprite-url', `url(${G.spriteOppMove})`);
   el.style.transition = 'none';
   el.style.transform = `translate(${dx}px, ${dy}px)`;
   requestAnimationFrame(()=>{
@@ -2230,7 +2230,7 @@ function flipMarker(cls, oldRect){
       el.style.transform = '';
       el.addEventListener('transitionend', ()=>{
         el.style.transition = '';
-        if(swapSprite && G.spriteOpp) el.style.backgroundImage = `url(${G.spriteOpp})`;
+        if(swapSprite && G.spriteOpp) el.style.setProperty('--sprite-url', `url(${G.spriteOpp})`);
       }, {once:true});
     });
   });
