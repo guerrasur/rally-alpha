@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#EAEAE7" />
 <title>Rally - Partidas Online</title>
 <meta name="description" content="Rally (Rallyyy) es un juego casual para jugar con amigos o en solitario. Duelos rápidos, modos variados y partidas online gratis y sin registro." />
-<link rel="icon" type="image/png" href="favicon.png?v=v0.3.28" />
-<link rel="apple-touch-icon" href="favicon.png?v=v0.3.28" />
-<link rel="stylesheet" href="style.css?v=v0.3.28" />
+<link rel="icon" type="image/png" href="favicon.png?v=v0.3.29" />
+<link rel="apple-touch-icon" href="favicon.png?v=v0.3.29" />
+<link rel="stylesheet" href="style.css?v=v0.3.29" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -35,7 +35,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.3.28</div>
+  <div class="version-tag" id="version-tag">v0.3.29</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -156,6 +156,7 @@
       <button class="btn btn--primary" id="btn-campaign">Campaña</button>
       <button class="btn btn--outline" id="btn-quick">Partida rápida</button>
       <button class="btn btn--outline" id="btn-tournament">🏆 Torneo</button>
+      <button class="btn btn--outline" id="btn-tourney-resume" style="display:none;">↺ Retomar torneo</button>
       <button class="btn btn--outline" id="btn-walls"><span id="btn-walls-label">🧱 Paredes</span> <span class="beta-tag">beta</span></button>
       <button class="btn btn--outline" id="btn-chaos"><span id="btn-chaos-label">🌀 Caos</span> <span class="beta-tag">beta</span></button>
       <button class="btn btn--ghost" id="btn-offline-back" style="margin-top:4px; opacity:.75;">Volver</button>
@@ -384,6 +385,7 @@
       <h2 class="result-title" id="result-title">—</h2>
       <div class="round-dots" id="round-dots"></div>
       <p class="result-score" id="result-score">—</p>
+      <span class="heal-pop" id="heal-pop"></span>
     </div>
     <div class="tourney-progress" id="tourney-progress"></div>
     <div class="actions">
@@ -439,6 +441,17 @@
     <button class="btn btn--ghost scene-continue" id="scene-continue" hidden>Continuar ▸</button>
   </section>
 
+  <!-- Torneo: retomar desde un rival ya alcanzado (cache local / cuenta online) -->
+  <div class="user-overlay" id="tourney-resume-overlay" hidden>
+    <div class="user-box">
+      <span class="camp-eyebrow" id="tr-eyebrow">Torneo</span>
+      <h2 class="camp-title" id="tr-title">Retomar desde…</h2>
+      <p class="user-hint" id="tr-hint">Elegí un rival al que ya llegaste. Arrancás con el mejor HP que tuviste en esa ronda.</p>
+      <div class="tr-list" id="tr-list"></div>
+      <button class="btn btn--ghost" id="btn-tr-cancel">Cancelar</button>
+    </div>
+  </div>
+
   <!-- Campaña: menú de confirmación de inicio (fondo plano, se desvanece al confirmar) -->
   <div class="user-overlay" id="user-overlay" hidden>
     <div class="user-box">
@@ -483,6 +496,16 @@
     </div>
   </div>
 
+  <!-- Campaña: elegir qué nivel rejugar (solo aparece si ya terminó el primero) -->
+  <div class="camp-overlay" id="camp-levels-overlay" hidden>
+    <div class="camp-box">
+      <span class="camp-eyebrow" id="camp-levels-eyebrow">Campaña</span>
+      <h2 class="camp-title" id="camp-levels-title">Elegí un nivel</h2>
+      <div class="level-hex-grid" id="level-hex-grid"></div>
+      <button class="btn btn--ghost" id="camp-levels-back">Volver</button>
+    </div>
+  </div>
+
   <section class="screen screen--lab" id="screen-lab">
     <div class="lab-head">
       <h2 class="lab-title">🧪 Laboratorio</h2>
@@ -515,6 +538,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-<script src="game.js?v=v0.3.28" defer></script>
+<script src="game.js?v=v0.3.29" defer></script>
 </body>
 </html>

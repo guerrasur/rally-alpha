@@ -1110,6 +1110,25 @@
   .result-eyebrow{ font-size:11px; font-weight:600; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
   .result-title{ font-family:var(--font-display); font-weight:700; font-size:52px; letter-spacing:-.02em; line-height:.95; }
   .result-score{ font-family:var(--font-display); font-weight:500; font-size:22px; color:var(--muted); letter-spacing:.04em; }
+
+  /* "+N HP" que aparece al ganar una ronda de Torneo con cura proporcional
+     (v. game.js applyTourneyHeal). Un solo disparo, no infinita → transform/opacity ok. */
+  .heal-pop{
+    display:none; font-family:var(--font-display); font-weight:700; font-size:18px;
+    color:var(--good); letter-spacing:.02em;
+  }
+  .heal-pop.is-show{
+    display:block; animation: healPop 1.1s ease-out;
+  }
+  @keyframes healPop{
+    0%{ transform: translateY(6px) scale(.85); opacity: 0; }
+    22%{ transform: translateY(-2px) scale(1.08); opacity: 1; }
+    75%{ transform: translateY(-10px) scale(1); opacity: 1; }
+    100%{ transform: translateY(-16px) scale(1); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .heal-pop.is-show{ animation: none; opacity: 1; }
+  }
   /* Marcador de la serie online (mejor de 3): 3 puntos en orden cronológico.
      Gris = ronda pendiente, azul = ganada por vos, negro = por el rival.
      Vacío (fuera de la serie) no ocupa lugar. */
@@ -1150,7 +1169,7 @@
   /* Fila de chips con el progreso del torneo offline (uno por rival del
      roster); solo la tiene contenido cuando el resultado viene de Tourney,
      así que queda vacía (y oculta) para online/campaña/partida suelta. */
-  .tourney-progress{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; max-width:280px; }
+  .tourney-progress{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; align-items:center; max-width:320px; margin:0 auto; }
   .tourney-progress:empty{ display:none; }
   .tp-chip{
     width:30px; height:30px; border-radius:50%;
@@ -1510,6 +1529,43 @@
   padding:4px;
 }
 .user-box .input + .input{ margin-top:-6px; }
+
+/* Retomar torneo: lista de rivales ya alcanzados (cache local o de cuenta) */
+.tr-list{ display:flex; flex-direction:column; gap:6px; width:100%; max-height:280px; overflow-y:auto; }
+.tr-row{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 14px; border-radius:var(--r-sm); border:1.5px solid var(--line);
+  background:var(--field); cursor:pointer; text-align:left;
+}
+.tr-row:hover{ border-color:var(--accent); }
+.tr-row__name{ font-family:var(--font-display); font-weight:600; font-size:14px; color:var(--ink); }
+.tr-row__hp{ font-size:11px; color:var(--muted); }
+
+/* Selector de niveles de campaña: octógonos numerados (1, 2, 3…), con los
+   bordes laterales (las diagonales de esquina) más cortos que los lados
+   rectos. El borde se dibuja con dos capas clipeadas con el MISMO polígono
+   (un ::before más grande de color borde + un ::after inset de color fondo)
+   porque el `border` normal no seguiría el clip-path en las diagonales. */
+.level-hex-grid{ display:flex; flex-wrap:wrap; justify-content:center; gap:14px; padding:4px 0; }
+.level-hex{
+  position:relative; width:60px; height:60px; border:none; padding:0;
+  background:transparent; cursor:pointer;
+}
+.level-hex::before,
+.level-hex::after{
+  content:''; position:absolute; inset:0;
+  clip-path: polygon(38% 0%, 62% 0%, 100% 38%, 100% 62%, 62% 100%, 38% 100%, 0% 62%, 0% 38%);
+}
+.level-hex::before{ background:var(--line); }
+.level-hex::after{ inset:2px; background:var(--field); }
+.level-hex:hover::before{ background:var(--accent); }
+.level-hex.is-current::before{ background:var(--accent); }
+.level-hex.is-current::after{ background:color-mix(in srgb, var(--accent) 12%, var(--field)); }
+.level-hex__num{
+  position:relative; z-index:1;
+  font-family:var(--font-display); font-weight:800; font-size:20px; color:var(--ink);
+}
+.level-hex.is-current .level-hex__num{ color:var(--accent); }
 
 /* Perfil: stats propias dentro del overlay de cuenta (v0.2.84) */
 .user-stats{

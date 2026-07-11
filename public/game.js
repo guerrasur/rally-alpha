@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.28';
+const VERSION = 'v0.3.29';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -294,6 +294,41 @@ function currentTrait(){
   return (Tourney.active && TOURNEY_ROSTER[Tourney.index].trait) || null;
 }
 const Tourney = { active:false, index:0 };
+
+// Progreso de Torneo offline: guarda, por rival (índice), el mejor HP con el
+// que se llegó a esa ronda — cache local + espejo en la cuenta si hay sesión
+// (mismo patrón que Profile/skin). Permite "Retomar torneo" sin rejugar desde 0.
+const TOURNEY_PROGRESS_KEY = 'rally_tourney_progress';
+const TourneyProgress = {
+  best: {}, // {index: hp con el que se entró a esa ronda}
+  load(){
+    try{ const raw = localStorage.getItem(TOURNEY_PROGRESS_KEY); this.best = raw ? JSON.parse(raw) : {}; }
+    catch(e){ this.best = {}; }
+  },
+  save(){
+    try{ localStorage.setItem(TOURNEY_PROGRESS_KEY, JSON.stringify(this.best)); }catch(e){}
+    const cu = User.current();
+    if(cu && fbDb) fbDb.ref('users/'+cu.uid+'/tourneyProgress').set(this.best).catch(()=>{});
+  },
+  // Registra el HP con el que se ENTRA a la ronda `idx`; solo guarda si mejora la marca.
+  record(idx, hp){
+    const cur = this.best[idx];
+    if(cur == null || hp > cur){ this.best[idx] = hp; this.save(); updateTourneyResumeUI(); }
+  },
+  // Trae el progreso de la cuenta (si hay sesión) y se queda con lo mejor entre
+  // lo local y lo remoto para cada rival — mismo criterio que Profile.loadRemote().
+  async loadRemote(){
+    const cu = User.current();
+    if(!cu || !fbDb) return;
+    try{
+      const v = (await fbDb.ref('users/'+cu.uid+'/tourneyProgress').get()).val() || {};
+      Object.keys(v).forEach(k=>{ if(this.best[k]==null || v[k]>this.best[k]) this.best[k]=v[k]; });
+      try{ localStorage.setItem(TOURNEY_PROGRESS_KEY, JSON.stringify(this.best)); }catch(e){}
+    }catch(e){}
+    updateTourneyResumeUI();
+  },
+  reached(){ return Object.keys(this.best).map(Number).sort((a,b)=>a-b); },
+};
 function tourneyHpFor(i){
   // Override del editor de personajes (characters/roster) si existe
   const r = TOURNEY_ROSTER[i];
@@ -354,6 +389,7 @@ const Campaign = {
   active:false,   // true mientras el jugador está DENTRO de la campaña
   node:0,         // índice del nodo actual en CAMPAIGN_SCRIPT
   data:null,      // save: { v, node, name, flags, history, startedAt, updatedAt }
+  replaying:false, // true mientras se rejuega un nivel YA superado (selector de niveles)
 
   load(){
     try{ const raw = localStorage.getItem(CAMPAIGN_SAVE_KEY); this.data = raw ? JSON.parse(raw) : null; }
@@ -371,6 +407,18 @@ const Campaign = {
   hasProgress(){
     if(this.data===null) this.load();
     return !!(this.data && (this.data.node>0 || (this.data.history && this.data.history.length)));
+  },
+  // Frente real de la campaña (nodo guardado) — no se mueve mientras se rejuega
+  // un nivel viejo desde el selector de niveles.
+  maxNode(){
+    if(this.data===null) this.load();
+    return this.data ? (this.data.node||0) : 0;
+  },
+  // Entra a un nivel puntual desde el selector (hexágonos). Si es un nivel ya
+  // superado, queda marcado como "replaying" para no pisar el progreso real.
+  enterLevel(idx){
+    this.replaying = idx < this.maxNode();
+    this.enter(idx);
   },
 
   // Flags de historia: para que futuros nodos guarden decisiones/estado
@@ -403,13 +451,28 @@ const Campaign = {
   completeCurrent(){
     const done = CAMPAIGN_SCRIPT[this.node];
     this.node++;
-    if(this.data){
+    if(this.data && !this.replaying){
       this.data.history.push(done ? (done.id || this.node-1) : this.node-1);
       this.data.node = this.node;
       this.save();
     }
   },
-  advance(){ this.completeCurrent(); this.enter(this.node); },
+  advance(){
+    this.completeCurrent();
+    if(this.replaying){
+      // Nivel viejo ya terminado: salta directo al frente real de la campaña,
+      // sin repetir los niveles intermedios que ya había superado.
+      this.replaying=false;
+      this.node=this.maxNode();
+    }
+    this.enter(this.node);
+  },
+  // Igual que advance() pero pensado para el botón "Continuar ▸" del resultado
+  // de un match (que no pasa por completeCurrent()+enter() encadenados).
+  continueAfterWin(){
+    if(this.replaying){ this.replaying=false; this.node=this.maxNode(); }
+    this.enter(this.node);
+  },
   exitToMenu(){ this.active=false; },   // el progreso queda cacheado
 
   cur(){ return CAMPAIGN_SCRIPT[this.node] || null; },
@@ -3597,6 +3660,7 @@ function endGame(){
     const isLast = Tourney.index >= TOURNEY_ROSTER.length-1;
     if(youWon && isLast){
       Tourney._carryHp = youHp;
+      showHealPop(0);
       $('result-eyebrow').textContent=TEXTS.tourneyChampionEyebrow;
       $('result-title').textContent=TEXTS.tourneyChampionTitle;
       $('result-score').innerHTML=fillText('tourneyChampionScore', {name:r.name, hp:youHp});
@@ -3607,11 +3671,15 @@ function endGame(){
       rt.classList.add('is-win','is-champion');
       Sound.win(); haptic([15,30,15]);
     } else if(youWon){
-      Tourney._carryHp = youHp;          // conserva la vida para la próxima ronda
+      // Recupera 30% (redondeado) de la vida máxima del rival recién derrotado.
+      const heal = Math.round(tourneyHpFor(Tourney.index) * 0.3);
+      const healedHp = Math.min(TOURNEY_YOU_HP, youHp + heal);
+      Tourney._carryHp = healedHp;       // conserva la vida (con cura) para la próxima ronda
       Tourney._beaten = Tourney.index;   // último vencido
       $('result-eyebrow').textContent=fillText('tourneyRoundEyebrow', {i:Tourney.index+1, n:TOURNEY_ROSTER.length});
       $('result-title').textContent=fillText('tourneyBeatOpp', {name:r.name});
-      $('result-score').innerHTML=fillText('tourneyHpLeft', {hp:youHp});
+      $('result-score').innerHTML=fillText('tourneyHpLeft', {hp:healedHp});
+      showHealPop(Math.min(heal, TOURNEY_YOU_HP - youHp));
       againBtn.style.display='none';
       nextBtn.style.display='block';
       rt.classList.add('is-win');
@@ -3620,6 +3688,7 @@ function endGame(){
       $('result-eyebrow').textContent=TEXTS.tourneyEyebrow;
       $('result-title').textContent=TEXTS.tourneyEliminatedTitle;
       $('result-score').innerHTML=fillText('tourneyEliminatedScore', {i:Tourney.index+1, n:TOURNEY_ROSTER.length, name:r.name});
+      showHealPop(0);
       againBtn.textContent=TEXTS.tourneyRetryLabel;
       Tourney.active=true; // permitir reintentar el mismo (conserva _carryHp de la ronda anterior)
       rt.classList.add('is-lose');
@@ -3636,6 +3705,7 @@ function endGame(){
   else if(youHp>oppHp)   $('result-title').textContent=TEXTS.resultWinTitle;
   else                   $('result-title').textContent=TEXTS.resultLoseTitle;
   $('result-score').innerHTML=fillText('resultScoreHp', {youHp, oppHp});
+  showHealPop(0);
   show('result');
 }
 
@@ -4592,6 +4662,13 @@ function applyOppCosmetic(){
 function pulseResultTitle(el){
   el.classList.remove('is-pulse'); void el.offsetWidth; el.classList.add('is-pulse');
 }
+// Mismo patrón de re-disparo: saca la clase, fuerza reflow, la vuelve a poner.
+function showHealPop(amount){
+  const el=$('heal-pop');
+  if(!amount || amount<=0){ el.classList.remove('is-show'); el.textContent=''; return; }
+  el.textContent = `+${amount} HP`;
+  el.classList.remove('is-show'); void el.offsetWidth; el.classList.add('is-show');
+}
 
 // Fila compacta de chips (uno por rival del roster) para #screen-result,
 // mismo criterio is-beaten/is-current/is-king que showTourneyBracket() pero
@@ -4638,18 +4715,52 @@ function startTournament(){
   Tourney.active=true; Tourney.index=0;
   Tourney._carryHp=null; Tourney._beaten=-1; Tourney._duelCount=0;
   $('btn-again').textContent=TEXTS.tourneyRetryLabel;
+  TourneyProgress.record(0, TOURNEY_YOU_HP);
   applyOppCosmetic();
   showTourneyBracket(()=>{ show('game'); startGame(); });
 }
 function nextTourneyOpponent(){
   Tourney.index++;
   if(Tourney.index>=TOURNEY_ROSTER.length){ Tourney.active=false; show('home'); return; }
+  TourneyProgress.record(Tourney.index, Tourney._carryHp);
   applyOppCosmetic();
   showTourneyBracket(()=>{ show('game'); startGame(); });
+}
+// Retoma el torneo directo en el rival `idx`, con el mejor HP que se registró
+// para esa ronda (cache local o de cuenta). No pisa el progreso existente.
+function resumeTournamentAt(idx){
+  const hp = TourneyProgress.best[idx];
+  if(hp == null) return;
+  Tourney.active=true; Tourney.index=idx;
+  Tourney._carryHp = idx===0 ? null : hp;
+  Tourney._beaten = idx-1; Tourney._duelCount=0;
+  $('btn-again').textContent=TEXTS.tourneyRetryLabel;
+  applyOppCosmetic();
+  showTourneyBracket(()=>{ show('game'); startGame(); });
+}
+function updateTourneyResumeUI(){
+  const has = TourneyProgress.reached().length>0;
+  const btn = $('btn-tourney-resume');
+  if(btn) btn.style.display = has ? 'block' : 'none';
+}
+function renderTourneyResumeList(){
+  const wrap = $('tr-list'); wrap.innerHTML='';
+  TourneyProgress.reached().forEach(idx=>{
+    const r = TOURNEY_ROSTER[idx];
+    if(!r) return;
+    const row = document.createElement('button');
+    row.type='button'; row.className='tr-row';
+    row.innerHTML = `<span class="tr-row__name">${r.emoji?r.emoji+' ':''}${r.name} (${idx+1}/${TOURNEY_ROSTER.length})</span><span class="tr-row__hp">${TourneyProgress.best[idx]} HP</span>`;
+    row.onclick = ()=>{ $('tourney-resume-overlay').hidden=true; readName(); App.online=false; resumeTournamentAt(idx); };
+    wrap.appendChild(row);
+  });
 }
 
 $('btn-howto-ok').addEventListener('click', ()=>{ $('howto').classList.remove('is-show'); startGame(); });
 $('btn-tournament').addEventListener('click', ()=>{ readName(); App.online=false; startTournament(); });
+$('btn-tourney-resume').addEventListener('click', ()=>{ renderTourneyResumeList(); $('tourney-resume-overlay').hidden=false; });
+$('btn-tr-cancel').addEventListener('click', ()=>{ $('tourney-resume-overlay').hidden=true; });
+updateTourneyResumeUI();
 $('btn-tourney-next').addEventListener('click', ()=>{ nextTourneyOpponent(); });
 // Etapa 2: cuando ambos están en la sala. El HOST ve "Iniciar partida"
 // (genera y sube el board). El GUEST espera a recibir el board.
@@ -4721,6 +4832,7 @@ $('btn-join').addEventListener('click', ()=>{ readName(); $('join-name').value=A
 // ---- 👤 Usuario: overlay de cuenta (registro / login / sesión) ----
 User.load();
 Profile.load();
+TourneyProgress.load();
 const USER_ERR_KEY = {
   'formato':     'errUserFormat',
   'pass-corta':  'errPassShort',
@@ -4793,6 +4905,7 @@ const UserUI = {
       // versión de la cuenta (Firebase gana). Si el overlay sigue en session.
       SkinPicker.sync(); SkinPicker.render();
       Profile.loadRemote().then(()=>{ if(this.mode==='session'){ SkinPicker.sync(); SkinPicker.render(); } });
+      TourneyProgress.loadRemote();
     }
   },
 };
@@ -4911,9 +5024,34 @@ function updateCampaignBtn(){
   Campaign.load();
   $('btn-campaign').textContent = Campaign.hasProgress() ? TEXTS.btnCampaignContinue : TEXTS.btnCampaign;
 }
+// Niveles = nodos tipo 'match' de la campaña ya alcanzados (superados o el
+// próximo a jugar). Numerados en orden de aparición (1, 2, 3…), no por índice
+// crudo de CAMPAIGN_SCRIPT (que puede tener escenas intercaladas).
+function campaignLevels(){
+  const maxNode = Campaign.maxNode();
+  const levels=[];
+  CAMPAIGN_SCRIPT.forEach((node,i)=>{ if(node.type==='match' && i<=maxNode) levels.push(i); });
+  return levels;
+}
+function openCampaignLevelPicker(){
+  const wrap=$('level-hex-grid'); wrap.innerHTML='';
+  const maxNode = Campaign.maxNode();
+  campaignLevels().forEach((idx,n)=>{
+    const hex=document.createElement('button');
+    hex.type='button'; hex.className='level-hex'+(idx===maxNode?' is-current':'');
+    hex.innerHTML = `<span class="level-hex__num">${n+1}</span>`;
+    hex.onclick=()=>{ $('camp-levels-overlay').hidden=true; readName(); exitSpecialMode(); App.online=false; Tourney.active=false; Campaign.enterLevel(idx); };
+    wrap.appendChild(hex);
+  });
+  $('camp-levels-overlay').hidden=false;
+}
+$('camp-levels-back').addEventListener('click', ()=>{ $('camp-levels-overlay').hidden=true; });
 $('btn-campaign').addEventListener('click', ()=>{
   readName(); exitSpecialMode(); App.online=false; Tourney.active=false;
-  if(Campaign.hasProgress()){ Campaign.resume(); return; }
+  if(Campaign.hasProgress()){
+    if(campaignLevels().length>1){ openCampaignLevelPicker(); return; }
+    Campaign.resume(); return;
+  }
   // Primera vez: menú de confirmación con el nombre del jugador
   $('camp-title').innerHTML = fillText('campaignStartConfirm', {name:escHtml(App.playerName)});
   $('camp-box').classList.remove('is-fading');
@@ -4929,7 +5067,7 @@ $('camp-yes').addEventListener('click', ()=>{
     Campaign.begin();
   }, 3600);   // 3s de fade + pausa breve en fondo plano
 });
-$('btn-camp-next').addEventListener('click', ()=>{ Campaign.enter(Campaign.node); });
+$('btn-camp-next').addEventListener('click', ()=>{ Campaign.continueAfterWin(); });
 $('btn-offline-back').addEventListener('click', ()=>{ show('home'); });
 $('btn-quick').addEventListener('click', ()=>{ readName(); Tourney.active=false; applyOppCosmetic(); App.online=false; App.oppName=TEXTS.oppNamePractice; beginGame(); });
 $('btn-demo-start').addEventListener('click', ()=>{ Tourney.active=false; applyOppCosmetic(); App.online=false; App.oppName=TEXTS.oppNamePractice; beginGame(); });
@@ -5079,6 +5217,11 @@ const STATIC_I18N_EN = {
   'offline-tag': {text:'Play offline against the machine.'},
   'btn-quick': {text:'Quick match'},
   'btn-tournament': {text:'🏆 Tournament'},
+  'btn-tourney-resume': {text:'↺ Resume tournament'},
+  'tr-eyebrow': {text:'Tournament'},
+  'tr-title': {text:'Resume from…'},
+  'tr-hint': {text:'Pick a rival you already reached. You start with the best HP you had in that round.'},
+  'btn-tr-cancel': {text:'Cancel'},
   'btn-walls-label': {text:'🧱 Walls'},
   'btn-chaos-label': {text:'🌀 Chaos'},
   'btn-offline-back': {text:'Back'},
@@ -5128,6 +5271,9 @@ const STATIC_I18N_EN = {
   'user-pass': {placeholder:'password'},
   'user-cancel': {text:'Back'},
   'camp-eyebrow': {text:'Campaign'},
+  'camp-levels-eyebrow': {text:'Campaign'},
+  'camp-levels-title': {text:'Pick a level'},
+  'camp-levels-back': {text:'Back'},
   'camp-yes': {text:'Start'},
   'camp-no': {text:'Back'},
   'lab-sub': {text:'Adjust the balance live. Changes apply to upcoming matches.'},

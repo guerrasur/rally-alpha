@@ -231,7 +231,10 @@
             ".validate": "$statKey.matches(/^(gamesPlayed|gamesWon|kills|tournamentsWon|damageDealt|damageReceived)$/) && newData.isNumber() && newData.val() >= 0"
           }
         },
-        "skin": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{1,20}$/)" }
+        "skin": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{1,20}$/)" },
+        "tourneyProgress": {
+          "$idx": { ".validate": "$idx.matches(/^[0-9]{1,2}$/) && newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" }
+        }
       }
     },
 
