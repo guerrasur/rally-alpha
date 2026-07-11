@@ -5,6 +5,7 @@
 
     "rooms": {
       ".read": "auth != null",
+      ".indexOn": ["createdAt"],
 
       "$code": {
         ".write": "auth != null",
