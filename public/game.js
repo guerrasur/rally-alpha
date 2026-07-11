@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.27';
+const VERSION = 'v0.3.28';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -4566,6 +4566,11 @@ function applyOppCosmetic(){
     const fallback = NPC_SPRITES[o.name] || {};
     G.spriteOpp = o.sprite || fallback.idle || null;
     G.spriteOppMove = o.spriteMove || fallback.move || null;
+    // Precarga de la variante de movimiento: su URL recién se pinta cuando
+    // flipMarker() arranca el PRIMER deslizamiento, y la descarga no llega
+    // dentro de los 0.35s que dura el trayecto (el primer movimiento se veía
+    // con el idle). Disparando el fetch acá, ya está en caché para ese FLIP.
+    if(G.spriteOppMove) new Image().src = G.spriteOppMove;
     return;
   }
   G.spriteOpp = null;
