@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.26';
+const VERSION = 'v0.3.27';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1139,9 +1139,11 @@ function refreshTexts(){
 refreshTexts();
 
 // Rellena {placeholders} de un texto con los valores dados: fillText('Hola {name}', {name:'Lucio'}) → 'Hola Lucio'.
+// split/join en vez de replace(RegExp): un valor con '$&'/'$'' (p.ej. un nombre
+// de jugador con '$') se interpretaba como patrón de reemplazo y rompía el texto.
 function fillText(key, vars){
   let s = TEXTS[key] != null ? TEXTS[key] : key;
-  if(vars) for(const k in vars) s = s.replace(new RegExp('\\{'+k+'\\}','g'), vars[k]);
+  if(vars) for(const k in vars) s = s.split('{'+k+'}').join(String(vars[k]));
   return s;
 }
 // ---- Diseño del duelo: minijuego vs. daño ----
@@ -1522,6 +1524,7 @@ function renderBoard(){
   boardEl.classList.toggle('is-large', n >= 9);
   const youRange = (App.chaosMode && G.you.boots) ? CFG.bootsRange : 1;   // 👟 doble paso
   const reachable = G.phase === 'choose' ? getReachable(G.you.x, G.you.y, youRange) : [];
+  const reachSet = new Set(reachable.map(p=>p.x+','+p.y));   // lookup O(1) por celda
   // 💣 Área de las bombas armadas: aviso sutil en las casillas afectadas
   const blastWarn = new Set();
   if(App.chaosMode){
@@ -1560,7 +1563,7 @@ function renderBoard(){
         if(bothHere) m.classList.add('is-clash');
         div.appendChild(m);
       }
-      if(reachable.some(p=>p.x===x && p.y===y)){
+      if(reachSet.has(x+','+y)){
         div.classList.add('is-reachable');
         div.addEventListener('click', ()=>{ Sound.click(); haptic(6); onPlayerMove(x, y); });
       }
@@ -2697,6 +2700,9 @@ function startDuel(){
 
 // Reseteo de estado compartido por offline/online al arrancar el minijuego de reflejos.
 function resetDuelPlayState(){
+  // Un cpuTimer viejo (duelo offline anterior) no debe frenar por el rival
+  // de ESTE duelo — se limpia acá (camino compartido), no solo en offline.
+  if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; }
   $('duel-countdown').style.display='none';
   $('duel-game').style.display='flex';
   hideDuelReveal(); G._revealShown=false; G._duelResolved=false;
@@ -2736,8 +2742,7 @@ function startDuelRaf(updateFn){
 
 function beginDuelPlay(){
   G.phase='duel-play';
-  if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; }
-  resetDuelPlayState();
+  resetDuelPlayState();   // también limpia un cpuTimer pendiente
   G.duel.stopped=false;
   startDuelRaf(updateIndicator);
   scheduleCpuStop();
@@ -3058,13 +3063,15 @@ function showDuelReveal(){
   // nunca los buffs: eso mantiene el minijuego totalmente independiente.
   // Verdict corto: "GANA {nombre}" con el GANA en verde si ganaste vos y en
   // rojo si ganó el rival. Debajo, los puntajes chicos en gris: "(6v3)".
+  // Los nombres van ESCAPADOS: esto es innerHTML y online el nombre del rival
+  // viene de otro cliente (sin escape, un nickname con HTML se inyectaba acá).
   const vEl=$('reveal-verdict');
   if(rawYou>rawOpp){
     const sup = youPerfect ? TEXTS.duelPerfectPrefix : '';
-    vEl.innerHTML=fillText('duelVerdictWin', { perfectPrefix:sup, name:App.playerName });
+    vEl.innerHTML=fillText('duelVerdictWin', { perfectPrefix:sup, name:escHtml(App.playerName) });
   } else if(rawOpp>rawYou){
     const sup = oppPerfect ? TEXTS.duelPerfectPrefix : '';
-    vEl.innerHTML=fillText('duelVerdictLose', { perfectPrefix:sup, name:App.oppName });
+    vEl.innerHTML=fillText('duelVerdictLose', { perfectPrefix:sup, name:escHtml(App.oppName) });
   } else {
     vEl.innerHTML=TEXTS.duelVerdictTie;
   }
@@ -3184,6 +3191,7 @@ function applyDuelOutcome(){
 
 function resolveDuel(){
   if(G._duelResolved) return;        // ya resuelto: ignorar llamadas repetidas
+  if(!G.running) return;             // la partida murió en el medio (salida/abandono)
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
   // Paso 1: pantalla de revelado (zonas + quién gana). Paso 2: veredicto.
   if(!G._revealShown){
@@ -3205,6 +3213,7 @@ function resolveDuel(){
   updateHud();
   setTimeout(()=>{
     setDuelOverlayShown(false);
+    if(!G.running) return;   // se salió de la partida durante el resultado
     if(G.you.hp<=0||G.opp.hp<=0){ endGame(); return; }
     if(isTie) ejectPlayers();
     renderBoard(); updateHud(); startChoosePhase();
@@ -3310,6 +3319,7 @@ function onDuelScoresReady(scores){
 // puede adelantar el veredicto y cortar el revelado a la mitad.
 function resolveDuelOnline(){
   if(G._duelResolved) return;     // evitar doble resolución
+  if(!G.running) return;          // la partida terminó en el medio (abandono rival)
   if(!(G.duel.yourStopped && G.duel.oppStopped)) return;
   if(G._revealShown) return;      // el paso 1 ya arrancó; su propio setTimeout dispara el paso 2
   G._revealShown=true;
@@ -3321,6 +3331,9 @@ function resolveDuelOnline(){
 
 function finishDuelOnline(){
   if(G._duelResolved) return;
+  // El rival pudo abandonar durante el revelado (onOpponentLeft ya cerró la
+  // partida y mostró la victoria): no aplicar el duelo fantasma encima.
+  if(!G.running) return;
   G._duelResolved = true;
   $('duel-reveal').style.display='none';
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
@@ -3350,6 +3363,7 @@ function finishDuelOnline(){
   setTimeout(()=>{
     setDuelOverlayShown(false);
     G._duelResolved = false;
+    if(!G.running) return;   // abandono del rival mientras se mostraba el resultado
     if(G.you.hp<=0||G.opp.hp<=0){ endGame(); return; }
     if(isTie){
       // El host calcula las nuevas posiciones (usa azar) y las sincroniza
@@ -3427,7 +3441,6 @@ function setMsg(text,active=false){ const el=$('turn-msg'); el.textContent=text;
 // genera un board nuevo y reinicia (reusa el flujo de pushStart/listenStart).
 // Mejor de 5: continuar a la siguiente ronda automáticamente.
 function setupNextRound(){
-  let rb = $('btn-rematch'); if(rb) rb.style.display='none';
   setMsg('');
   // Escuchar arranque de la próxima ronda
   Net.onStart = (boardStr)=>{
@@ -3680,22 +3693,19 @@ const Net = {
     return code;
   },
 
-  // Borra salas con más de 2 horas de antigüedad (limpieza oportunista, #13)
+  // Borra salas con más de 2 horas de antigüedad (limpieza oportunista, #13).
+  // Query indexada por createdAt (.indexOn en database.rules.json): baja SOLO
+  // las salas vencidas — antes hacía .get() de rooms/ entero (todas las salas
+  // activas con sus games y chats) para después filtrar en el cliente.
   async cleanStaleRooms(){
     if(!fbDb) return;
     const TWO_HOURS = 2*60*60*1000;
-    const now = Date.now();
-    const snap = await fbDb.ref('rooms').get();
+    const cutoff = Date.now() - TWO_HOURS;
+    const snap = await fbDb.ref('rooms').orderByChild('createdAt').endAt(cutoff).get();
     if(!snap.exists()) return;
-    const rooms = snap.val();
     const dels = [];
-    for(const code in rooms){
-      const r = rooms[code];
-      const created = (r && r.createdAt) || 0;
-      if(typeof created==='number' && (now - created) > TWO_HOURS){
-        dels.push(fbDb.ref('rooms/'+code).remove().catch(()=>{}));
-      }
-    }
+    // Las salas sin createdAt (datos viejos) ordenan primero → también entran.
+    snap.forEach(child=>{ dels.push(child.ref.remove().catch(()=>{})); });
     if(dels.length) await Promise.all(dels);
   },
 
@@ -3831,14 +3841,24 @@ const Net = {
     await this.ref.child('game/board').set(boardStr);
   },
 
-  // Escucha actualizaciones de board (para el guest tras regeneración)
+  // Escucha actualizaciones de board (para el guest tras regeneración).
+  // Idempotente (mismo patrón que listenStart): en una serie se llama una vez
+  // POR RONDA y sin soltar el listener anterior se apilaban duplicados — en la
+  // ronda N cada update de board disparaba N renders en el guest.
+  _boardCb: null,
   listenBoard(){
     if(!this.ref) return;
-    this.ref.child('game/board').on('value', s=>{
+    this.stopListenBoard();
+    this._boardCb = s=>{
       const b = s.val();
       if(b) this._lastBoardStr = b;   // recuerda el board vigente (ver listenStart)
       if(b && this.onBoardUpdate) this.onBoardUpdate(b);
-    });
+    };
+    this.ref.child('game/board').on('value', this._boardCb);
+  },
+
+  stopListenBoard(){
+    if(this.ref && this._boardCb){ this.ref.child('game/board').off('value', this._boardCb); this._boardCb=null; }
   },
 
   // ---- Duelo sincronizado (Etapa 3B) ----
@@ -3990,7 +4010,7 @@ const Net = {
       if(this._duelRef){ this._duelRef.off(); this._duelRef=null; }
       if(this.ref){ this.ref.child('game/board').off(); this.ref.off(); }
     } catch(e){}
-    this.ref=null; this.role=null; this._startCb=null; this._lastBoardStr=null;
+    this.ref=null; this.role=null; this._startCb=null; this._boardCb=null; this._lastBoardStr=null;
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
     this.onOpponentWaiting=null; this.onOpponentBack=null;
@@ -4014,7 +4034,7 @@ const Net = {
       }
     } catch(e){ console.warn('[Rally] Net.leave', e); }
     this.ref=null; this.code=null; this.role=null; this.onReady=null;
-    this._startCb=null; this._lastBoardStr=null;
+    this._startCb=null; this._boardCb=null; this._lastBoardStr=null;
     this.onGuestLeft=null; this._sawGuest=false;
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
@@ -4463,9 +4483,10 @@ const OT = {
       $('spec-note').textContent=TEXTS.specDuelInProgress;
     } else if(spec.duel && spec.duel.active===false){
       const pa=this.players[st.a]||{}, pb=this.players[st.b]||{};
+      // Sin escHtml: va por textContent (escapar acá mostraba '&lt;' literal).
       $('spec-note').textContent = (spec.duel.winner==='tie')
         ? fillText('specDuelTie', {scoreA:spec.duel.scoreA, scoreB:spec.duel.scoreB})
-        : fillText('specDuelWon', {name:escHtml((spec.duel.winner==='A'?pa:pb).name||'?'), scoreA:spec.duel.scoreA, scoreB:spec.duel.scoreB});
+        : fillText('specDuelWon', {name:(spec.duel.winner==='A'?pa:pb).name||'?', scoreA:spec.duel.scoreA, scoreB:spec.duel.scoreB});
     } else {
       $('spec-note').textContent=fillText('specTurn', {n:spec.turn||0});
     }
