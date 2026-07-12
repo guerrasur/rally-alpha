@@ -344,6 +344,14 @@ const PARAMS = [
   ['highBonus','Bonus de terreno alto',2,'Modo Caos'],
   ['bootsCount','Cantidad 👟 inicial',1,'Modo Caos'],
   ['bootsRange','Alcance con botas',2,'Modo Caos'],
+  ['expWinOnline','EXP victoria online',50,'Niveles'],
+  ['expLoseOnline','EXP derrota online',20,'Niveles'],
+  ['expWinOffline','EXP victoria offline',25,'Niveles'],
+  ['expLoseOffline','EXP derrota offline',10,'Niveles'],
+  ['expWinPractice','EXP victoria práctica',10,'Niveles'],
+  ['expLosePractice','EXP derrota práctica',5,'Niveles'],
+  ['expPerLevelBase','EXP nivel 1→2',100,'Niveles'],
+  ['expPerLevelStep','EXP extra por nivel',50,'Niveles'],
 ];
 const DEFAULTS = Object.fromEntries(PARAMS.map(p=>[p[0],p[2]]));
 
@@ -496,6 +504,10 @@ const TEXT_PARAMS = [
   ["tourneyRetryLabel", "Fin de partida", "Reintentar rival"],
   ["tourneyChampionEyebrow", "Fin de partida", "🏆 Torneo"],
   ["tourneyEyebrow", "Fin de partida", "Torneo"],
+  ["resultExpGain", "Niveles / EXP", "+{n} EXP"],
+  ["levelLabel", "Niveles / EXP", "Nivel {n}"],
+  ["levelUpFlash", "Niveles / EXP", "¡Nivel {n}!"],
+  ["expProgress", "Niveles / EXP", "{into} / {need} EXP"],
   ["otChampionTitle", "Torneo online x4", "🏆 Ganaste el torneo"],
   ["otLostFinalTitle", "Torneo online x4", "Perdiste la final"],
   ["otFinishedTitle", "Torneo online x4", "Torneo terminado"],

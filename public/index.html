@@ -13,7 +13,7 @@
      (de donde salen los .woff2 que el CSS de Google pide después). -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" />
-<link rel="stylesheet" href="style.css?v=v0.3.35" />
+<link rel="stylesheet" href="style.css?v=v0.3.36" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -40,7 +40,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.3.35</div>
+  <div class="version-tag" id="version-tag">v0.3.36</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -392,6 +392,14 @@
       <p class="result-score" id="result-score">—</p>
       <span class="heal-pop" id="heal-pop"></span>
     </div>
+    <div class="result-exp" id="result-exp" hidden>
+      <div class="result-exp__row">
+        <span class="result-exp__gain" id="result-exp-gain">+0 EXP</span>
+        <span class="result-exp__level" id="result-exp-level">Nivel 1</span>
+      </div>
+      <div class="result-exp__bar"><div class="result-exp__fill" id="result-exp-fill"></div></div>
+      <span class="result-exp__levelup" id="result-exp-levelup" hidden></span>
+    </div>
     <div class="tourney-progress" id="tourney-progress"></div>
     <div class="actions">
       <button class="btn btn--primary" id="btn-tourney-next" style="display:none;">Siguiente rival ▸</button>
@@ -464,6 +472,13 @@
       <h2 class="camp-title" id="user-title">Creá tu <b>usuario</b></h2>
       <p class="user-hint" id="user-hint"></p>
       <div class="user-stats" id="user-stats" style="display:none;">
+        <div class="user-level" id="user-level">
+          <div class="user-level__head">
+            <span class="user-level__lvl" id="us-level-label">Nivel 1</span>
+            <span class="user-level__exp" id="us-exp-text">0 / 100 EXP</span>
+          </div>
+          <div class="user-level__bar"><div class="user-level__fill" id="us-exp-fill"></div></div>
+        </div>
         <div class="user-stats__row"><span id="us-label-gamesWon">Partidas ganadas</span><b id="us-gamesWon">0</b></div>
         <div class="user-stats__row"><span id="us-label-kills">Kills</span><b id="us-kills">0</b></div>
         <div class="user-stats__row"><span id="us-label-tournamentsWon">Torneos ganados</span><b id="us-tournamentsWon">0</b></div>
@@ -546,6 +561,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" defer></script>
 
-<script src="game.js?v=v0.3.35" defer></script>
+<script src="game.js?v=v0.3.36" defer></script>
 </body>
 </html>

@@ -1196,6 +1196,34 @@
   .result-title.is-win{ color: var(--good); }
   .result-title.is-lose{ color: var(--bad); }
 
+  /* 🎖️ Bloque de EXP en el resultado (v0.3.36): chip "+N EXP", barra que se
+     llena hacia el próximo nivel y flash dorado si sube. Oculto (hidden) salvo
+     que endGame lo pinte. La barra transiciona su ancho una sola vez (fuera del
+     duelo → sin costo de rAF); prefers-reduced-motion la deja sin transición. */
+  .result-exp{ width:100%; max-width:320px; margin:0 auto; display:flex; flex-direction:column; gap:6px; }
+  .result-exp[hidden]{ display:none; }
+  .result-exp__row{ display:flex; align-items:baseline; justify-content:space-between; }
+  .result-exp__gain{ font-family:var(--font-display); font-weight:700; font-size:16px; color:var(--accent); letter-spacing:.02em; }
+  .result-exp__level{ font-family:var(--font-body); font-size:12px; color:var(--muted); }
+  .result-exp__bar{ width:100%; height:8px; border-radius:999px; background:var(--line); overflow:hidden; }
+  .result-exp__fill{ height:100%; width:0; border-radius:999px; background:var(--accent); transition:width .7s cubic-bezier(.2,.8,.3,1); }
+  .result-exp__levelup{
+    font-family:var(--font-display); font-weight:700; font-size:14px; color:#9A7B14;
+    letter-spacing:.02em; text-align:center;
+  }
+  [data-theme="dark"] .result-exp__levelup{ color:#D4AF37; }
+  .result-exp__levelup[hidden]{ display:none; }
+  .result-exp__levelup.is-show{ animation: expLevelUp .9s ease-out; }
+  @keyframes expLevelUp{
+    0%{ transform: translateY(4px) scale(.8); opacity:0; }
+    40%{ transform: translateY(0) scale(1.1); opacity:1; }
+    100%{ transform: translateY(0) scale(1); opacity:1; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .result-exp__fill{ transition:none; }
+    .result-exp__levelup.is-show{ animation:none; }
+  }
+
   /* Entrada animada del título de resultado (torneo offline y online): se
      re-dispara con pulseResultTitle() sacando/poniendo la clase con reflow
      forzado en el medio, porque una animación CSS no se reinicia sola. */
@@ -1653,6 +1681,17 @@
   color:var(--muted);
 }
 .user-stats__soon{ color:var(--muted); opacity:.7; }
+
+/* 🎖️ Nivel del jugador dentro del perfil (v0.3.36): "Nivel N" + barra + "X / Y
+   EXP". Vive arriba de las stats; el nivel existe para cualquiera (incluso sin
+   cuenta), pero este bloque solo se ve en el overlay de sesión. */
+.user-level{ padding:2px 0 10px; border-bottom:1px solid var(--line); margin-bottom:4px; }
+.user-level__head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+.user-level__lvl{ font-family:var(--font-display); font-weight:700; font-size:15px; color:var(--accent); }
+.user-level__exp{ font-family:var(--font-body); font-size:11px; color:var(--muted); }
+.user-level__bar{ width:100%; height:7px; border-radius:999px; background:var(--line); overflow:hidden; }
+.user-level__fill{ height:100%; width:0; border-radius:999px; background:var(--accent); transition:width .5s ease-out; }
+@media (prefers-reduced-motion: reduce){ .user-level__fill{ transition:none; } }
 
 /* 🎨 Selector de skin del perfil (bola al centro, flechas a los costados) */
 .user-skin{ width:100%; text-align:center; margin-top:2px; }
