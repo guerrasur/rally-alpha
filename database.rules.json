@@ -235,6 +235,7 @@
           }
         },
         "skin": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{1,20}$/)" },
+        "exp": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000" },
         "tourneyProgress": {
           "$idx": { ".validate": "$idx.matches(/^[0-9]{1,2}$/) && newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" }
         }

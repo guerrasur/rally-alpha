@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.35';
+const VERSION = 'v0.3.36';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -210,6 +210,75 @@ const Stats = {
   },
 };
 
+// ===== 🎖️ Niveles / EXP del jugador (v0.3.36) =====
+// EXP se gana en TODAS las batallas (online y offline), la gane quien la gane —
+// se guarda SIEMPRE en localStorage (aplica al instante, incluso anónimo) y, si
+// hay sesión, se espeja en users/{uid}/exp para que el nivel siga a la cuenta
+// entre dispositivos (mismo patrón que Profile/TourneyProgress). El nivel se
+// DERIVA del total acumulado (no se guarda aparte): cada nivel pide un poco más
+// que el anterior. La escritura remota usa transaction con Math.max para nunca
+// bajar el valor de la cuenta si otro dispositivo ya sumó más ("lo mejor gana",
+// igual criterio que TourneyProgress.loadRemote).
+const EXP_KEY = 'rally_exp';
+function expNeededForLevel(lvl){ return CFG.expPerLevelBase + (lvl-1)*CFG.expPerLevelStep; }
+// Desglosa un total acumulado en {level, into, need, frac}: into = EXP dentro del
+// nivel actual, need = EXP para el próximo, frac = 0..1 para la barra.
+function expBreakdown(total){
+  let lvl=1, rem=Math.max(0, total|0);
+  while(rem >= expNeededForLevel(lvl)){ rem -= expNeededForLevel(lvl); lvl++; }
+  const need = expNeededForLevel(lvl);
+  return { level:lvl, into:rem, need, frac: need>0 ? rem/need : 0 };
+}
+const Exp = {
+  total: 0,
+  load(){
+    try{ this.total = Math.max(0, parseInt(localStorage.getItem(EXP_KEY),10) || 0); }
+    catch(e){ this.total = 0; }
+    updateProfileLevel();
+  },
+  save(){
+    try{ localStorage.setItem(EXP_KEY, String(this.total)); }catch(e){}
+    const cu = User.current();
+    if(cu && fbDb) fbDb.ref('users/'+cu.uid+'/exp').transaction(cur=>Math.max(cur||0, this.total)).catch(()=>{});
+  },
+  // Suma EXP; devuelve el desglose antes/después (para animar el resultado) o
+  // null si amount<=0. Actualiza local + cuenta + la UI del perfil.
+  add(amount){
+    amount = amount|0;
+    if(amount<=0) return null;
+    const before = expBreakdown(this.total);
+    this.total += amount;
+    this.save();
+    const after = expBreakdown(this.total);
+    updateProfileLevel();
+    return { gained:amount, before, after, leveledUp: after.level>before.level };
+  },
+  // Al abrir el perfil / al iniciar sesión: se queda con lo mejor entre local y
+  // la cuenta y re-escribe (mismo criterio que TourneyProgress.loadRemote).
+  async loadRemote(){
+    const cu = User.current();
+    if(!cu || !fbDb) return;
+    try{
+      const remote = Math.max(0, parseInt((await fbDb.ref('users/'+cu.uid+'/exp').get()).val(),10) || 0);
+      if(remote > this.total){ this.total = remote; try{ localStorage.setItem(EXP_KEY, String(this.total)); }catch(e){} }
+      else if(this.total > remote){ this.save(); }   // subir lo local si la cuenta va atrás
+      updateProfileLevel();
+    }catch(e){}
+  },
+  info(){ return expBreakdown(this.total); },
+};
+// Otorga EXP por el fin de una batalla. outcome: 'win'|'lose'|'tie' (el empate
+// da lo mismo que una derrota); tier: 'online'|'offline'|'practice'. Devuelve el
+// resultado de Exp.add (o null si el monto configurado fuese 0).
+function grantBattleExp(outcome, tier){
+  const win = outcome==='win';
+  let amount;
+  if(tier==='online')       amount = win ? CFG.expWinOnline   : CFG.expLoseOnline;
+  else if(tier==='offline') amount = win ? CFG.expWinOffline  : CFG.expLoseOffline;
+  else                      amount = win ? CFG.expWinPractice : CFG.expLosePractice;
+  return Exp.add(amount);
+}
+
 // ===== 📈 Visitas del sitio (v0.2.85) =====
 // A diferencia de Stats (que solo cuenta partidas online), esto cuenta CADA
 // carga de la página, juegue o no online — por eso dispara la auth anónima
@@ -240,6 +309,11 @@ if(HAS_FIREBASE && firebase.auth){
         .then(s=>{ const n=s.val(); if(n && !User.name) User.set(n); })
         .catch(()=>{});
     }
+    // Sincronizar EXP con la cuenta apenas se asienta la sesión (lo mejor gana),
+    // así el nivel ya está al día para el próximo resultado, no solo al abrir el
+    // perfil. Corre para cualquier usuario (anónimo o real): el uid persiste al
+    // registrarse (link), y al loguearse en otro dispositivo trae el de la cuenta.
+    if(u && typeof Exp!=='undefined') Exp.loadRemote();
     User.updateUI();
     // Si el overlay de cuenta está abierto, repintarlo con el estado real
     const ov = $('user-overlay');
@@ -774,6 +848,17 @@ const CFG = {
   duelCycleDuration: 1.8,
   cpuDesperateTrapRatio: 0.6,
   cpuDesperateHpMin: 30,   // % del maxHp del rival (calibrado como 30/100; ver cpuDesperateHp)
+  // 🎖️ Niveles / EXP (v0.3.36). El online rinde ~2× que el offline; la práctica
+  // vs CPU (y rejugar niveles de campaña ya superados) rinde lo mínimo, para no
+  // farmear contra rivales fáciles. La curva pide `base + step*(nivel-1)` por nivel.
+  expWinOnline: 50,
+  expLoseOnline: 20,
+  expWinOffline: 25,
+  expLoseOffline: 10,
+  expWinPractice: 10,
+  expLosePractice: 5,
+  expPerLevelBase: 100,   // EXP para pasar de nivel 1 a 2
+  expPerLevelStep: 50,    // cuánto más pide cada nivel siguiente
 };
 
 // Umbral de "desesperación" de la CPU. cpuDesperateHpMin se calibró cuando
@@ -958,6 +1043,12 @@ const TEXTS_ES = {
   tourneyRetryLabel: 'Reintentar rival',
   tourneyChampionEyebrow: '🏆 Torneo',
   tourneyEyebrow: 'Torneo',
+
+  // --- Niveles / EXP (v0.3.36) ---
+  resultExpGain: '+{n} EXP',
+  levelLabel: 'Nivel {n}',
+  levelUpFlash: '¡Nivel {n}!',
+  expProgress: '{into} / {need} EXP',
 
   // --- Torneo online x4: hub y espectador ---
   otChampionTitle: '🏆 Ganaste el torneo',
@@ -1161,6 +1252,12 @@ const TEXTS_EN = {
   tourneyRetryLabel: 'Retry rival',
   tourneyChampionEyebrow: '🏆 Tournament',
   tourneyEyebrow: 'Tournament',
+
+  // --- Levels / EXP (v0.3.36) ---
+  resultExpGain: '+{n} EXP',
+  levelLabel: 'Level {n}',
+  levelUpFlash: 'Level {n}!',
+  expProgress: '{into} / {need} EXP',
 
   otChampionTitle: '🏆 You won the tournament',
   otLostFinalTitle: 'You lost the final',
@@ -1972,6 +2069,7 @@ function onOpponentLeft(){
   $('btn-tourney-next').style.display='none';
   $('btn-to-room').style.display='none';
   $('btn-again').style.display='none';   // no hay revancha en abandono online
+  showResultExp(grantBattleExp('win', 'online'));   // ganar por abandono también cuenta
   show('result');
 }
 function startChoosePhase(){
@@ -3714,6 +3812,39 @@ function renderRoundDots(){
   }
 }
 
+// Pinta el bloque de EXP en la pantalla de resultado: chip "+N EXP", barra que
+// se llena hacia el próximo nivel y, si subió, un flash dorado "¡Nivel N!".
+// `res` es lo que devuelve Exp.add (o null → oculta el bloque). Animación de un
+// solo disparo (width/opacity), FUERA del duelo → sin costo de rAF; respeta
+// prefers-reduced-motion (la barra salta al valor final sin transición).
+function showResultExp(res){
+  const wrap=$('result-exp'); if(!wrap) return;
+  if(!res){ wrap.hidden=true; return; }
+  wrap.hidden=false;
+  $('result-exp-gain').textContent = fillText('resultExpGain', {n:res.gained});
+  $('result-exp-level').textContent = fillText('levelLabel', {n:res.after.level});
+  const fill=$('result-exp-fill');
+  // Arranca desde la fracción previa y transiciona a la nueva; si subió de nivel
+  // arranca de 0 (barra del nivel nuevo) para que se lea el salto.
+  const startPct = Math.round((res.leveledUp ? 0 : res.before.frac)*100);
+  const endPct   = Math.round(res.after.frac*100);
+  if(prefersReduced()){
+    fill.style.transition='none'; fill.style.width=endPct+'%';
+  } else {
+    fill.style.transition='none'; fill.style.width=startPct+'%';
+    void fill.offsetWidth;                 // reflow: fija el punto de partida
+    fill.style.transition=''; fill.style.width=endPct+'%';
+  }
+  const flash=$('result-exp-levelup');
+  if(res.leveledUp){
+    flash.textContent = fillText('levelUpFlash', {n:res.after.level});
+    flash.hidden=false;
+    if(!prefersReduced()) popClass(flash, 'is-show');
+  } else {
+    flash.hidden=true;
+  }
+}
+
 function endGame(){
   G.running=false; G.phase='gameover';
   const youHp=Math.max(0,G.you.hp), oppHp=Math.max(0,G.opp.hp);
@@ -3726,6 +3857,7 @@ function endGame(){
   $('tourney-progress').innerHTML='';   // solo la rama de Tourney offline la llena
   $('round-dots').innerHTML='';         // solo la serie online lo llena (renderRoundDots)
   showHealPop(0);                       // solo la victoria de ronda de Tourney lo re-muestra
+  showResultExp(null);                  // cada rama que otorga EXP lo re-muestra
 
   // --- Torneo online x4: el resultado va al bracket, no a la pantalla clásica ---
   if(OT.active && OT.inMatch){ OT.onMyMatchEnd(youHp, oppHp); return; }
@@ -3771,6 +3903,9 @@ function endGame(){
       else if(won===false){ Sound.loseSting(); haptic([20,60,20]); }
       else Sound.tie();
       ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { gamesPlayed:1, gamesWon: won===true?1:0 }); });
+      // EXP solo en el resultado FINAL de la serie (las rondas intermedias no,
+      // igual que las stats). Empate (won===null) rinde como derrota.
+      showResultExp(grantBattleExp(won===true ? 'win' : 'lose', 'online'));
       App.scoreYou=0; App.scoreOpp=0; App.roundHist=[];   // reset para futuras series
       setupOnlineEnd();
     } else {
@@ -3798,6 +3933,8 @@ function endGame(){
       if(youHp<oppHp){ rt.classList.add('is-lose'); Sound.loseSting(); haptic([20,60,20]); }
       againBtn.textContent=TEXTS.campaignRetryLabel;   // vuelve a jugar el mismo nodo
     }
+    // Rejugar un nodo ya superado rinde como práctica (no farmear niveles viejos).
+    showResultExp(grantBattleExp(youWon ? 'win' : 'lose', Campaign.replaying ? 'practice' : 'offline'));
     show('result');
     return;
   }
@@ -3839,17 +3976,21 @@ function endGame(){
       rt.classList.add('is-lose');
       Sound.loseSting(); haptic([20,60,20]);
     }
+    // EXP offline por cada ronda ganada (y el título); eliminación rinde derrota.
+    showResultExp(grantBattleExp(youWon ? 'win' : 'lose', 'offline'));
     renderTourneyProgress();
     pulseResultTitle(rt);
     show('result');
     return;
   }
 
+  // --- Práctica / partida suelta vs CPU offline ---
   $('result-eyebrow').textContent=TEXTS.resultFinalEyebrow;
   if(youHp===oppHp)      { $('result-title').textContent=TEXTS.resultTieTitle; Sound.tie(); }
   else if(youHp>oppHp)   { $('result-title').textContent=TEXTS.resultWinTitle; Sound.fanfare(); haptic([15,30,15]); }
   else                   { $('result-title').textContent=TEXTS.resultLoseTitle; Sound.loseSting(); haptic([20,60,20]); }
   $('result-score').innerHTML=fillText('resultScoreHp', {youHp, oppHp});
+  showResultExp(grantBattleExp(youWon ? 'win' : 'lose', 'practice'));
   show('result');
 }
 
@@ -4290,12 +4431,13 @@ const OT = {
   _champBumped:false,   // evita sumar "torneos ganados" más de una vez por torneo
   _resultSoundPlayed:false,   // evita repetir sonido/haptic en cada re-render del hub
   _lastYouHp:null, _lastOppHp:null,   // HP final de tu último partido (recap en el hub)
+  _lastExpRes:null,                   // EXP ganado en tu último partido (recap en el hub)
 
   resetRunFlags(){
     this.inMatch=false; this.myMatchId=null; this.matchA=null; this.matchB=null;
     this.master=false; this.myDone=false; this.eliminated=false;
     this.finished=false; this._finalHandled=false; this._champBumped=false;
-    this._resultSoundPlayed=false; this._lastYouHp=null; this._lastOppHp=null; this.stopSpec();
+    this._resultSoundPlayed=false; this._lastYouHp=null; this._lastOppHp=null; this._lastExpRes=null; this.stopSpec();
   },
   detachRoom(){
     try{ if(this.ref){ this.ref.child('players').off(); this.ref.child('status').off(); this.ref.child('bracket').off(); } }catch(e){}
@@ -4467,7 +4609,7 @@ const OT = {
   async route(){
     this._phase='playing';
     this.myDone=false; this.eliminated=false; this.finished=false; this._finalHandled=false; this._champBumped=false;
-    this._resultSoundPlayed=false; this._lastYouHp=null; this._lastOppHp=null;
+    this._resultSoundPlayed=false; this._lastYouHp=null; this._lastOppHp=null; this._lastExpRes=null;
     try{ this.ref.child('players/'+this.mySeat).onDisconnect().cancel(); }catch(e){}
     let r1=null;
     try{
@@ -4549,9 +4691,10 @@ const OT = {
       this.ref.child('matches/'+mid+'/result').set({ winner }).catch(()=>{});
       this.ref.child(path).set(winner).catch(()=>{});
     }catch(e){}
-    if(wasOnline){   // partida vs humano real (no CPU de relleno) → cuenta para stats
+    if(wasOnline){   // partida vs humano real (no CPU de relleno) → cuenta para stats y EXP
       ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { gamesPlayed:1, gamesWon: winner===this.mySeat?1:0 }); });
-    }
+      this._lastExpRes = grantBattleExp(winner===this.mySeat ? 'win' : 'lose', 'online');
+    } else this._lastExpRes = null;
     if(G.online) Net.detachMatch();
     G.online=false; G.running=false;
     this.inMatch=false; this.myDone=true;
@@ -4588,8 +4731,10 @@ const OT = {
     const w0=r1.m0&&r1.m0.winner, w1=r1.m1&&r1.m1.winner;
     const title=$('othub-title'), sub=$('othub-sub');
     title.classList.remove('is-win','is-lose','is-champion');
-    const hpRecap = this._lastYouHp!=null
-      ? `<br><span style="font-size:13px;">${fillText('resultScoreHp', {youHp:this._lastYouHp, oppHp:this._lastOppHp})}</span>` : '';
+    const expLine = this._lastExpRes
+      ? `<br><span style="font-size:12px; color:var(--accent);">${fillText('resultExpGain', {n:this._lastExpRes.gained})} · ${fillText('levelLabel', {n:this._lastExpRes.after.level})}</span>` : '';
+    const hpRecap = (this._lastYouHp!=null
+      ? `<br><span style="font-size:13px;">${fillText('resultScoreHp', {youHp:this._lastYouHp, oppHp:this._lastOppHp})}</span>` : '') + expLine;
     if(this.finished && fw){
       const champ=this.players[fw]||{};
       if(fw===this.mySeat){
@@ -4976,6 +5121,7 @@ $('btn-join').addEventListener('click', ()=>{ readName(); $('join-name').value=A
 User.load();
 Profile.load();
 TourneyProgress.load();
+Exp.load();
 const USER_ERR_KEY = {
   'formato':     'errUserFormat',
   'pass-corta':  'errPassShort',
@@ -4999,6 +5145,15 @@ async function loadProfileStats(){
   $('us-gamesWon').textContent = s.gamesWon || 0;
   $('us-kills').textContent = s.kills || 0;
   $('us-tournamentsWon').textContent = s.tournamentsWon || 0;
+}
+// Refresca el bloque de nivel del perfil (Nivel N + barra + "X / Y EXP") desde
+// el total local. Se llama al cargar EXP, al sumar y al abrir el overlay. Guarda
+// por si el DOM del overlay todavía no existe.
+function updateProfileLevel(){
+  const info = Exp.info();
+  const lbl=$('us-level-label'); if(lbl) lbl.textContent = fillText('levelLabel', {n:info.level});
+  const txt=$('us-exp-text');    if(txt) txt.textContent = fillText('expProgress', {into:info.into, need:info.need});
+  const fill=$('us-exp-fill');   if(fill) fill.style.width = Math.round(info.frac*100)+'%';
 }
 
 const UserUI = {
@@ -5044,6 +5199,9 @@ const UserUI = {
       }
       $('user-switch').textContent=TEXTS.userSwitchOther;
       loadProfileStats();
+      // Nivel/EXP: pinta lo local YA y re-sincroniza con la cuenta (lo mejor gana).
+      updateProfileLevel();
+      Exp.loadRemote().then(()=>{ if(this.mode==='session') updateProfileLevel(); });
       // Skin: pinta lo que hay en local YA, y re-sincroniza cuando llega la
       // versión de la cuenta (Firebase gana). Si el overlay sigue en session.
       SkinPicker.sync(); SkinPicker.render();
@@ -5518,6 +5676,14 @@ const LAB_PARAMS = [
   ['highBonus','Bonus de terreno alto',0,10,1,'Modo Caos'],
   ['bootsCount','Cantidad 👟 inicial',0,4,1,'Modo Caos'],
   ['bootsRange','Alcance con botas',2,3,1,'Modo Caos'],
+  ['expWinOnline','EXP victoria online',0,200,5,'Niveles'],
+  ['expLoseOnline','EXP derrota online',0,200,5,'Niveles'],
+  ['expWinOffline','EXP victoria offline',0,200,5,'Niveles'],
+  ['expLoseOffline','EXP derrota offline',0,200,5,'Niveles'],
+  ['expWinPractice','EXP victoria práctica',0,200,5,'Niveles'],
+  ['expLosePractice','EXP derrota práctica',0,200,5,'Niveles'],
+  ['expPerLevelBase','EXP nivel 1→2',10,500,10,'Niveles'],
+  ['expPerLevelStep','EXP extra por nivel',0,300,10,'Niveles'],
 ];
 const CFG_DEFAULTS = JSON.parse(JSON.stringify(CFG));  // copia original para restaurar
 
