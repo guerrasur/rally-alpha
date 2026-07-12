@@ -378,15 +378,39 @@
   }
   .hp-bar{
     flex:1; height:6px; background:var(--line); border-radius:99px; overflow:hidden;
+    position:relative;
+  }
+  /* Capa "fantasma" del daño: al bajar la vida queda pintado el tramo perdido
+     y se vacía/desvanece con retardo (estilo juego de pelea). El JS de
+     updateHud maneja width/opacity inline, one-shot — mismo precedente que
+     la transición de width de .hp-fill; nada anima en loop. */
+  .hp-ghost{
+    position:absolute; left:0; top:0; height:100%; width:0;
+    background:var(--bad); opacity:0;
   }
   .hp-fill{
     height:100%; background:var(--ink); transition: width .4s ease, background .3s ease;
+    position:relative;   /* pinta ENCIMA del fantasma: este asoma solo en el tramo perdido */
   }
   .hp-fill.is-low{ background:var(--bad); }
   .hp-fill.is-mid{ background:var(--warn); }
   .hp-num{
     font-family:var(--font-display); font-size:13px; font-weight:700; color:var(--ink);
     min-width: 28px; text-align:right;
+  }
+  /* Pop del número al recibir daño: late una vez en rojo y vuelve solo a su
+     estilo base (sin fill-mode; la clase queda pero la animación no se repite
+     hasta el próximo popClass). Solo transform/color, one-shot. */
+  .hp-num.is-hit{ animation: hpNumHit .45s cubic-bezier(.2,.8,.3,1.4); }
+  @keyframes hpNumHit{
+    0%{ transform:scale(1); }
+    30%{ transform:scale(1.28); color:var(--bad); }
+    65%{ color:var(--bad); }
+    100%{ transform:scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .hp-ghost{ display:none; }
+    .hp-num.is-hit{ animation:none; }
   }
   .hud-buffs{
     display:flex; gap:5px; min-height: 16px;
@@ -423,6 +447,14 @@
     background: rgba(90,160,90,0.14);
     color: var(--good, #3a7d3a);
     border: 1px solid rgba(90,160,90,0.35);
+  }
+  /* Entrada de un chip nuevo (o que subió de valor): pop one-shot. El JS de
+     renderBuffs pone is-new SOLO en esos casos — el resto de los chips se
+     rebuildea sin animación en cada updateHud. */
+  .buff-chip.is-new{ animation: chipIn .28s cubic-bezier(.2,.8,.3,1.35); }
+  @keyframes chipIn{ from{ transform:scale(.5); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  @media (prefers-reduced-motion: reduce){
+    .buff-chip.is-new{ animation:none; }
   }
 
   .board-wrap{
@@ -695,6 +727,22 @@
   @media (prefers-reduced-motion: reduce){
     .clash-fx{ animation:none; }
     .cell.is-impact .player-marker.is-clash{ animation:none; }
+  }
+
+  /* Sacudida corta del tablero en impactos (choque, bomba). One-shot 240ms,
+     amplitud 3px decayendo, SOLO transform (el JS la dispara con shakeBoard()
+     y limpia la clase en animationend). Sin will-change permanente: el board
+     es una capa grande y la promoción dura lo que dura la animación. */
+  .board.is-shake{ animation: boardShake .24s linear; }
+  @keyframes boardShake{
+    0%,100%{ transform:translate(0,0); }
+    20%{ transform:translate(3px,-2px); }
+    40%{ transform:translate(-3px,2px); }
+    60%{ transform:translate(2px,1px); }
+    80%{ transform:translate(-1px,-1px); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .board.is-shake{ animation:none; }
   }
 
   /* Aviso de duelo (ambos en casillas contiguas): onda grande centrada en el
@@ -980,6 +1028,18 @@
   }
   .duel-stop-btn:active{ transform: scale(.97); }
   .duel-stop-btn:disabled{ cursor: not-allowed; }
+  /* Frenaste en PERFECTO: el botón recién apretado brilla y late una vez.
+     Sin opacity en el 100%: al terminar decae sola al valor de .is-pressed.
+     Solo transform/opacity, one-shot, dentro del overlay del duelo. */
+  .duel-stop-btn.is-perfect-pop{ animation: stopPop .35s cubic-bezier(.2,.8,.3,1.4); }
+  @keyframes stopPop{
+    0%{ transform:scale(1); opacity:1; }
+    40%{ transform:scale(1.07); opacity:1; }
+    100%{ transform:scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .duel-stop-btn.is-perfect-pop{ animation:none; }
+  }
 
   .duel-result{
     display:flex; flex-direction:column; gap: 14px; align-items:center;
