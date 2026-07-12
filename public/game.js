@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.36';
+const VERSION = 'v0.3.37';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -310,10 +310,17 @@ if(HAS_FIREBASE && firebase.auth){
         .catch(()=>{});
     }
     // Sincronizar EXP con la cuenta apenas se asienta la sesión (lo mejor gana),
-    // así el nivel ya está al día para el próximo resultado, no solo al abrir el
-    // perfil. Corre para cualquier usuario (anónimo o real): el uid persiste al
-    // registrarse (link), y al loguearse en otro dispositivo trae el de la cuenta.
-    if(u && typeof Exp!=='undefined') Exp.loadRemote();
+    // así el nivel ya está al día para el próximo resultado. Corre para cualquier
+    // usuario (anónimo o real): el uid persiste al registrarse (link), y al
+    // loguearse en otro dispositivo trae el de la cuenta.
+    // ⚠️ NUNCA durante una partida en curso: en el celu la auth se asienta a los
+    // pocos segundos (justo cuando puede estar corriendo el primer duelo) y un
+    // .get()/transacción de Firebase resolviendo DENTRO de la ventana del duelo
+    // mete trabajo en el main thread y puede trabar la aguja (disciplina de
+    // "ventana del duelo limpia", lección recurrente). No se pierde nada: el
+    // perfil hace loadRemote al abrirse y la transacción Math.max de endGame ya
+    // sincroniza el total con la cuenta al terminar cada partida.
+    if(u && typeof Exp!=='undefined' && !(typeof G!=='undefined' && G.running)) Exp.loadRemote();
     User.updateUI();
     // Si el overlay de cuenta está abierto, repintarlo con el estado real
     const ov = $('user-overlay');
@@ -5865,6 +5872,41 @@ async function openLab(){
   if(!(await isAdmin())){ toast(TEXTS.toastLabAdminsOnly); return; }
   buildLab(); show('lab');
 }
+
+// ===== 🩺 Medidor de FPS / frame-time (diagnóstico, v0.3.37) =====
+// Overlay chico (arriba a la izquierda) con los cuadros por segundo REALES y el
+// peor frame de la ventana, para diagnosticar el "arrastre" de la aguja en móvil
+// (donde este entorno de test no reproduce el raster). Se prende con ?fps=1 en la
+// URL (queda en localStorage para sobrevivir la navegación del SPA) y se apaga
+// con ?fps=0. Corre su PROPIO rAF: mide el framerate real de pintado del browser,
+// haga lo que haga el juego. Apagado por defecto y con pointer-events:none, así
+// que al jugador normal no le afecta. Clave del diagnóstico: cuenta los frames
+// >50ms — son los que el clamp del duelo (Math.min(0.05,dt)) vuelve aguja
+// "arrastrada", y muestra la fase (G.phase) para leer el número justo en duel-play.
+(function(){
+  const params=new URLSearchParams(location.search);
+  if(params.get('fps')==='1'){ try{ localStorage.setItem('rally_fps','1'); }catch(e){} }
+  if(params.get('fps')==='0'){ try{ localStorage.removeItem('rally_fps'); }catch(e){} }
+  let on=false; try{ on = localStorage.getItem('rally_fps')==='1'; }catch(e){}
+  if(!on) return;
+  const hud=$('fps-hud'); if(!hud) return;
+  hud.hidden=false;
+  const dpr=Math.round((window.devicePixelRatio||1)*100)/100;
+  let last=performance.now(), acc=0, frames=0, worst=0, over50=0;
+  function tick(ts){
+    const dt=ts-last; last=ts;
+    // Ignorar saltos grandes (pestaña en background, throttling del SO): >500ms.
+    if(dt<500){ acc+=dt; frames++; if(dt>worst) worst=dt; if(dt>50) over50++; }
+    if(acc>=500 && frames){
+      const fps=Math.round(frames*1000/acc);
+      hud.textContent = `${fps}fps · avg ${(acc/frames).toFixed(1)} · peor ${worst.toFixed(0)}ms · >50ms:${over50} · ${(typeof G!=='undefined'&&G.phase)||'—'} · dpr${dpr}`;
+      hud.classList.toggle('is-bad', fps<50);
+      acc=0; frames=0; worst=0; over50=0;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
 
 // Acceso oculto (solo admins): ?lab=1 en la URL, o 5 toques en la versión
 (function(){
