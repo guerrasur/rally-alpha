@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.31';
+const VERSION = 'v0.3.32';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -679,8 +679,43 @@ const Sound = {
   tie(){ this.blip(400,0.15,0.04); },
   eject(){ this.blip(300,0.10,0.04, 'sawtooth'); },
   regen(){ this.blip(520,0.06,0.03, 'sine'); },
+  // Secuencia de blips ([freq,dur,vol,type,delayMs]). El guard de mute vive en
+  // blip y se evalúa nota por nota: mutear a mitad de un sting corta el resto.
+  seq(steps){ steps.forEach(s=> setTimeout(()=> this.blip(s[0],s[1],s[2],s[3]), s[4]||0)); },
+  perfect(){ this.seq([[880,0.06,0.05,'triangle',0],[1320,0.09,0.05,'triangle',70]]); },
+  fanfare(){ this.seq([[523,0.09,0.05,'triangle',0],[659,0.09,0.05,'triangle',100],[784,0.14,0.05,'triangle',200]]); },
+  champion(){ this.seq([[523,0.09,0.05,'triangle',0],[659,0.09,0.05,'triangle',110],[784,0.09,0.05,'triangle',220],[1046,0.22,0.06,'triangle',330]]); },
+  loseSting(){ this.seq([[330,0.12,0.04,'sawtooth',0],[247,0.16,0.04,'sawtooth',130]]); },
 };
 function haptic(ms){ if(navigator.vibrate && !App.muted){ try{ navigator.vibrate(ms); }catch(e){} } }
+
+function prefersReduced(){ return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+// Re-dispara una animación CSS one-shot: saca la clase, fuerza reflow, la
+// vuelve a poner (si solo se agrega, un segundo disparo con la clase ya
+// puesta no re-anima porque la animación CSS no se reinicia sola).
+function popClass(el, cls){ el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+// Tween numérico del textContent (ease-out cúbico, aprox del cubic-bezier de
+// las barras de HP). Cancela un tween previo del mismo elemento.
+function tweenNum(el, from, to, ms=900){
+  if(el._twnRaf) cancelAnimationFrame(el._twnRaf);
+  if(prefersReduced()){ el.textContent=to; return; }
+  const t0=performance.now();
+  const ease=(t)=>1-Math.pow(1-t, 3);
+  const tick=(now)=>{
+    const t=Math.min(1,(now-t0)/ms);
+    el.textContent=Math.round(from+(to-from)*ease(t));
+    el._twnRaf = t<1 ? requestAnimationFrame(tick) : null;
+  };
+  el._twnRaf=requestAnimationFrame(tick);
+}
+// Sacudida corta del tablero (one-shot, transform-only). La clase vive en
+// #board, que renderBoard() NO regenera (regenera sus hijos) → limpieza propia.
+function shakeBoard(){
+  if(prefersReduced()) return;
+  const b=$('board'); if(!b) return;
+  popClass(b,'is-shake');
+  b.addEventListener('animationend', ()=>b.classList.remove('is-shake'), {once:true});
+}
 
 const CFG = {
   boardSize: 7,
@@ -1835,6 +1870,7 @@ function startGame(){
   G.you = {x:n-1,y:n-1,hp:youHp,maxHp:youMax,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   G.opp = {x:0,y:0,hp:oppHp,maxHp:oppHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
   G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[];
+  HudFx.you=null; HudFx.opp=null;   // feedback de daño del HUD: sin previo al arrancar
   resolveSkins();   // easter egg Messi (offline: solo aplica tu propia skin)
   updateHud(); renderBoard(); startChoosePhase();
   showStartBubbles();
@@ -1857,6 +1893,7 @@ function startOnlineGame(boardStr, role){
     G.opp = {x:n-1,y:n-1,hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   }
   G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[];
+  HudFx.you=null; HudFx.opp=null;   // feedback de daño del HUD: sin previo al arrancar
   resolveSkins();   // easter egg Messi: define skins/nombre según ambos jugadores
   show('game');
   updateHud(); renderBoard();
@@ -2314,11 +2351,12 @@ function flipMarker(cls, oldRect){
   el.style.transform = `translate(${dx}px, ${dy}px)`;
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      // Curva propia para el deslizamiento (carga y llegada, sin rebote):
-      // la de .player-marker en CSS es "back-out" (se usa para el pop de
-      // choque, .is-clash) y pasa de largo antes de asentar. Al terminar,
-      // se limpia la transition inline para no pisar esa otra animación.
-      el.style.transition = 'transform .35s ease-in-out';
+      // Curva propia para el deslizamiento: overshoot MUY suave (~4%, la ficha
+      // pasa 2-3px de largo y asienta — sensación de peso). Mucho más leve que
+      // el back-out 1.56 de .player-marker en CSS (reservado al pop de choque,
+      // .is-clash). Al terminar, se limpia la transition inline para no pisar
+      // esa otra animación. Reduced-motion: el catch-all de style.css la anula.
+      el.style.transition = 'transform .38s cubic-bezier(.30,1.16,.55,1)';
       el.style.transform = '';
       el.addEventListener('transitionend', ()=>{
         el.style.transition = '';
@@ -2388,6 +2426,7 @@ function resolveMoves(){
       const cell = document.querySelector(`.cell[data-x="${c.x}"][data-y="${c.y}"]`);
       if(cell){ const fx=document.createElement('div'); fx.className='bomb-fx'; cell.appendChild(fx); }
     });
+    shakeBoard();
   }
   // Impacto visual al caer AMBOS en la misma casilla: onda expansiva one-shot
   // + pop de aterrizaje de las fichas (el próximo renderBoard() limpia todo).
@@ -2398,6 +2437,7 @@ function resolveMoves(){
       const fx = document.createElement('div'); fx.className='clash-fx';
       cell.appendChild(fx);
     }
+    shakeBoard();
     haptic([12,30,12]);
   }
   // Aviso de duelo: cayeron en casillas contiguas (misma condición que dispara
@@ -3069,6 +3109,16 @@ function zoneInfo(pos, pass){
   return { name:TEXTS.zoneNameRed, color:'var(--bad)' };
 }
 
+// Frenaste en PERFECTO: feedback inmediato al soltar la aguja — sting agudo,
+// haptic ascendente y un latido del botón recién apretado (el premio visual
+// grande llega igual en el reveal, 1-2s después). Nada toca el rAF de la aguja.
+function perfectStopFx(){
+  Sound.perfect && Sound.perfect();
+  haptic([10,20,35]);
+  const btn=$('duel-stop');
+  if(btn && !prefersReduced()) popClass(btn,'is-perfect-pop');
+}
+
 function onPlayerStop(e){
   if(e) e.preventDefault();
   if(G.online){ onPlayerStopOnline(); return; }
@@ -3082,6 +3132,7 @@ function onPlayerStop(e){
   G.duel.yourStoppedPos=pos;
   G.duel.yourStoppedPass=pass;
   Sound.stop(); haptic(10);
+  if(G.duel.yourScore===CFG.perfectScore) perfectStopFx();
   const btn=$('duel-stop');
   btn.disabled=true;
   btn.classList.remove('is-active');
@@ -3103,8 +3154,8 @@ if(window.PointerEvent){
 // las dos agujas congeladas. Dura ~2s antes del veredicto.
 // Reinicia el resplandor de PERFECTO en cada duelo, incluso si el anterior también lo fue.
 function flashPerfectHit(el, on){
-  el.classList.remove('is-perfect-hit');
-  if(on){ void el.offsetWidth; el.classList.add('is-perfect-hit'); }
+  if(on){ popClass(el,'is-perfect-hit'); }
+  else { el.classList.remove('is-perfect-hit'); }
 }
 
 function showDuelReveal(){
@@ -3122,9 +3173,10 @@ function showDuelReveal(){
   const cOpp=$('reveal-color-opp'); cOpp.textContent=zOpp.name; cOpp.style.color=zOpp.color;
   const bYou=$('reveal-big-you'); bYou.textContent=`+${rawYou}`; bYou.style.color=zYou.color;
   const bOpp=$('reveal-big-opp'); bOpp.textContent=`+${rawOpp}`; bOpp.style.color=zOpp.color;
-  // Resaltar el número grande si fue súper golpe
-  flashPerfectHit(bYou, youPerfect);
-  flashPerfectHit(bOpp, oppPerfect);
+  // Limpiar el resplandor del duelo anterior; si hubo súper golpe, el flash
+  // dorado entra con un micro-beat (más abajo, ya con el panel visible).
+  flashPerfectHit(bYou, false);
+  flashPerfectHit(bOpp, false);
 
   // Quién gana el duelo lo decide SOLO el puntaje crudo del minijuego (0-20),
   // nunca los buffs: eso mantiene el minijuego totalmente independiente.
@@ -3145,15 +3197,19 @@ function showDuelReveal(){
   const sEl=$('reveal-scoreline');
   if(sEl) sEl.textContent=`(${rawYou}v${rawOpp})`;
 
-  // Feedback sutil si alguien hizo perfecto (sin flash de pantalla)
-  if(youPerfect || oppPerfect){
-    Sound.win && Sound.win();
-    haptic([15,30,15]);
-  }
-
   // El velocímetro (duel-game) sigue visible; solo añadimos el panel arriba.
   $('duel-stop').classList.remove('is-active');
   $('duel-reveal').style.display='flex';
+  // Micro-beat del súper golpe: el panel aparece, respira 110ms y RECIÉN ahí
+  // golpea el dorado + sting (el "hit-stop" percibido, sin pausar el rAF).
+  if(youPerfect || oppPerfect){
+    setTimeout(()=>{
+      if(youPerfect) flashPerfectHit(bYou, true);
+      if(oppPerfect) flashPerfectHit(bOpp, true);
+      Sound.perfect && Sound.perfect();
+      haptic([15,30,15]);
+    }, 110);
+  }
   $('duel-title').textContent=TEXTS.duelResultTitle;
   updateNeedles(G.duel.yourStoppedPos); // congelar agujas en su posición final
 }
@@ -3182,7 +3238,7 @@ function showDuelOutcome(o){
   }
   $('rescol-name-you').textContent=App.playerName;
   $('rescol-name-opp').textContent=App.oppName;
-  const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduceMotion = prefersReduced();
   // Réplica de la barra del HUD: misma escala que updateHud() (el rival puede
   // tener maxHp distinto en campaña/torneo) y mismas clases de color.
   const col=(side, before, after, maxHp)=>{
@@ -3211,14 +3267,7 @@ function showDuelOutcome(o){
       fill.style.transition='';
       fill.style.width=pct(after)+'%';
       setColor(pct(after));
-      const dur=900, t0=performance.now();
-      const ease=(t)=>1-Math.pow(1-t, 3);   // aprox del cubic-bezier de la barra
-      const tick=(now)=>{
-        const t=Math.min(1,(now-t0)/dur);
-        numEl.textContent=Math.max(0, Math.round(before+(after-before)*ease(t)));
-        if(t<1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+      tweenNum(numEl, Math.max(0,before), Math.max(0,after), 900);
     }, 500);
   };
   col('you', o.youBefore, G.you.hp, G.you.maxHp || CFG.maxHp);
@@ -3358,6 +3407,8 @@ function commitMyDuelScore(score, pos){
   G.duel.yourStoppedPass = G.duel.pass;
   const btn=$('duel-stop');
   btn.disabled=true; btn.classList.remove('is-active'); btn.classList.add('is-pressed');
+  // El timeout de inactividad entra con score 0 — nunca dispara el perfecto.
+  if(score===CFG.perfectScore) perfectStopFx();
   Net.pushDuelScore(duelIdFor(), score, pos).catch(e=>console.error('[duel] push', e));
   if(G.duel.oppStopped) resolveDuelOnline();
 }
@@ -3461,12 +3512,55 @@ function setHpBarColor(fillEl, pct){
   fillEl.classList.toggle('is-mid', pct>=25 && pct<55);
 }
 
+// Último HP/pct visto por el HUD, por lado (feedback de daño). null = primer
+// sync de la partida: registra sin efectos (evita el flash al arrancar
+// campaña/torneo con HP heredado distinto de maxHp).
+const HudFx = { you:null, opp:null };
+
+// Daño visible en el HUD (trampa, bomba, goteo del anillo, chip del duelo…):
+// pop rojo del número con conteo animado + "ghost bar" (queda pintado el tramo
+// perdido y se vacía/desvanece después, estilo juego de pelea). One-shot con
+// transiciones inline — mismo precedente que .hp-fill{transition:width}.
+// Devuelve true si el número quedó a cargo del tween.
+function hudDamageFx(side, prevHp, hpNow, prevPct, pctNow){
+  const num=$('hp-num-'+side), ghost=$('hp-ghost-'+side);
+  popClass(num,'is-hit');
+  tweenNum(num, Math.max(0,prevHp), Math.max(0,hpNow), 400);
+  if(ghost){
+    ghost.style.transition='none';
+    ghost.style.width=prevPct+'%';
+    ghost.style.opacity='.5';
+    void ghost.offsetWidth;
+    ghost.style.transition='width .55s ease .25s, opacity .35s ease .85s';
+    ghost.style.width=pctNow+'%';
+    ghost.style.opacity='0';
+  }
+  return true;
+}
+
 function updateHud(){
   const oppMax = G.opp.maxHp || CFG.maxHp;
   const youPct=Math.max(0,Math.min(100,(G.you.hp/(G.you.maxHp||CFG.maxHp))*100));
   const oppPct=Math.max(0,Math.min(100,(G.opp.hp/oppMax)*100));
   $('hp-fill-you').style.width=youPct+'%'; $('hp-fill-opp').style.width=oppPct+'%';
-  $('hp-num-you').textContent=Math.max(0,G.you.hp); $('hp-num-opp').textContent=Math.max(0,G.opp.hp);
+  // Feedback de daño: solo con valor previo registrado, partida corriendo y
+  // fuera del duelo (el daño del duelo ya se mostró animado en su veredicto;
+  // el updateHud que llega con el overlay puesto lo absorbe en silencio).
+  const fxOk = G.running && !document.body.classList.contains('is-dueling') && !prefersReduced();
+  let youTween=false, oppTween=false;
+  if(fxOk && HudFx.you!==null && G.you.hp < HudFx.you.hp)
+    youTween = hudDamageFx('you', HudFx.you.hp, G.you.hp, HudFx.you.pct, youPct);
+  if(fxOk && HudFx.opp!==null && G.opp.hp < HudFx.opp.hp)
+    oppTween = hudDamageFx('opp', HudFx.opp.hp, G.opp.hp, HudFx.opp.pct, oppPct);
+  HudFx.you={hp:G.you.hp, pct:youPct}; HudFx.opp={hp:G.opp.hp, pct:oppPct};
+  // Sin tween nuevo: cancelar uno viejo si sigue vivo (ej. curación pisándolo)
+  // y escribir directo, como siempre.
+  [['you',youTween],['opp',oppTween]].forEach(([side,tw])=>{
+    if(tw) return;
+    const n=$('hp-num-'+side);
+    if(n._twnRaf){ cancelAnimationFrame(n._twnRaf); n._twnRaf=null; }
+    n.textContent=Math.max(0, G[side].hp);
+  });
   setHpBarColor($('hp-fill-you'), youPct);
   setHpBarColor($('hp-fill-opp'), oppPct);
   $('hud-name-you').textContent=App.playerName;
@@ -3495,12 +3589,19 @@ function updateHud(){
 function renderBuffs(elId,player){
   const el=$(elId); el.innerHTML='';
   const buffs=player.buffs;
-  if(buffs.dmg>0){ const c=document.createElement('span'); c.className='buff-chip is-atk'; c.innerHTML=`<span class="sym">🗡️</span> +${buffs.dmg}`; el.appendChild(c); }
-  if(buffs.def>0){ const c=document.createElement('span'); c.className='buff-chip is-def'; c.innerHTML=`<span class="sym">◈</span> +${buffs.def}`; el.appendChild(c); }
+  // Entrada animada (is-new) SOLO para chips que aparecen o suben de valor:
+  // el innerHTML se rebuildea en cada updateHud y sin esta comparación
+  // re-animaría todos los chips en cada render (parpadeo constante).
+  const map={ atk:buffs.dmg||0, def:buffs.def||0, ring:(player.ringDrip&&player.ringDrip>0)?1:0, boots:player.boots?1:0 };
+  const prev=el._prevBuffs||{};
+  const fresh=(k)=> map[k] > (prev[k]||0) ? ' is-new' : '';
+  if(buffs.dmg>0){ const c=document.createElement('span'); c.className='buff-chip is-atk'+fresh('atk'); c.innerHTML=`<span class="sym">🗡️</span> +${buffs.dmg}`; el.appendChild(c); }
+  if(buffs.def>0){ const c=document.createElement('span'); c.className='buff-chip is-def'+fresh('def'); c.innerHTML=`<span class="sym">◈</span> +${buffs.def}`; el.appendChild(c); }
   // Efecto del anillo activo (goteo de curación): solo el ícono, sin texto.
-  if(player.ringDrip && player.ringDrip>0){ const c=document.createElement('span'); c.className='buff-chip is-ring'; c.innerHTML=`<span class="ring-ic"></span>`; el.appendChild(c); }
+  if(player.ringDrip && player.ringDrip>0){ const c=document.createElement('span'); c.className='buff-chip is-ring'+fresh('ring'); c.innerHTML=`<span class="ring-ic"></span>`; el.appendChild(c); }
   // 👟 Doble paso listo para el próximo movimiento (Modo Caos)
-  if(player.boots){ const c=document.createElement('span'); c.className='buff-chip is-boots'; c.innerHTML=`<span class="sym">👟</span> x2`; el.appendChild(c); }
+  if(player.boots){ const c=document.createElement('span'); c.className='buff-chip is-boots'+fresh('boots'); c.innerHTML=`<span class="sym">👟</span> x2`; el.appendChild(c); }
+  el._prevBuffs=map;
 }
 function setMsg(text,active=false){ const el=$('turn-msg'); el.textContent=text; el.classList.toggle('is-active',active); }
 
@@ -3629,6 +3730,11 @@ function endGame(){
       }
       if(won===true)  rt.classList.add('is-win');
       if(won===false) rt.classList.add('is-lose');
+      // Sting solo en el resultado FINAL de la serie (las rondas intermedias
+      // ya tuvieron su sonido en el veredicto del duelo).
+      if(won===true){ Sound.fanfare(); haptic([15,30,15]); }
+      else if(won===false){ Sound.loseSting(); haptic([20,60,20]); }
+      else Sound.tie();
       ensureAuth().then(u=>{ if(u) Stats.bumpMany(u.uid, { gamesPlayed:1, gamesWon: won===true?1:0 }); });
       App.scoreYou=0; App.scoreOpp=0; App.roundHist=[];   // reset para futuras series
       setupOnlineEnd();
@@ -3648,12 +3754,13 @@ function endGame(){
     if(youWon){
       $('result-title').textContent=TEXTS.resultWinTitle;
       rt.classList.add('is-win');
+      Sound.fanfare(); haptic([15,30,15]);
       Campaign.completeCurrent();      // cachea el avance YA (aunque cierre la app)
       againBtn.style.display='none';
       campBtn.style.display='block';
     } else {
       $('result-title').textContent = (youHp===oppHp) ? TEXTS.resultTieTitle : TEXTS.resultLoseTitle;
-      if(youHp<oppHp) rt.classList.add('is-lose');
+      if(youHp<oppHp){ rt.classList.add('is-lose'); Sound.loseSting(); haptic([20,60,20]); }
       againBtn.textContent=TEXTS.campaignRetryLabel;   // vuelve a jugar el mismo nodo
     }
     show('result');
@@ -3673,7 +3780,7 @@ function endGame(){
       Tourney.active=false;
       Tourney._carryHp=null;             // reset para el próximo torneo
       rt.classList.add('is-win','is-champion');
-      Sound.win(); haptic([15,30,15]);
+      Sound.champion(); haptic([20,40,20,40,60]);
     } else if(youWon){
       // Recupera 30% (redondeado) de la vida máxima del rival recién derrotado.
       const heal = Math.round(tourneyHpFor(Tourney.index) * 0.3);
@@ -3695,7 +3802,7 @@ function endGame(){
       againBtn.textContent=TEXTS.tourneyRetryLabel;
       Tourney.active=true; // permitir reintentar el mismo (conserva _carryHp de la ronda anterior)
       rt.classList.add('is-lose');
-      Sound.lose(); haptic([20,60,20]);
+      Sound.loseSting(); haptic([20,60,20]);
     }
     renderTourneyProgress();
     pulseResultTitle(rt);
@@ -3704,9 +3811,9 @@ function endGame(){
   }
 
   $('result-eyebrow').textContent=TEXTS.resultFinalEyebrow;
-  if(youHp===oppHp)      $('result-title').textContent=TEXTS.resultTieTitle;
-  else if(youHp>oppHp)   $('result-title').textContent=TEXTS.resultWinTitle;
-  else                   $('result-title').textContent=TEXTS.resultLoseTitle;
+  if(youHp===oppHp)      { $('result-title').textContent=TEXTS.resultTieTitle; Sound.tie(); }
+  else if(youHp>oppHp)   { $('result-title').textContent=TEXTS.resultWinTitle; Sound.fanfare(); haptic([15,30,15]); }
+  else                   { $('result-title').textContent=TEXTS.resultLoseTitle; Sound.loseSting(); haptic([20,60,20]); }
   $('result-score').innerHTML=fillText('resultScoreHp', {youHp, oppHp});
   show('result');
 }
@@ -4452,7 +4559,7 @@ const OT = {
           this._champBumped = true;
           ensureAuth().then(u=>{ if(u) Stats.bump(u.uid, 'tournamentsWon', 1); });
         }
-        if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.win(); haptic([15,30,15]); }
+        if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.champion(); haptic([20,40,20,40,60]); }
         sub.innerHTML=fillText('otChampionSub', {
           dot:`<span class="p-dot" style="background:${champ.color||CPU_GRAY}"></span>`,
           name:escHtml(champ.name||'?')
@@ -4460,7 +4567,7 @@ const OT = {
       }
       else if((w0===this.mySeat||w1===this.mySeat)){
         title.textContent=TEXTS.otLostFinalTitle; title.classList.add('is-lose');
-        if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.lose(); haptic([20,60,20]); }
+        if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.loseSting(); haptic([20,60,20]); }
         sub.innerHTML=fillText('otChampionSub', {
           dot:`<span class="p-dot" style="background:${champ.color||CPU_GRAY}"></span>`,
           name:escHtml(champ.name||'?')
@@ -4475,7 +4582,7 @@ const OT = {
       }
     } else if(this.eliminated){
       title.textContent=TEXTS.tourneyEliminatedTitle; title.classList.add('is-lose');
-      if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.lose(); haptic([20,60,20]); }
+      if(!this._resultSoundPlayed){ this._resultSoundPlayed=true; Sound.loseSting(); haptic([20,60,20]); }
       sub.innerHTML=TEXTS.otEliminatedSub + hpRecap;
     } else if(this.myDone){
       title.textContent=TEXTS.otSemiWonTitle; title.classList.add('is-win');
@@ -4657,19 +4764,15 @@ function applyOppCosmetic(){
   }
 }
 
-// Re-dispara la animación de entrada (.is-pulse) del título de resultado,
-// sacando y volviendo a poner la clase con un reflow forzado en el medio
-// (si solo se agrega, un segundo resultado con la misma clase ya puesta no
-// re-anima porque la animación CSS no se reinicia sola).
+// Re-dispara la animación de entrada (.is-pulse) del título de resultado.
 function pulseResultTitle(el){
-  el.classList.remove('is-pulse'); void el.offsetWidth; el.classList.add('is-pulse');
+  popClass(el,'is-pulse');
 }
-// Mismo patrón de re-disparo: saca la clase, fuerza reflow, la vuelve a poner.
 function showHealPop(amount){
   const el=$('heal-pop');
   if(!amount || amount<=0){ el.classList.remove('is-show'); el.textContent=''; return; }
   el.textContent = `+${amount} HP`;
-  el.classList.remove('is-show'); void el.offsetWidth; el.classList.add('is-show');
+  popClass(el,'is-show');
 }
 
 // Fila compacta de chips (uno por rival del roster) para #screen-result,

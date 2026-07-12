@@ -6,14 +6,14 @@
 <meta name="theme-color" content="#EAEAE7" />
 <title>Rally - Partidas Online</title>
 <meta name="description" content="Rally (Rallyyy) es un juego casual para jugar con amigos o en solitario. Duelos rápidos, modos variados y partidas online gratis y sin registro." />
-<link rel="icon" type="image/png" href="favicon.png?v=v0.3.31" />
-<link rel="apple-touch-icon" href="favicon.png?v=v0.3.31" />
+<link rel="icon" type="image/png" href="favicon.png?v=v0.3.32" />
+<link rel="apple-touch-icon" href="favicon.png?v=v0.3.32" />
 <!-- Fuentes acá y no vía @import en style.css: así bajan EN PARALELO con
      style.css, y el preconnect deja precalentada la conexión a fonts.gstatic.com
      (de donde salen los .woff2 que el CSS de Google pide después). -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" />
-<link rel="stylesheet" href="style.css?v=v0.3.31" />
+<link rel="stylesheet" href="style.css?v=v0.3.32" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -40,7 +40,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.3.31</div>
+  <div class="version-tag" id="version-tag">v0.3.32</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -226,7 +226,7 @@
         <span class="hud-name" id="hud-name-opp">Rival</span><span class="hud-tag" id="hud-tag-opp"></span>
         <div class="hud-user" id="hud-user-opp"></div>
         <div class="hud-hp-row">
-          <div class="hp-bar"><div class="hp-fill" id="hp-fill-opp" style="width:100%"></div></div>
+          <div class="hp-bar"><div class="hp-ghost" id="hp-ghost-opp"></div><div class="hp-fill" id="hp-fill-opp" style="width:100%"></div></div>
           <span class="hp-num" id="hp-num-opp"></span>
         </div>
         <div class="hud-buffs" id="hud-buffs-opp"></div>
@@ -235,7 +235,7 @@
         <span class="hud-name" id="hud-name-you">Vos</span>
         <div class="hud-user" id="hud-user-you"></div>
         <div class="hud-hp-row">
-          <div class="hp-bar"><div class="hp-fill" id="hp-fill-you" style="width:100%"></div></div>
+          <div class="hp-bar"><div class="hp-ghost" id="hp-ghost-you"></div><div class="hp-fill" id="hp-fill-you" style="width:100%"></div></div>
           <span class="hp-num" id="hp-num-you"></span>
         </div>
         <div class="hud-buffs" id="hud-buffs-you"></div>
@@ -546,6 +546,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" defer></script>
 
-<script src="game.js?v=v0.3.31" defer></script>
+<script src="game.js?v=v0.3.32" defer></script>
 </body>
 </html>
