@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.29';
+const VERSION = 'v0.3.30';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -304,6 +304,7 @@ const TourneyProgress = {
   load(){
     try{ const raw = localStorage.getItem(TOURNEY_PROGRESS_KEY); this.best = raw ? JSON.parse(raw) : {}; }
     catch(e){ this.best = {}; }
+    updateTourneyResumeUI();
   },
   save(){
     try{ localStorage.setItem(TOURNEY_PROGRESS_KEY, JSON.stringify(this.best)); }catch(e){}
@@ -3585,6 +3586,7 @@ function endGame(){
   const rt=$('result-title'); rt.classList.remove('is-win','is-lose','is-champion');
   $('tourney-progress').innerHTML='';   // solo la rama de Tourney offline la llena
   $('round-dots').innerHTML='';         // solo la serie online lo llena (renderRoundDots)
+  showHealPop(0);                       // solo la victoria de ronda de Tourney lo re-muestra
 
   // --- Torneo online x4: el resultado va al bracket, no a la pantalla clásica ---
   if(OT.active && OT.inMatch){ OT.onMyMatchEnd(youHp, oppHp); return; }
@@ -3660,7 +3662,6 @@ function endGame(){
     const isLast = Tourney.index >= TOURNEY_ROSTER.length-1;
     if(youWon && isLast){
       Tourney._carryHp = youHp;
-      showHealPop(0);
       $('result-eyebrow').textContent=TEXTS.tourneyChampionEyebrow;
       $('result-title').textContent=TEXTS.tourneyChampionTitle;
       $('result-score').innerHTML=fillText('tourneyChampionScore', {name:r.name, hp:youHp});
@@ -3688,7 +3689,6 @@ function endGame(){
       $('result-eyebrow').textContent=TEXTS.tourneyEyebrow;
       $('result-title').textContent=TEXTS.tourneyEliminatedTitle;
       $('result-score').innerHTML=fillText('tourneyEliminatedScore', {i:Tourney.index+1, n:TOURNEY_ROSTER.length, name:r.name});
-      showHealPop(0);
       againBtn.textContent=TEXTS.tourneyRetryLabel;
       Tourney.active=true; // permitir reintentar el mismo (conserva _carryHp de la ronda anterior)
       rt.classList.add('is-lose');
@@ -3705,7 +3705,6 @@ function endGame(){
   else if(youHp>oppHp)   $('result-title').textContent=TEXTS.resultWinTitle;
   else                   $('result-title').textContent=TEXTS.resultLoseTitle;
   $('result-score').innerHTML=fillText('resultScoreHp', {youHp, oppHp});
-  showHealPop(0);
   show('result');
 }
 
@@ -4760,7 +4759,6 @@ $('btn-howto-ok').addEventListener('click', ()=>{ $('howto').classList.remove('i
 $('btn-tournament').addEventListener('click', ()=>{ readName(); App.online=false; startTournament(); });
 $('btn-tourney-resume').addEventListener('click', ()=>{ renderTourneyResumeList(); $('tourney-resume-overlay').hidden=false; });
 $('btn-tr-cancel').addEventListener('click', ()=>{ $('tourney-resume-overlay').hidden=true; });
-updateTourneyResumeUI();
 $('btn-tourney-next').addEventListener('click', ()=>{ nextTourneyOpponent(); });
 // Etapa 2: cuando ambos están en la sala. El HOST ve "Iniciar partida"
 // (genera y sube el board). El GUEST espera a recibir el board.
