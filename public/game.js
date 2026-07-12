@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.34';
+const VERSION = 'v0.3.35';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1608,7 +1608,16 @@ function resolveSkins(){
   // así que acá pintamos la ficha del rival con SU skin elegida. El emoji del
   // easter egg (G.skinOpp) tiene prioridad: si está seteado, no pisamos con el
   // sprite (renderBoard pinta el sprite antes que el emoji).
-  if(App.online && !G.skinOpp) G.spriteOpp = Profile.spriteFor(App.oppSkin);
+  if(App.online && !G.skinOpp){
+    G.spriteOpp = Profile.spriteFor(App.oppSkin);
+    // Precarga/decode del sprite del rival ACÁ (arranque de la partida), no en su
+    // primer paint: la skin online no pasa por preloadSpriteAssets, así que sin
+    // esto el decode del webp (~30KB) caía en cualquier momento — si aterrizaba
+    // durante un duelo, el stall del main thread trababa el rAF de la aguja
+    // (misma familia que v0.3.28). Con el decode adelantado al inicio, ya está
+    // en caché mucho antes del primer duelo. Sin duelo tan temprano no molesta.
+    if(G.spriteOpp) new Image().src = G.spriteOpp;
+  }
 }
 
 // Ícono de ítem de una celda (compartido por el tablero real y el del espectador de OT).
