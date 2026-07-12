@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.33';
+const VERSION = 'v0.3.34';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -252,6 +252,7 @@ const App = {
   playerName: 'Jugador',
   oppName: 'CPU',
   oppUser: null,    // usuario permanente del rival (solo online), va abajo del nickname
+  oppSkin: null,    // id de skin elegida por el rival (solo online), para verla en su ficha
   roomCode: null,
   online: false,
   muted: false,
@@ -1559,6 +1560,9 @@ const Profile = {
   },
   cur(){ return SKINS.find(k=>k.id===this.skin) || SKINS[0]; },
   sprite(){ return this.cur().sprite; },
+  // sprite de una skin por id (para pintar la ficha del rival online). null si
+  // no existe o es la clásica.
+  spriteFor(id){ const s=SKINS.find(k=>k.id===id); return (s && s.sprite) || null; },
   setSkin(id){
     if(!SKINS.some(k=>k.id===id)) return;
     this.skin=id;
@@ -1599,6 +1603,12 @@ function resolveSkins(){
   // Skin de la ficha propia: solo si el jugador está registrado (perk de cuenta).
   // El emoji del easter egg Messi tiene prioridad en el render (ver renderBoard).
   G.spriteYou = User.name ? Profile.sprite() : null;
+  // Skin del rival en online: la elección que nos mandó por la sala (App.oppSkin).
+  // El sprite de campaña lo setea applyOppCosmetic; online siempre lo dejó en null,
+  // así que acá pintamos la ficha del rival con SU skin elegida. El emoji del
+  // easter egg (G.skinOpp) tiene prioridad: si está seteado, no pisamos con el
+  // sprite (renderBoard pinta el sprite antes que el emoji).
+  if(App.online && !G.skinOpp) G.spriteOpp = Profile.spriteFor(App.oppSkin);
 }
 
 // Ícono de ítem de una celda (compartido por el tablero real y el del espectador de OT).
@@ -3861,7 +3871,7 @@ const Net = {
 
     await this.ref.set({
       status: 'waiting',
-      host: { name: App.playerName, user: User.name || null },
+      host: { name: App.playerName, user: User.name || null, skin: (User.name && Profile.skin!=='default') ? Profile.skin : null },
       guest: null,
       createdAt: firebase.database.ServerValue.TIMESTAMP,
     });
@@ -3876,6 +3886,7 @@ const Net = {
         this._sawGuest = true;
         App.oppName = g.name;
         App.oppUser = g.user || null;
+        App.oppSkin = g.skin || null;
         this.ref.child('status').set('ready');
         if(this.onReady) this.onReady({ role:'host', oppName:g.name });
       } else if(this._sawGuest && !G.running && this.ref){
@@ -3920,8 +3931,9 @@ const Net = {
     this.ref = ref;
     App.oppName = (room.host && room.host.name) || 'Rival';
     App.oppUser = (room.host && room.host.user) || null;
+    App.oppSkin = (room.host && room.host.skin) || null;
 
-    await ref.child('guest').set({ name: App.playerName, user: User.name || null });
+    await ref.child('guest').set({ name: App.playerName, user: User.name || null, skin: (User.name && Profile.skin!=='default') ? Profile.skin : null });
     // Si me desconecto antes de que arranque la partida (refresh, pestaña
     // cerrada, celu que mata el navegador), mi lugar se libera solo — si no,
     // la sala queda "llena" para siempre y no se puede reintentar (#22).
@@ -4213,6 +4225,7 @@ const Net = {
 
   leave(){
     App.oppUser = null;
+    App.oppSkin = null;
     try {
       this.cancelGuestSlotCleanup();
       this.stopPresence();
@@ -4345,7 +4358,7 @@ const OT = {
       const g=(await Net.ref.child('guest').get()).val();
       if(g && g.name){ toast(TEXTS.toastChangeModeBeforeJoin); return false; }
     }catch(e){}
-    const players={ s0:{ name:App.playerName||'Jugador', color:SEAT_COLORS.s0, uid:this.uid, user:User.name||null } };
+    const players={ s0:{ name:App.playerName||'Jugador', color:SEAT_COLORS.s0, uid:this.uid, user:User.name||null, skin:(User.name && Profile.skin!=='default') ? Profile.skin : null } };
     await Net.ref.update({ type:'tourney', players, guest:null, status:'waiting' });
     this.setup(Net.ref, Net.code, 's0');
     this.showLobby();
@@ -4373,7 +4386,7 @@ const OT = {
     let claimed=null;
     for(const s of ['s1','s2','s3']){
       const r=await ref.child('players/'+s).transaction(cur=>{
-        if(cur===null) return { name:App.playerName||'Jugador', color:SEAT_COLORS[s], uid:OT.uid, user:User.name||null };
+        if(cur===null) return { name:App.playerName||'Jugador', color:SEAT_COLORS[s], uid:OT.uid, user:User.name||null, skin:(User.name && Profile.skin!=='default') ? Profile.skin : null };
         return; // ocupado → abortar e intentar el siguiente
       });
       if(r.committed && r.snapshot.val() && r.snapshot.val().uid===OT.uid){ claimed=s; break; }
@@ -4476,6 +4489,7 @@ const OT = {
     const me=this.players[this.mySeat], opp=this.players[oppSeat];
     App.oppName=opp.name;
     App.oppUser=opp.user||null;
+    App.oppSkin=opp.skin||null;
     Tourney.active=false;
     if(opp.cpu){
       // Partida local vs CPU; publico el estado para que la puedan espectar

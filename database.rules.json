@@ -18,11 +18,13 @@
         "host": {
           "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
           "user": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{3,15}$/) && root.child('usernames').child(newData.val()).val() === auth.uid" },
+          "skin": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{1,20}$/)" },
           "$other": { ".validate": false }
         },
         "guest": {
           "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
           "user": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{3,15}$/) && root.child('usernames').child(newData.val()).val() === auth.uid" },
+          "skin": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{1,20}$/)" },
           "$other": { ".validate": false }
         },
 
@@ -97,6 +99,7 @@
             "uid": { ".validate": "newData.isString() && newData.val().length <= 20" },
             "cpu": { ".validate": "newData.isBoolean()" },
             "user": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{3,15}$/) && root.child('usernames').child(newData.val()).val() === auth.uid" },
+            "skin": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_]{1,20}$/)" },
             "$other": { ".validate": false }
           }
         },
