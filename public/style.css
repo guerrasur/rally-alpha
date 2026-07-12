@@ -79,6 +79,29 @@
     cursor: pointer;
   }
 
+  /* 🩺 Medidor de FPS/frame-time (diagnóstico, ?fps=1). Fijo arriba a la
+     izquierda, por ENCIMA del overlay del duelo (z 9999), sin capturar toques
+     (pointer-events:none) para no interferir con el botón STOP. Apagado por
+     defecto (hidden) → el jugador normal nunca lo ve. */
+  #fps-hud{
+    position: fixed;
+    top: max(6px, env(safe-area-inset-top));
+    left: 6px;
+    z-index: 9999;
+    font: 600 11px/1.3 ui-monospace, Menlo, Consolas, monospace;
+    color: #38e06a;
+    background: rgba(0,0,0,0.74);
+    padding: 4px 7px;
+    border-radius: 6px;
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: calc(100vw - 12px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #fps-hud.is-bad{ color: #ff5252; }
+  #fps-hud[hidden]{ display: none; }
+
   .top-controls{
     position:absolute;
     top: max(8px, env(safe-area-inset-top));
