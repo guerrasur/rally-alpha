@@ -6,9 +6,14 @@
 <meta name="theme-color" content="#EAEAE7" />
 <title>Rally - Partidas Online</title>
 <meta name="description" content="Rally (Rallyyy) es un juego casual para jugar con amigos o en solitario. Duelos rápidos, modos variados y partidas online gratis y sin registro." />
-<link rel="icon" type="image/png" href="favicon.png?v=v0.3.30" />
-<link rel="apple-touch-icon" href="favicon.png?v=v0.3.30" />
-<link rel="stylesheet" href="style.css?v=v0.3.30" />
+<link rel="icon" type="image/png" href="favicon.png?v=v0.3.31" />
+<link rel="apple-touch-icon" href="favicon.png?v=v0.3.31" />
+<!-- Fuentes acá y no vía @import en style.css: así bajan EN PARALELO con
+     style.css, y el preconnect deja precalentada la conexión a fonts.gstatic.com
+     (de donde salen los .woff2 que el CSS de Google pide después). -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" />
+<link rel="stylesheet" href="style.css?v=v0.3.31" />
 <script>
 /* Aplica el tema guardado ANTES del primer paint (evita el flash claro al
    cargar en modo oscuro; game.js carga deferred y llegaría tarde). */
@@ -35,7 +40,7 @@
 </script>
 <body>
 <div id="app">
-  <div class="version-tag" id="version-tag">v0.3.30</div>
+  <div class="version-tag" id="version-tag">v0.3.31</div>
 
   <button class="info-btn" id="btn-info" aria-label="Información">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -534,10 +539,13 @@
 <div id="toast"></div>
 
 <!-- Firebase (compat SDK, sin módulos) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<!-- defer: bajan en paralelo sin frenar el parseo/primer paint. El orden de
+     ejecución (app → auth → database → game.js) se mantiene igual porque los
+     scripts defer corren en orden de documento, siempre antes que game.js. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" defer></script>
 
-<script src="game.js?v=v0.3.30" defer></script>
+<script src="game.js?v=v0.3.31" defer></script>
 </body>
 </html>
