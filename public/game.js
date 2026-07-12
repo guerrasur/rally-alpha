@@ -310,10 +310,17 @@ if(HAS_FIREBASE && firebase.auth){
         .catch(()=>{});
     }
     // Sincronizar EXP con la cuenta apenas se asienta la sesión (lo mejor gana),
-    // así el nivel ya está al día para el próximo resultado, no solo al abrir el
-    // perfil. Corre para cualquier usuario (anónimo o real): el uid persiste al
-    // registrarse (link), y al loguearse en otro dispositivo trae el de la cuenta.
-    if(u && typeof Exp!=='undefined') Exp.loadRemote();
+    // así el nivel ya está al día para el próximo resultado. Corre para cualquier
+    // usuario (anónimo o real): el uid persiste al registrarse (link), y al
+    // loguearse en otro dispositivo trae el de la cuenta.
+    // ⚠️ NUNCA durante una partida en curso: en el celu la auth se asienta a los
+    // pocos segundos (justo cuando puede estar corriendo el primer duelo) y un
+    // .get()/transacción de Firebase resolviendo DENTRO de la ventana del duelo
+    // mete trabajo en el main thread y puede trabar la aguja (disciplina de
+    // "ventana del duelo limpia", lección recurrente). No se pierde nada: el
+    // perfil hace loadRemote al abrirse y la transacción Math.max de endGame ya
+    // sincroniza el total con la cuenta al terminar cada partida.
+    if(u && typeof Exp!=='undefined' && !(typeof G!=='undefined' && G.running)) Exp.loadRemote();
     User.updateUI();
     // Si el overlay de cuenta está abierto, repintarlo con el estado real
     const ov = $('user-overlay');
