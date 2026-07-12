@@ -1112,13 +1112,16 @@
   .result-score{ font-family:var(--font-display); font-weight:500; font-size:22px; color:var(--muted); letter-spacing:.04em; }
 
   /* "+N HP" que aparece al ganar una ronda de Torneo con cura proporcional
-     (v. game.js applyTourneyHeal). Un solo disparo, no infinita → transform/opacity ok. */
+     (v. game.js showHealPop). Un solo disparo, no infinita → transform/opacity ok.
+     `forwards` es obligatorio: los keyframes terminan en opacity:0 y sin él,
+     al terminar la animación el elemento vuelve a sus estilos base (opacidad 1)
+     y el "+N HP" reaparece y queda pegado en pantalla. */
   .heal-pop{
     display:none; font-family:var(--font-display); font-weight:700; font-size:18px;
     color:var(--good); letter-spacing:.02em;
   }
   .heal-pop.is-show{
-    display:block; animation: healPop 1.1s ease-out;
+    display:block; animation: healPop 1.1s ease-out forwards;
   }
   @keyframes healPop{
     0%{ transform: translateY(6px) scale(.85); opacity: 0; }
