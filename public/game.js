@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.32';
+const VERSION = 'v0.3.33';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -2351,12 +2351,12 @@ function flipMarker(cls, oldRect){
   el.style.transform = `translate(${dx}px, ${dy}px)`;
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      // Curva propia para el deslizamiento: overshoot MUY suave (~4%, la ficha
-      // pasa 2-3px de largo y asienta — sensación de peso). Mucho más leve que
-      // el back-out 1.56 de .player-marker en CSS (reservado al pop de choque,
-      // .is-clash). Al terminar, se limpia la transition inline para no pisar
-      // esa otra animación. Reduced-motion: el catch-all de style.css la anula.
-      el.style.transition = 'transform .38s cubic-bezier(.30,1.16,.55,1)';
+      // Curva propia para el deslizamiento (carga y llegada, sin rebote):
+      // la de .player-marker en CSS es "back-out" (se usa para el pop de
+      // choque, .is-clash) y pasa de largo antes de asentar. Al terminar,
+      // se limpia la transition inline para no pisar esa otra animación.
+      // (v0.3.32 probó un overshoot suave acá; a Lucio no le gustó — no volver.)
+      el.style.transition = 'transform .35s ease-in-out';
       el.style.transform = '';
       el.addEventListener('transitionend', ()=>{
         el.style.transition = '';
@@ -2769,6 +2769,22 @@ function ejectPlayers(){
 function setDuelOverlayShown(on){
   $('duel-overlay').classList.toggle('is-show', on);
   document.body.classList.toggle('is-dueling', on);
+  // Al abrir: cortar EN SECO el feedback de daño del HUD si quedó a mitad de
+  // camino (daño por trampa/bomba justo antes del duelo). La transición de
+  // width de la ghost bar hace layout por frame aunque el HUD esté oculto
+  // detrás del overlay, y eso compite con el rAF de la aguja en móvil.
+  if(on){
+    ['you','opp'].forEach(side=>{
+      const g=$('hp-ghost-'+side);
+      if(g){ g.style.transition='none'; g.style.width='0'; g.style.opacity='0'; }
+      const n=$('hp-num-'+side);
+      if(n){
+        n.classList.remove('is-hit');
+        if(n._twnRaf){ cancelAnimationFrame(n._twnRaf); n._twnRaf=null; }
+        if(G[side]) n.textContent=Math.max(0, G[side].hp);
+      }
+    });
+  }
 }
 
 // DOM/estado compartido por el countdown del duelo, offline y online.
@@ -3109,14 +3125,14 @@ function zoneInfo(pos, pass){
   return { name:TEXTS.zoneNameRed, color:'var(--bad)' };
 }
 
-// Frenaste en PERFECTO: feedback inmediato al soltar la aguja — sting agudo,
-// haptic ascendente y un latido del botón recién apretado (el premio visual
-// grande llega igual en el reveal, 1-2s después). Nada toca el rAF de la aguja.
+// Frenaste en PERFECTO: feedback inmediato al soltar la aguja — SOLO sting
+// agudo + haptic ascendente (costo visual cero: la aguja del rival puede
+// seguir barriendo y cualquier animación/reflow acá compite con su rAF en
+// móvil — v0.3.32 tenía un pop del botón y se quitó por eso). El premio
+// visual grande llega igual en el reveal, 1-2s después.
 function perfectStopFx(){
   Sound.perfect && Sound.perfect();
   haptic([10,20,35]);
-  const btn=$('duel-stop');
-  if(btn && !prefersReduced()) popClass(btn,'is-perfect-pop');
 }
 
 function onPlayerStop(e){

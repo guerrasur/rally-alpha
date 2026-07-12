@@ -1028,18 +1028,9 @@
   }
   .duel-stop-btn:active{ transform: scale(.97); }
   .duel-stop-btn:disabled{ cursor: not-allowed; }
-  /* Frenaste en PERFECTO: el botón recién apretado brilla y late una vez.
-     Sin opacity en el 100%: al terminar decae sola al valor de .is-pressed.
-     Solo transform/opacity, one-shot, dentro del overlay del duelo. */
-  .duel-stop-btn.is-perfect-pop{ animation: stopPop .35s cubic-bezier(.2,.8,.3,1.4); }
-  @keyframes stopPop{
-    0%{ transform:scale(1); opacity:1; }
-    40%{ transform:scale(1.07); opacity:1; }
-    100%{ transform:scale(1); }
-  }
-  @media (prefers-reduced-motion: reduce){
-    .duel-stop-btn.is-perfect-pop{ animation:none; }
-  }
+  /* OJO: no agregar animaciones al botón (ni a nada del overlay) que corran
+     DURANTE duel-play — la aguja del rival puede seguir barriendo y cualquier
+     paint extra ahí se siente como aguja trabada en móvil (v0.3.32). */
 
   .duel-result{
     display:flex; flex-direction:column; gap: 14px; align-items:center;
