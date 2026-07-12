@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.30';
+const VERSION = 'v0.3.31';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -1597,6 +1597,8 @@ function renderBoard(){
     });
   }
   // Recorremos en orden VISUAL. Para cada celda visual, hallamos su coord canónica.
+  // Las celdas se arman en un fragment y se insertan al DOM vivo de una sola vez.
+  const frag = document.createDocumentFragment();
   for(let vy=0; vy<n; vy++){
     for(let vx=0; vx<n; vx++){
       // viewCoord es involutiva: visual->canónica usa la misma transformación
@@ -1643,9 +1645,10 @@ function renderBoard(){
           if(Walls.hasOrtho(x, y, bc.x, bc.y)){ const w=document.createElement('div'); w.className='wall-seg is-bottom'; div.appendChild(w); }
         }
       }
-      boardEl.appendChild(div);
+      frag.appendChild(div);
     }
   }
+  boardEl.appendChild(frag);
 }
 // ---- Sistema de paredes (Modo Paredes) ----
 // Una pared vive en el borde ENTRE dos casillas ortogonalmente adyacentes.
@@ -5435,6 +5438,21 @@ function applyRemoteCampaign(){
   }).catch(()=>{});
 }
 applyRemoteCampaign();
+
+// Precarga en idle (post-arranque, sin competir con la carga inicial) de los
+// sprites que se pintan tarde o temprano: NPCs de campaña y la skin propia si
+// hay sesión. Sin esto, la PRIMERA vez que un marker recibe su --sprite-url el
+// browser recién ahí dispara la descarga y la ficha aparece unos instantes
+// como bola sólida hasta que llega la imagen (mismo motivo que la precarga de
+// la variante de movimiento en applyOppCosmetic, v0.3.28). Son ~30KB en total.
+function preloadSpriteAssets(){
+  const urls = new Set();
+  Object.values(NPC_SPRITES).forEach(s=>{ if(s.idle) urls.add(s.idle); if(s.move) urls.add(s.move); });
+  if(User.name && Profile.sprite()) urls.add(Profile.sprite());
+  urls.forEach(u=>{ new Image().src = u; });
+}
+if(window.requestIdleCallback) requestIdleCallback(preloadSpriteAssets, {timeout:4000});
+else setTimeout(preloadSpriteAssets, 2500);   // Safari/iOS: sin requestIdleCallback
 
 // ===== 🎭 Personajes remotos (editor /admin/, v0.3.03) =====
 // characters/roster = JSON string con un array de hasta 8 overrides

@@ -1,4 +1,6 @@
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+  /* Las fuentes se cargan desde index.html con <link> + preconnect: un @import
+     acá encadenaba 3 viajes EN SERIE (style.css → CSS de Google Fonts → .woff2)
+     antes de poder pintar con la tipografía real. No volver a importarlas acá. */
 
   :root{
     --paper:   #EAEAE7;
