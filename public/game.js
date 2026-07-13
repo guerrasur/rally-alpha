@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.40';
+const VERSION = 'v0.3.41';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -897,7 +897,8 @@ const TEXTS_ES = {
   toastRoomClosed: 'La sala se cerró.',
   toastIdleAutoMove: 'Te moviste solo por inactividad ({streak}/{max})',
   toastIdleForfeit: 'Te desconectamos por inactividad — perdiste la partida.',
-  toastOppAutoMove: '⏱️ El rival tardó demasiado: se movió solo',
+  toastOppAutoMove: '⏱️ El rival tardó demasiado: se movió solo ({streak}/{max})',
+  toastOppGoneAuto: '📡 Rival desconectado — la partida sigue sola',
   toastMoveError: 'Error al enviar movimiento.',
 
   // --- Cómo se juega (overlay corto antes de la partida) ---
@@ -1134,7 +1135,8 @@ const TEXTS_EN = {
   toastRoomClosed: 'The room was closed.',
   toastIdleAutoMove: 'You moved automatically due to inactivity ({streak}/{max})',
   toastIdleForfeit: 'You were disconnected for inactivity — you lost the match.',
-  toastOppAutoMove: '⏱️ Your rival took too long — moved automatically',
+  toastOppAutoMove: '⏱️ Your rival took too long — moved automatically ({streak}/{max})',
+  toastOppGoneAuto: '📡 Rival disconnected — the game continues on its own',
   toastMoveError: 'Error sending move.',
 
   howtoTitle: 'How to play',
@@ -2006,7 +2008,7 @@ function startGame(){
                : Tourney.active  ? TOURNEY_YOU_HP : CFG.maxHp;
   G.you = {x:n-1,y:n-1,hp:youHp,maxHp:youMax,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   G.opp = {x:0,y:0,hp:oppHp,maxHp:oppHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null; clearNetDeadlines();
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null; G._oppAutoStreak=0; clearNetDeadlines();
   HudFx.you=null; HudFx.opp=null;   // feedback de daño del HUD: sin previo al arrancar
   resolveSkins();   // easter egg Messi (offline: solo aplica tu propia skin)
   updateHud(); renderBoard(); startChoosePhase();
@@ -2029,7 +2031,7 @@ function startOnlineGame(boardStr, role){
     G.you = {x:0,  y:0,  hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
     G.opp = {x:n-1,y:n-1,hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   }
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null; clearNetDeadlines();
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null; G._oppAutoStreak=0; clearNetDeadlines();
   HudFx.you=null; HudFx.opp=null;   // feedback de daño del HUD: sin previo al arrancar
   resolveSkins();   // easter egg Messi: define skins/nombre según ambos jugadores
   show('game');
@@ -2062,6 +2064,17 @@ function startOnlineGame(boardStr, role){
   Net.onOpponentBack = ()=>{ toast(TEXTS.toastOpponentBack); };
   Net.startPresence();
 
+  // v0.3.41: fin unilateral — si el rival me declaró inactivo mientras yo no
+  // estaba, el marcador game/over me muestra la derrota apenas vuelvo.
+  Net.onGameOver = onGameOverMarker;
+  Net.listenGameOver();
+  // Guest 1v1: sala borrada en pleno running = el host salió deliberadamente
+  // (sin marcador) → victoria inmediata. En OT lo cubre el watcher de players.
+  if(Net.role==='guest' && !OT.active){
+    Net.onRoomGone = ()=>{ if(G.running && G.online) winByAbandon(); };
+    Net.listenRoomAlive();
+  }
+
   // Chat en vivo (solo online): monta el panel y escucha mensajes.
   Chat.mount();
 
@@ -2070,8 +2083,11 @@ function startOnlineGame(boardStr, role){
   showStartBubbles();
 }
 
-// El rival se desconectó o salió → victoria por abandono.
-function onOpponentLeft(){
+// El rival se fue DE VERDAD → victoria por abandono. v0.3.41: ya no lo dispara
+// la caída de presencia sola (ver onOpponentLeft) — llega por salida deliberada
+// (nodo guest/sala borrados), por racha de auto-movimientos (endByOppIdle) o
+// fuera de partida por el camino de siempre.
+function winByAbandon(){
   if(!G.online || G.phase==='gameover') return;
   G.running=false; G.phase='gameover'; G.online=false;
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
@@ -2094,6 +2110,38 @@ function onOpponentLeft(){
   $('btn-again').style.display='none';   // no hay revancha en abandono online
   showResultExp(grantBattleExp('win', 'online'));   // ganar por abandono también cuenta
   show('result');
+}
+
+// La presencia del rival venció su gracia de reconexión. v0.3.41: con la
+// partida EN CURSO ya no es fatal (antes cortaba acá y el reloj global nunca
+// llegaba a actuar) — la partida sigue sola con los fallbacks y el fin llega
+// por racha de 3 auto-movimientos (endByOppIdle), salida deliberada o KO.
+// Fuera de partida (pantallas de resultado) conserva el comportamiento viejo.
+function onOpponentLeft(){
+  if(!G.online || G.phase==='gameover') return;
+  if(G.running){ toast(TEXTS.toastOppGoneAuto); return; }
+  winByAbandon();
+}
+
+// Llegó el marcador game/over (v0.3.41): la partida terminó unilateralmente
+// por inactividad. Si el ganador soy yo, ya mostré la victoria (yo lo escribí).
+// Si no, soy el desconectado que volvió: derrota inmediata — aunque mi pantalla
+// estuviera reviviendo la partida por catch-up, esto la corta (guards
+// !G.running en todas las cadenas, lección v0.3.27).
+function onGameOverMarker(over){
+  if(!over || !over.winner) return;
+  Net._keepRoom = true;   // la sala sobrevive al leave: el otro tiene que poder leerlo
+  if(over.winner === myAbsRole()) return;
+  if(!G.online || G.phase==='gameover') return;
+  if(OT.active && OT.inMatch){
+    G.running=false;
+    if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
+    setDuelOverlayShown(false); hideRpsOverlay(); clearNetDeadlines();
+    toast(TEXTS.toastIdleForfeit);
+    OT.onMyMatchEnd(0, Math.max(1, G.opp.hp));
+    return;
+  }
+  forfeitByIdle();   // misma UX que el forfeit local: limpieza + home + toast
 }
 function startChoosePhase(){
   G.phase='choose'; G.yourMove=null; G.oppMove=null;
@@ -2146,7 +2194,8 @@ function onPlayerMove(x, y, isAuto){
       if(!G.running || !G.online || G.phase!=='waiting-opp' || turn!==G.turnCount) return;
       const mv = bestConvenientMove(G.opp);
       Net.pushOppMoveFallback(turn, mv.x, mv.y).then(r=>{
-        if(r && r.committed) toast(TEXTS.toastOppAutoMove);
+        // committed=false: el move real del rival ganó la carrera → está vivo
+        registerOppAutoMove(!!(r && r.committed));
       }).catch(e=>console.error('[net] move fallback', e));
     }, NET_MOVE_DEADLINE_MS);
     return;
@@ -2284,9 +2333,35 @@ function clearNetDeadlines(){
   });
 }
 
+// Racha de auto-movimientos remotos del rival (v0.3.41): cada fallback de
+// movimiento que COMETE (el rival no movió en 15s) suma; un move real suyo la
+// corta. Al 3ro (IDLE_MAX_STREAK, mismo criterio que el idle local) la partida
+// termina — así una desconexión tiene ~3 turnos de gracia para volver, en vez
+// del corte abrupto por presencia de antes.
+function registerOppAutoMove(committed){
+  if(!G.running || !G.online) return;
+  if(!committed){ G._oppAutoStreak = 0; return; }
+  G._oppAutoStreak = (G._oppAutoStreak||0) + 1;
+  if(G._oppAutoStreak >= IDLE_MAX_STREAK){ endByOppIdle(); return; }
+  toast(fillText('toastOppAutoMove', { streak:G._oppAutoStreak, max:IDLE_MAX_STREAK }));
+}
+
+// Fin por inactividad del rival: el marcador game/over queda en Firebase
+// (first-write-wins) para que el desconectado, cuando vuelva, vea su DERROTA
+// en vez de una partida viva — sin doble ganador (bug del test en vivo v0.3.40).
+function endByOppIdle(){
+  if(!G.running || !G.online) return;
+  // keepRoom acá mismo (no esperar el rebote del listener): si salgo de la
+  // pantalla de victoria antes del roundtrip, la sala no se puede borrar.
+  Net._keepRoom = true;
+  Net.pushGameOver(myAbsRole()).catch(e=>console.error('[net] game over', e));
+  winByAbandon();
+}
+
 // Online: llegaron ambos movimientos. Mapear según mi rol y resolver.
 function onOnlineMovesReady(moves){
-  if(G._moveDeadline){ clearTimeout(G._moveDeadline); G._moveDeadline=null; }
+  // Deadline todavía armado = el rival movió él mismo antes de los 15s → vivo
+  if(G._moveDeadline){ clearTimeout(G._moveDeadline); G._moveDeadline=null; G._oppAutoStreak=0; }
   if(G.phase!=='waiting-opp' && G.phase!=='choose') return;
   const mine  = (Net.role==='host') ? moves.host  : moves.guest;
   const other = (Net.role==='host') ? moves.guest : moves.host;
@@ -4357,6 +4432,7 @@ const Net = {
     this.code = code;
     this.role = 'host';
     this.ref = fbDb.ref('rooms/'+code);
+    this._keepRoom = false;
 
     await this.ref.set({
       status: 'waiting',
@@ -4378,6 +4454,12 @@ const Net = {
         App.oppSkin = g.skin || null;
         this.ref.child('status').set('ready');
         if(this.onReady) this.onReady({ role:'host', oppName:g.name });
+      } else if(this._sawGuest && G.running && G.online && !OT.active){
+        // v0.3.41: el nodo guest se borró EN PLENA PARTIDA — solo Net.leave()
+        // lo hace (salida deliberada con el botón, o su forfeit local por
+        // idle): victoria inmediata, sin esperar la racha de auto-movimientos.
+        this._sawGuest = false;
+        winByAbandon();
       } else if(this._sawGuest && !G.running && this.ref){
         // El invitado se fue del lobby (o se le cortó): volver a esperar
         this._sawGuest = false;
@@ -4418,6 +4500,7 @@ const Net = {
     this.code = code;
     this.role = 'guest';
     this.ref = ref;
+    this._keepRoom = false;
     App.oppName = (room.host && room.host.name) || 'Rival';
     App.oppUser = (room.host && room.host.user) || null;
     App.oppSkin = (room.host && room.host.skin) || null;
@@ -4661,6 +4744,52 @@ const Net = {
     if(this._rpsRef){ this._rpsRef.off(); this._rpsRef=null; }
   },
 
+  // ---- 🏁 Fin unilateral de partida (game/over, v0.3.41) ----
+  // El ganador por inactividad lo escribe (first-write-wins) y el que estaba
+  // desconectado lo encuentra al volver: ve su derrota en vez de una partida
+  // viva. Mientras exista, leave() conserva la sala (ver _keepRoom).
+  onGameOver: null,
+  _overRef: null,
+  _keepRoom: false,
+  pushGameOver(winnerRole){
+    return this._setIfAbsent('game/over', { winner: winnerRole, reason: 'idle' });
+  },
+  listenGameOver(){
+    if(!this.ref) return;
+    this.stopGameOver();
+    this._overRef = this.ref.child('game/over');
+    this._overRef.on('value', s=>{
+      const o = s.val();
+      if(o && this.onGameOver) this.onGameOver(o);
+    });
+  },
+  stopGameOver(){
+    if(this._overRef){ this._overRef.off(); this._overRef=null; }
+  },
+
+  // ---- Sala viva (v0.3.41, solo guest 1v1) ----
+  // createdAt es un escalar estable: si desaparece con la partida en curso, el
+  // host borró la sala con Net.leave() (salida deliberada SIN marcador) — el
+  // guest gana al instante. La derrota del que vuelve tarde nunca entra por
+  // acá: el ganador conserva la sala (con game/over adentro) al salir.
+  onRoomGone: null,
+  _aliveRef: null,
+  _roomSeen: false,
+  listenRoomAlive(){
+    if(!this.ref) return;
+    this.stopRoomAlive();
+    this._aliveRef = this.ref.child('createdAt');
+    this._aliveRef.on('value', s=>{
+      const v = s.val();
+      if(v!=null){ this._roomSeen = true; return; }
+      if(this._roomSeen && this.onRoomGone) this.onRoomGone();
+    });
+  },
+  stopRoomAlive(){
+    if(this._aliveRef){ this._aliveRef.off(); this._aliveRef=null; }
+    this._roomSeen=false;
+  },
+
   // ---- Chat en vivo (solo online) ----
   // Vive en rooms/{code}/chat (nivel sala: persiste entre revanchas; se borra con
   // la sala en leave()). Cada mensaje usa push-id → orden cronológico gratis.
@@ -4713,19 +4842,24 @@ const Net = {
       const present = s.val();
       if(present){
         this._oppSeen = true;
-        // Si volvió durante la gracia, cancelar el abandono
+        // Volvió durante la gracia → cancelar el aviso; o DESPUÉS de la gracia
+        // (v0.3.41: el watcher ya no se suelta — la partida siguió sola con el
+        // reloj global y el rival puede reengancharse) → avisar igual.
         if(this._graceTimer){
           clearTimeout(this._graceTimer); this._graceTimer=null;
           if(this.onOpponentBack) this.onOpponentBack();
+        } else if(this._oppGone){
+          if(this.onOpponentBack) this.onOpponentBack();
         }
+        this._oppGone = false;
         return;
       }
       // Rival ausente: dar unos segundos por si reconecta
-      if(this._oppSeen && !this._graceTimer){
+      if(this._oppSeen && !this._graceTimer && !this._oppGone){
         if(this.onOpponentWaiting) this.onOpponentWaiting();
         this._graceTimer = setTimeout(()=>{
           this._graceTimer=null;
-          if(this._oppPresRef) this._oppPresRef.off();
+          this._oppGone = true;   // v0.3.41: seguir vigilando (antes: off())
           if(this.onOpponentLeft) this.onOpponentLeft();
         }, 6000);   // 6s de gracia
       }
@@ -4750,7 +4884,7 @@ const Net = {
         this.ref.child('presence/'+this.role).remove();
       }
     } catch(e){}
-    this._presenceWatch=false; this._oppPresRef=null; this._oppSeen=false;
+    this._presenceWatch=false; this._oppPresRef=null; this._oppSeen=false; this._oppGone=false;
   },
 
   // Suelta los listeners de una partida de torneo SIN borrar nada de la sala
@@ -4762,6 +4896,8 @@ const Net = {
       if(this._movesRef){ this._movesRef.off(); this._movesRef=null; }
       if(this._duelRef){ this._duelRef.off(); this._duelRef=null; }
       this.stopRpsListen();
+      this.stopGameOver();
+      this.stopRoomAlive();
       if(this.ref){ this.ref.child('game/board').off(); this.ref.off(); }
     } catch(e){}
     this.ref=null; this.role=null; this._startCb=null; this._boardCb=null; this._lastBoardStr=null;
@@ -4769,6 +4905,7 @@ const Net = {
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
     this.onRpsPicks=null; this.onOppRpsPicked=null;
     this.onOpponentWaiting=null; this.onOpponentBack=null;
+    this.onGameOver=null; this.onRoomGone=null;
   },
 
   leave(){
@@ -4781,12 +4918,16 @@ const Net = {
       if(this._movesRef){ this._movesRef.off(); this._movesRef=null; }
       if(this._duelRef){ this._duelRef.off(); this._duelRef=null; }
       this.stopRpsListen();
+      this.stopGameOver();
+      this.stopRoomAlive();
       if(this.ref){
         this.ref.child('game/board').off();
         this.ref.child('guest').off();
         this.ref.off();
-        // El host borra la sala entera; el invitado solo se quita
-        if(this.role==='host') this.ref.remove();
+        // El host borra la sala entera; el invitado solo se quita. v0.3.41:
+        // con marcador game/over la sala se CONSERVA para que el desconectado
+        // encuentre su derrota al volver (cleanStaleRooms la purga después).
+        if(this.role==='host' && !this._keepRoom) this.ref.remove();
         else if(this.role==='guest') this.ref.child('guest').remove();
       }
     } catch(e){ console.warn('[Rally] Net.leave', e); }
@@ -4796,6 +4937,7 @@ const Net = {
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
     this.onRpsPicks=null; this.onOppRpsPicked=null;
+    this.onGameOver=null; this.onRoomGone=null; this._keepRoom=false;
   },
 };
 
