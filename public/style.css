@@ -1200,6 +1200,10 @@
     background: var(--accent-soft);
   }
   .rps-btn.is-dimmed{ opacity: .35; }
+  /* Barra de tiempo para elegir (solo online, v0.3.40): reusa .idle-timer;
+     acá solo se acota al ancho de la fila de botones dentro de la caja.
+     Doble clase a propósito: .idle-timer (más abajo) pisa una clase sola. */
+  .idle-timer.rps-timer{ width: 230px; margin-top: 4px; }
   .rps-status{
     min-height: 14px;
     font-family: var(--font-body); font-size: 11px; font-weight: 600;
