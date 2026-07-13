@@ -88,6 +88,14 @@
               "$other": { ".validate": false }
             }
           },
+          "rps": {
+            "$rpsId": {
+              ".validate": "$rpsId.matches(/^r[0-9]+$/)",
+              "$role": {
+                ".validate": "($role === 'host' || $role === 'guest') && newData.isNumber() && newData.val() >= 0 && newData.val() <= 2"
+              }
+            }
+          },
           "$other": { ".validate": false }
         },
 
@@ -168,6 +176,14 @@
                     "$other": { ".validate": false }
                   },
                   "$other": { ".validate": false }
+                }
+              },
+              "rps": {
+                "$rpsId": {
+                  ".validate": "$rpsId.matches(/^r[0-9]+$/)",
+                  "$role": {
+                    ".validate": "($role === 'host' || $role === 'guest') && newData.isNumber() && newData.val() >= 0 && newData.val() <= 2"
+                  }
                 }
               },
               "$other": { ".validate": false }
