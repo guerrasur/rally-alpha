@@ -92,7 +92,7 @@
             "$rpsId": {
               ".validate": "$rpsId.matches(/^r[0-9]+$/)",
               "$role": {
-                ".validate": "($role === 'host' || $role === 'guest') && newData.isNumber() && newData.val() >= 0 && newData.val() <= 2"
+                ".validate": "($role === 'host' || $role === 'guest') && newData.isNumber() && newData.val() >= 0 && newData.val() <= 3"
               }
             }
           },
@@ -182,7 +182,7 @@
                 "$rpsId": {
                   ".validate": "$rpsId.matches(/^r[0-9]+$/)",
                   "$role": {
-                    ".validate": "($role === 'host' || $role === 'guest') && newData.isNumber() && newData.val() >= 0 && newData.val() <= 2"
+                    ".validate": "($role === 'host' || $role === 'guest') && newData.isNumber() && newData.val() >= 0 && newData.val() <= 3"
                   }
                 }
               },

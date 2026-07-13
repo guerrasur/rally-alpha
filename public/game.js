@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.39';
+const VERSION = 'v0.3.40';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -897,6 +897,7 @@ const TEXTS_ES = {
   toastRoomClosed: 'La sala se cerró.',
   toastIdleAutoMove: 'Te moviste solo por inactividad ({streak}/{max})',
   toastIdleForfeit: 'Te desconectamos por inactividad — perdiste la partida.',
+  toastOppAutoMove: '⏱️ El rival tardó demasiado: se movió solo',
   toastMoveError: 'Error al enviar movimiento.',
 
   // --- Cómo se juega (overlay corto antes de la partida) ---
@@ -954,7 +955,7 @@ const TEXTS_ES = {
   rpsCaption: '¡Piedra, papel o tijera por el ítem!',
   rpsWaitingOpp: 'Esperando al rival…',
   rpsOppReady: 'El rival ya eligió',
-  rpsAutoPicked: '✊ Se eligió solo por tiempo',
+  rpsNoPickYou: '⏰ No elegiste a tiempo',
   rpsWinnerLine: '{name} se lo lleva',
   rpsTieLine: '¡Empate! Lo decide la suerte…',
   infoChaos: '<b>Modo Caos</b> (beta): cofres sorpresa 🎁, portales 🌀, bombas con mecha 💣, terreno alto ⛰️ y botas de doble paso 👟. En el menú offline o con el toggle 🌀 online (no en torneo x4).',
@@ -1133,6 +1134,7 @@ const TEXTS_EN = {
   toastRoomClosed: 'The room was closed.',
   toastIdleAutoMove: 'You moved automatically due to inactivity ({streak}/{max})',
   toastIdleForfeit: 'You were disconnected for inactivity — you lost the match.',
+  toastOppAutoMove: '⏱️ Your rival took too long — moved automatically',
   toastMoveError: 'Error sending move.',
 
   howtoTitle: 'How to play',
@@ -1187,7 +1189,7 @@ const TEXTS_EN = {
   rpsCaption: 'Rock, paper, scissors for the item!',
   rpsWaitingOpp: 'Waiting for your rival…',
   rpsOppReady: 'Your rival already chose',
-  rpsAutoPicked: '✊ Time ran out — picked for you',
+  rpsNoPickYou: '⏰ Time ran out — no pick',
   rpsWinnerLine: '{name} takes it',
   rpsTieLine: 'Tie! Luck decides…',
   infoChaos: '<b>Chaos Mode</b> (beta): surprise chests 🎁, portals 🌀, timed bombs 💣, high ground ⛰️ and double-step boots 👟. In the offline menu or with the 🌀 online toggle (not in the 4-player tournament).',
@@ -2004,7 +2006,7 @@ function startGame(){
                : Tourney.active  ? TOURNEY_YOU_HP : CFG.maxHp;
   G.you = {x:n-1,y:n-1,hp:youHp,maxHp:youMax,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   G.opp = {x:0,y:0,hp:oppHp,maxHp:oppHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null;
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null; clearNetDeadlines();
   HudFx.you=null; HudFx.opp=null;   // feedback de daño del HUD: sin previo al arrancar
   resolveSkins();   // easter egg Messi (offline: solo aplica tu propia skin)
   updateHud(); renderBoard(); startChoosePhase();
@@ -2027,7 +2029,7 @@ function startOnlineGame(boardStr, role){
     G.you = {x:0,  y:0,  hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
     G.opp = {x:n-1,y:n-1,hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   }
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null;
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null; clearNetDeadlines();
   HudFx.you=null; HudFx.opp=null;   // feedback de daño del HUD: sin previo al arrancar
   resolveSkins();   // easter egg Messi: define skins/nombre según ambos jugadores
   show('game');
@@ -2075,6 +2077,7 @@ function onOpponentLeft(){
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
   setDuelOverlayShown(false);
   hideRpsOverlay();   // el rival pudo irse en pleno piedra-papel-tijera/ruleta
+  clearNetDeadlines();
   if(OT.active && OT.inMatch){
     toast(TEXTS.toastTourneyOppLeft);
     OT.onMyMatchEnd(Math.max(1, G.you.hp), 0);
@@ -2132,6 +2135,20 @@ function onPlayerMove(x, y, isAuto){
     setMsg(TEXTS.msgWaitingOpp, true);
     renderBoard();
     Net.pushMove(G.turnCount, x, y).catch(e=>{ console.error(e); toast(TEXTS.toastMoveError); });
+    // Reloj global: si el move del rival nunca llega (pestaña de fondo → su
+    // timer de inactividad está frenado), lo muevo yo a lo más conveniente y
+    // el turno sigue. First-write-wins: si su move real entra antes que este
+    // fallback, la transaction aborta sola y no pasa nada.
+    const turn = G.turnCount;
+    if(G._moveDeadline) clearTimeout(G._moveDeadline);
+    G._moveDeadline = setTimeout(()=>{
+      G._moveDeadline=null;
+      if(!G.running || !G.online || G.phase!=='waiting-opp' || turn!==G.turnCount) return;
+      const mv = bestConvenientMove(G.opp);
+      Net.pushOppMoveFallback(turn, mv.x, mv.y).then(r=>{
+        if(r && r.committed) toast(TEXTS.toastOppAutoMove);
+      }).catch(e=>console.error('[net] move fallback', e));
+    }, NET_MOVE_DEADLINE_MS);
     return;
   }
   // Offline: la CPU responde y se resuelve
@@ -2241,12 +2258,35 @@ function forfeitByIdle(){
   Chat.unmount();
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
   hideRpsOverlay();
+  clearNetDeadlines();
   show('home');
   toast(TEXTS.toastIdleForfeit);
 }
 
+// ===== 🌐 Reloj global online (v0.3.40) =====
+// Los avances online dependían de timers/rAF del OTRO cliente: con su pestaña
+// de fondo el navegador se los frena (setTimeout throttled, rAF congelado) y
+// la partida quedaba colgada aunque su presencia siguiera viva. Ahora el
+// cliente PRESENTE arma un plazo de reloj de pared y, al vencer, escribe él
+// mismo el dato faltante del rival en Firebase (move conveniente / score 0 de
+// duelo / "no elección" de RPS / eject de empate). Todas esas escrituras son
+// first-write-wins (Net._setIfAbsent): si el ausente escribe tarde, su valor
+// pierde en silencio y AMBOS clientes resuelven con el dato canónico que
+// quedó en Firebase — sin desync (lección v0.3.38).
+const NET_MOVE_DEADLINE_MS  = 15000;  // > IDLE_TOTAL_MS + margen de throttling del rival
+const NET_DUEL_GRACE_MS     = 5000;   // margen tras el largo máximo del duelo (el vivo comete 0 a los ~3.6s)
+const NET_RPS_GRACE_MS      = 2500;   // margen tras el plazo de elección del RPS
+const NET_EJECT_DEADLINE_MS = 4000;   // espera del guest por el eject del host
+
+function clearNetDeadlines(){
+  ['_moveDeadline','_duelDeadline','_ejectDeadline'].forEach(k=>{
+    if(G[k]){ clearTimeout(G[k]); G[k]=null; }
+  });
+}
+
 // Online: llegaron ambos movimientos. Mapear según mi rol y resolver.
 function onOnlineMovesReady(moves){
+  if(G._moveDeadline){ clearTimeout(G._moveDeadline); G._moveDeadline=null; }
   if(G.phase!=='waiting-opp' && G.phase!=='choose') return;
   const mine  = (Net.role==='host') ? moves.host  : moves.guest;
   const other = (Net.role==='host') ? moves.guest : moves.host;
@@ -2691,8 +2731,45 @@ function showBuffRoulette(info, done){
 // siempre, con ganador rol-absoluto (mismo resultado en las dos pantallas).
 // Online copia el modelo del duelo: cada cliente sube SOLO su pick a
 // game/rps/{rN}/{rol} y ambos resuelven idéntico cuando están los dos.
-const RPS_EMOJI = ['🪨','📄','✂️'];
-const RPS_TIMEOUT_MS = 5000;   // online: auto-elección al vencer (constante de feel, no CFG)
+const RPS_EMOJI = ['🪨','📄','✂️','⏰'];
+const RPS_NO_PICK = 3;         // sentinel "no eligió" (viaja como un pick más; reglas validan 0-3)
+const RPS_TIMEOUT_MS = 6000;   // online: plazo para elegir — vencido quedás sin elección (feel, no CFG)
+
+// Barra de tiempo del RPS (solo online, v0.3.40): misma receta visual que la
+// barra de inactividad (llena→0 con transition width linear, verde→amarillo→
+// rojo; reusa las clases .idle-timer). Timers en G.rps.timers → mueren solos
+// con hideRpsOverlay.
+function showRpsTimerBar(){
+  const bar=$('rps-timer'), fill=$('rps-timer-fill');
+  if(!bar || !fill || !G.rps) return;
+  fill.className='idle-timer__fill is-green';
+  fill.style.transition='none';
+  fill.style.width='100%';
+  bar.classList.add('is-show');
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      if(!G.rps) return;
+      fill.style.transition=`width ${RPS_TIMEOUT_MS}ms linear`;
+      fill.style.width='0%';
+    });
+  });
+  G.rps.timers.push(setTimeout(()=>{
+    fill.classList.remove('is-green'); fill.classList.add('is-yellow');
+  }, Math.round(RPS_TIMEOUT_MS*0.5)));
+  G.rps.timers.push(setTimeout(()=>{
+    fill.classList.remove('is-yellow'); fill.classList.add('is-red');
+    bar.classList.add('is-danger');
+  }, RPS_TIMEOUT_MS-1500));
+}
+
+function hideRpsTimerBar(){
+  const bar=$('rps-timer'), fill=$('rps-timer-fill');
+  if(!bar || !fill) return;
+  bar.classList.remove('is-show','is-danger');
+  fill.style.transition='none';
+  fill.style.width='100%';
+  fill.className='idle-timer__fill is-green';
+}
 
 function startBuffContest(info, done){
   const ov=$('rps-overlay');
@@ -2711,6 +2788,7 @@ function startBuffContest(info, done){
   $('rps-reveal').hidden=true;
   $('rps-choices').style.display='flex';
   ov.querySelectorAll('.rps-btn').forEach(b=>{ b.disabled=false; b.classList.remove('is-picked','is-dimmed'); });
+  hideRpsTimerBar();   // reset: la barra solo se muestra online
   ov.style.display='flex';
   if(G.online){
     Net.onRpsPicks = onRpsPicksReady;
@@ -2718,13 +2796,20 @@ function startBuffContest(info, done){
       if(G.rps && !G.rps.resolved && G.rps.myPick==null) $('rps-status').textContent=TEXTS.rpsOppReady;
     };
     Net.listenRpsPicks('r'+info.turn);
-    // Si no elegís a tiempo, se elige solo — así el intercambio siempre converge
-    // (misma filosofía que el score 0 del duelo por inactividad).
+    // v0.3.40: no elegir ya NO auto-elige al azar — quedás "sin elección" (3)
+    // y el que sí eligió se lleva el ítem. La barra hace visible el plazo.
+    showRpsTimerBar();
     G.rps.timers.push(setTimeout(()=>{
       if(!G.running || !G.rps || G.rps.resolved || G.rps.myPick!=null) return;
-      toast(TEXTS.rpsAutoPicked);
-      rpsPickLocal(Math.floor(Math.random()*3));
+      rpsNoPickLocal();
     }, RPS_TIMEOUT_MS));
+    // Reloj global: si el pick del rival tampoco llegó (pestaña de fondo → sus
+    // timers frenados), su "no elección" la escribo yo. First-write-wins: una
+    // elección real que llegue antes gana y esta transaction aborta sola.
+    G.rps.timers.push(setTimeout(()=>{
+      if(!G.running || !G.rps || G.rps.resolved) return;
+      Net.pushOppRpsFallback('r'+G.rps.info.turn).catch(e=>console.error('[rps] fallback', e));
+    }, RPS_TIMEOUT_MS + NET_RPS_GRACE_MS));
   } else {
     // CPU: elige al azar tras una pausa corta (random local: no hay otro cliente)
     G.rps.timers.push(setTimeout(()=>{
@@ -2759,6 +2844,16 @@ function maybeResolveRpsOffline(){
   if(G.rps.myPick!=null && G.rps.oppPick!=null) resolveRps(G.rps.myPick, G.rps.oppPick);
 }
 
+// Venció mi plazo sin elegir (solo online): quedo "sin elección" — el sentinel
+// 3 viaja igual que un pick real y pierde contra cualquier elección del rival.
+function rpsNoPickLocal(){
+  if(!G.rps || G.rps.resolved || G.rps.myPick!=null) return;
+  G.rps.myPick = RPS_NO_PICK;
+  document.querySelectorAll('#rps-choices .rps-btn').forEach(b=>{ b.disabled=true; b.classList.add('is-dimmed'); });
+  $('rps-status').textContent = TEXTS.rpsNoPickYou;
+  Net.pushRpsPick('r'+G.rps.info.turn, RPS_NO_PICK).catch(e=>console.error('[rps] push', e));
+}
+
 // Online: llegaron ambos picks desde Firebase. Mapear por rol (espejo de
 // onDuelScoresReady) y resolver — cada cliente compara desde su perspectiva,
 // la comparación es simétrica, así que ambos coinciden en el único ganador.
@@ -2774,6 +2869,7 @@ function resolveRps(myPick, oppPick){
   if(!G.rps || G.rps.resolved || !G.running) return;
   G.rps.resolved = true;
   G.rps.timers.forEach(clearTimeout); G.rps.timers=[];
+  hideRpsTimerBar();
   // Revelado: fuera los botones, ambos picks a la vista (textContent siempre —
   // el nick del rival es input remoto, lección XSS v0.3.27).
   $('rps-choices').style.display='none';
@@ -2800,8 +2896,12 @@ function resolveRps(myPick, oppPick){
       }, 900));
       return;
     }
-    // beats: (a-b+3)%3===1 → papel>piedra, tijera>papel, piedra>tijera
-    const youWin = ((myPick - oppPick + 3) % 3) === 1;
+    // beats: (a-b+3)%3===1 → papel>piedra, tijera>papel, piedra>tijera.
+    // "Sin elección" (3) pierde contra cualquier pick real; 3 vs 3 ya cayó
+    // arriba como empate → ruleta (el ítem no se pierde nunca).
+    const youWin = (oppPick===RPS_NO_PICK) ? true
+                 : (myPick===RPS_NO_PICK)  ? false
+                 : ((myPick - oppPick + 3) % 3) === 1;
     (youWin ? chipYou : chipOpp).classList.add('is-winner');
     $('rps-caption').textContent = fillText('rpsWinnerLine', { name: youWin?App.playerName:App.oppName });
     grantContestedItem(youWin);
@@ -2836,6 +2936,7 @@ function grantContestedItem(youWins){
 function hideRpsOverlay(){
   const ov=$('rps-overlay'); if(ov) ov.style.display='none';
   const ro=$('roulette-overlay'); if(ro) ro.style.display='none';
+  hideRpsTimerBar();
   if(G.rps){ G.rps.timers.forEach(clearTimeout); G.rps=null; }
   if(Net.stopRpsListen) Net.stopRpsListen();
 }
@@ -3039,31 +3140,59 @@ function applyRingDrip(player){
   }
 }
 
-function ejectPlayers(){
-  const ejectPlayer = (player, other)=>{
+// Calcula (sin aplicar) las posiciones post-empate, en la perspectiva del que
+// llama. El azar es del calculador: online lo corre UN solo cliente y el
+// resultado viaja por Firebase como valor canónico para ambos.
+function computeEjectPositions(){
+  const ejectFrom = (start, other)=>{
+    const pos = { x:start.x, y:start.y };
     const dist = CFG.ejectMinDist + Math.floor(Math.random()*(CFG.ejectMaxDist-CFG.ejectMinDist+1));
-    let vx = player.x-other.x, vy = player.y-other.y;
+    let vx = start.x-other.x, vy = start.y-other.y;
     if(vx===0&&vy===0){ vx=1; vy=0; }
     for(let i=0;i<dist;i++){
-      const reachable = getReachable(player.x, player.y);
+      const reachable = getReachable(pos.x, pos.y);
       if(reachable.length===0) break;
       const scored = reachable.map(p=>{
         const newDist = Math.sqrt(Math.pow(p.x-other.x,2)+Math.pow(p.y-other.y,2));
-        const dx=p.x-player.x, dy=p.y-player.y;
+        const dx=p.x-pos.x, dy=p.y-pos.y;
         const alignment = (dx*vx+dy*vy)/(Math.sqrt(dx*dx+dy*dy)*Math.sqrt(vx*vx+vy*vy)+0.01);
         let score = newDist + alignment*2;
         if(areAdjacentOrSame(p,other)) score-=10;
         score += Math.random()*1.5; return {...p, score};
       });
-      scored.sort((a,b)=>b.score-a.score); player.x=scored[0].x; player.y=scored[0].y;
+      scored.sort((a,b)=>b.score-a.score); pos.x=scored[0].x; pos.y=scored[0].y;
     }
+    return pos;
   };
-  ejectPlayer(G.you, G.opp); ejectPlayer(G.opp, G.you);
-  if(areAdjacentOrSame(G.you, G.opp)){
-    const alt = getReachable(G.you.x, G.you.y).find(p => !areAdjacentOrSame(p, G.opp));
-    if(alt){ G.you.x=alt.x; G.you.y=alt.y; }
+  const you = ejectFrom(G.you, G.opp);
+  const opp = ejectFrom(G.opp, you);   // el segundo esquiva la posición NUEVA del primero
+  if(areAdjacentOrSame(you, opp)){
+    const alt = getReachable(you.x, you.y).find(p => !areAdjacentOrSame(p, opp));
+    if(alt){ you.x=alt.x; you.y=alt.y; }
+  }
+  return { you, opp };
+}
+
+// Offline: calcular y aplicar directo (un solo cliente, sin sincronizar).
+function ejectPlayers(){
+  const pos = computeEjectPositions();
+  G.you.x=pos.you.x; G.you.y=pos.you.y; G.opp.x=pos.opp.x; G.opp.y=pos.opp.y;
+  Sound.eject(); haptic([15,30,15,30,15]);
+}
+
+// Online: ambos clientes aplican las posiciones CANÓNICAS del nodo eject de
+// Firebase (siempre en perspectiva del host; el guest cruza). El host ya no
+// aplica su cálculo local directo: pudo perder la carrera contra el fallback
+// del guest (reloj global v0.3.40) y el valor que vale es el que quedó escrito.
+function applyEjectPositions(e){
+  if(!G.running) return;
+  if(myAbsRole()==='host'){
+    G.you.x=e.youPos.x; G.you.y=e.youPos.y; G.opp.x=e.oppPos.x; G.opp.y=e.oppPos.y;
+  } else {
+    G.you.x=e.oppPos.x; G.you.y=e.oppPos.y; G.opp.x=e.youPos.x; G.opp.y=e.youPos.y;
   }
   Sound.eject(); haptic([15,30,15,30,15]);
+  renderBoard(); updateHud(); startChoosePhase();
 }
 
 // Muestra/oculta el overlay de duelo. Además pausa las animaciones CSS
@@ -3689,6 +3818,17 @@ function beginDuelPlayOnline(){
   G.phase='duel-play';
   resetDuelPlayState();
   // G.duel.oppScore/oppStopped: en online los llena Firebase, no acá.
+  // Reloj global: si el rival tiene la pestaña de fondo, su rAF está congelado
+  // y nunca comete NI SIQUIERA el score 0 del timeout — el que sí jugó quedaba
+  // esperando para siempre. Pasado el largo máximo del duelo más una gracia,
+  // su score 0 lo escribo yo (first-write-wins) y el duelo resuelve igual.
+  const duelId = duelIdFor();
+  if(G._duelDeadline) clearTimeout(G._duelDeadline);
+  G._duelDeadline = setTimeout(()=>{
+    G._duelDeadline=null;
+    if(!G.running || !G.online || G._duelResolved || G.duel.oppStopped) return;
+    Net.pushOppDuelFallback(duelId).catch(e=>console.error('[net] duel fallback', e));
+  }, CFG.duelMaxPasses*(CFG.duelCycleDuration/2)*1000 + NET_DUEL_GRACE_MS);
   startDuelRaf(updateIndicatorOnline);
   // No hay CPU: el rival es humano. Sus scores llegan por Firebase.
 }
@@ -3737,6 +3877,7 @@ function commitMyDuelScore(score, pos){
 
 // Llegaron ambos scores desde Firebase. Mapear por rol y resolver.
 function onDuelScoresReady(scores){
+  if(G._duelDeadline){ clearTimeout(G._duelDeadline); G._duelDeadline=null; }
   const mine  = (Net.role==='host') ? scores.host  : scores.guest;
   const other = (Net.role==='host') ? scores.guest : scores.host;
   // Asegurar mi propio estado (por si resolví por timeout casi simultáneo)
@@ -3806,21 +3947,29 @@ function finishDuelOnline(){
     if(!G.running) return;   // abandono del rival mientras se mostraba el resultado
     if(G.you.hp<=0||G.opp.hp<=0){ endGame(); return; }
     if(isTie){
-      // El host calcula las nuevas posiciones (usa azar) y las sincroniza
+      // Reposicionamiento first-write-wins: normalmente lo calcula el host,
+      // pero si su pestaña está de fondo (reloj global v0.3.40) el guest lo
+      // calcula él mismo al vencer el plazo — antes esperaba para siempre, y
+      // el empate 0-0 con un ausente (fallback de score 0) es justo este caso.
+      // AMBOS aplican el valor canónico que quedó en Firebase vía el listener.
+      setMsg(TEXTS.msgRepositioning, true);
+      Net.onEject = (e)=>{
+        if(G._ejectDeadline){ clearTimeout(G._ejectDeadline); G._ejectDeadline=null; }
+        applyEjectPositions(e);
+      };
+      Net.listenEject(duelId);
       if(Net.role==='host'){
-        ejectPlayers();
-        Net.pushEject(duelId, {x:G.you.x,y:G.you.y}, {x:G.opp.x,y:G.opp.y});
-        renderBoard(); updateHud(); startChoosePhase();
+        const pos = computeEjectPositions();
+        Net.pushEject(duelId, pos.you, pos.opp).catch(e=>console.error('[eject] push', e));
       } else {
-        // El guest espera las posiciones del host
-        setMsg(TEXTS.msgRepositioning, true);
-        Net.onEject = (e)=>{
-          // e.youPos/oppPos están en perspectiva del HOST → para el guest se cruzan
-          G.you.x=e.oppPos.x; G.you.y=e.oppPos.y;
-          G.opp.x=e.youPos.x; G.opp.y=e.youPos.y;
-          renderBoard(); updateHud(); startChoosePhase();
-        };
-        Net.listenEject(duelId);
+        if(G._ejectDeadline) clearTimeout(G._ejectDeadline);
+        G._ejectDeadline = setTimeout(()=>{
+          G._ejectDeadline=null;
+          if(!G.running || !G.online) return;
+          const pos = computeEjectPositions();
+          // el nodo va SIEMPRE en perspectiva del host → el guest cruza you/opp
+          Net.pushEject(duelId, pos.opp, pos.you).catch(e=>console.error('[eject] push', e));
+        }, NET_EJECT_DEADLINE_MS);
       }
     } else {
       renderBoard(); updateHud(); startChoosePhase();
@@ -4036,6 +4185,7 @@ function showResultExp(res){
 
 function endGame(){
   G.running=false; G.phase='gameover';
+  clearNetDeadlines();
   const youHp=Math.max(0,G.you.hp), oppHp=Math.max(0,G.opp.hp);
   const youWon = youHp>oppHp;
   const nextBtn=$('btn-tourney-next'), againBtn=$('btn-again');
@@ -4351,14 +4501,30 @@ const Net = {
   onBoardUpdate: null,  // callback(boardStr) cuando el host regenera items
   _movesRef: null,
 
-  // Sube mi movimiento (coords canónicas) para el turno dado
+  // Escritura first-write-wins (reloj global v0.3.40): solo escribe si el nodo
+  // está vacío. El valor que queda en Firebase es el canónico para AMBOS
+  // clientes — la escritura tardía de una pestaña de fondo que despierta
+  // pierde en silencio (la transaction aborta al devolver undefined).
+  // applyLocally=false: el listener nunca ve el valor optimista local de una
+  // transaction que después aborta, solo estado confirmado por el server.
+  _setIfAbsent(path, value){
+    if(!this.ref) return Promise.resolve(null);
+    return this.ref.child(path).transaction(cur => (cur===null ? value : undefined), null, false);
+  },
+  _oppKey(){ return this.role==='host' ? 'guest' : 'host'; },
+
+  // Sube mi movimiento (coords canónicas) para el turno dado. Los turnos viejos
+  // ya NO se limpian: un cliente que vuelve de pestaña de fondo se pone al día
+  // leyendo los turnos que se perdió (el nodo game/ entero se borra igual en
+  // revancha/leave, y el peso por turno es trivial).
   async pushMove(turn, x, y){
-    if(!this.ref) return;
-    await this.ref.child('game/moves/'+turn+'/'+this.role).set({ x, y });
-    // El host limpia el turno anterior (ya consumido) para no acumular datos.
-    if(this.role==='host' && turn>0){
-      this.ref.child('game/moves/'+(turn-1)).remove().catch(()=>{});
-    }
+    await this._setIfAbsent('game/moves/'+turn+'/'+this.role, { x, y });
+  },
+
+  // Reloj global: move de fallback del RIVAL ausente (lo decide mi cliente;
+  // lo que quede escrito es canónico, así que el azar del desempate no importa).
+  pushOppMoveFallback(turn, x, y){
+    return this._setIfAbsent('game/moves/'+turn+'/'+this._oppKey(), { x, y });
   },
 
   onOppMoved: null,    // callback cuando el rival ya eligió (movimiento parcial)
@@ -4414,8 +4580,13 @@ const Net = {
 
   // Sube mi resultado del duelo (score + posición de aguja) para este encuentro
   async pushDuelScore(duelId, score, pos){
-    if(!this.ref) return;
-    await this.ref.child('game/duels/'+duelId+'/'+this.role).set({ score, pos });
+    await this._setIfAbsent('game/duels/'+duelId+'/'+this.role, { score, pos });
+  },
+
+  // Reloj global: el rival ausente no cometió ni el score 0 (rAF congelado) →
+  // el 0 lo escribo yo y el duelo resuelve para los dos.
+  pushOppDuelFallback(duelId){
+    return this._setIfAbsent('game/duels/'+duelId+'/'+this._oppKey(), { score:0, pos:0 });
   },
 
   onOppDuelStop: null,   // callback(pos) apenas el rival frena (antes que yo)
@@ -4441,10 +4612,11 @@ const Net = {
     });
   },
 
-  // HOST: sube las posiciones tras un eject (empate). pos en coords canónicas.
+  // Posiciones tras un eject (empate), SIEMPRE en perspectiva del host.
+  // First-write-wins: normalmente escribe el host, pero el guest lo calcula él
+  // si el host no aparece (reloj global) — ambos aplican el valor que quedó.
   async pushEject(duelId, youPos, oppPos){
-    if(!this.ref) return;
-    await this.ref.child('game/ejects/'+duelId).set({ youPos, oppPos });
+    await this._setIfAbsent('game/ejects/'+duelId, { youPos, oppPos });
   },
   listenEject(duelId){
     if(!this.ref) return;
@@ -4462,8 +4634,12 @@ const Net = {
   onOppRpsPicked: null,  // callback apenas aparece el pick del rival (aviso parcial)
   _rpsRef: null,
   async pushRpsPick(rpsId, pick){
-    if(!this.ref) return;
-    await this.ref.child('game/rps/'+rpsId+'/'+this.role).set(pick);
+    await this._setIfAbsent('game/rps/'+rpsId+'/'+this.role, pick);
+  },
+
+  // Reloj global: "no elección" (3) del rival ausente al vencer su plazo.
+  pushOppRpsFallback(rpsId){
+    return this._setIfAbsent('game/rps/'+rpsId+'/'+this._oppKey(), RPS_NO_PICK);
   },
   listenRpsPicks(rpsId){
     if(!this.ref) return;
@@ -4691,7 +4867,7 @@ const OT = {
     ref.child('players').on('value', s=>{
       const v=s.val();
       if(v===null){
-        if(this.active && !this._leaving){ toast(TEXTS.toastRoomClosed); this.cleanupLocal(); G.running=false; hideRpsOverlay(); show('home'); }
+        if(this.active && !this._leaving){ toast(TEXTS.toastRoomClosed); this.cleanupLocal(); G.running=false; hideRpsOverlay(); clearNetDeadlines(); show('home'); }
         return;
       }
       this.players=v;
@@ -5632,7 +5808,7 @@ $('btn-join-go').addEventListener('click', async ()=>{
 $('btn-lobby-back').addEventListener('click', ()=>{ if(OT.active){ OT.leaveTournament(); return; } Net.leave(); show('home'); });
 $('btn-join-back').addEventListener('click', ()=>show('home'));
 $('code-in').addEventListener('input', e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
-$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } hideRpsOverlay(); if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent=TEXTS.btnRematch; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } hideRpsOverlay(); clearNetDeadlines(); if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent=TEXTS.btnRematch; $('btn-again').style.display='block'; Net.leave(); show('home'); });
 // Piedra-papel-tijera: un solo listener delegado para los 3 botones
 $('rps-choices').addEventListener('click', e=>{
   const b = e.target.closest('.rps-btn');
