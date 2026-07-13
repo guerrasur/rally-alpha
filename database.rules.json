@@ -96,6 +96,11 @@
               }
             }
           },
+          "over": {
+            "winner": { ".validate": "newData.val() === 'host' || newData.val() === 'guest'" },
+            "reason": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "$other": { ".validate": false }
+          },
           "$other": { ".validate": false }
         },
 
@@ -185,6 +190,11 @@
                     ".validate": "($role === 'host' || $role === 'guest') && newData.isNumber() && newData.val() >= 0 && newData.val() <= 3"
                   }
                 }
+              },
+              "over": {
+                "winner": { ".validate": "newData.val() === 'host' || newData.val() === 'guest'" },
+                "reason": { ".validate": "newData.isString() && newData.val().length <= 20" },
+                "$other": { ".validate": false }
               },
               "$other": { ".validate": false }
             },
