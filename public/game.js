@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.37';
+const VERSION = 'v0.3.38';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -858,14 +858,14 @@ const CFG = {
   // 🎖️ Niveles / EXP (v0.3.36). El online rinde ~2× que el offline; la práctica
   // vs CPU (y rejugar niveles de campaña ya superados) rinde lo mínimo, para no
   // farmear contra rivales fáciles. La curva pide `base + step*(nivel-1)` por nivel.
-  expWinOnline: 50,
-  expLoseOnline: 20,
-  expWinOffline: 25,
-  expLoseOffline: 10,
-  expWinPractice: 10,
-  expLosePractice: 5,
-  expPerLevelBase: 100,   // EXP para pasar de nivel 1 a 2
-  expPerLevelStep: 50,    // cuánto más pide cada nivel siguiente
+  expWinOnline: 70,
+  expLoseOnline: 30,
+  expWinOffline: 50,
+  expLoseOffline: 22,
+  expWinPractice: 25,
+  expLosePractice: 12,
+  expPerLevelBase: 60,    // EXP para pasar de nivel 1 a 2
+  expPerLevelStep: 20,    // cuánto más pide cada nivel siguiente
 };
 
 // Umbral de "desesperación" de la CPU. cpuDesperateHpMin se calibró cuando
