@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.38';
+const VERSION = 'v0.3.39';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -951,6 +951,12 @@ const TEXTS_ES = {
   bombArmed: '💣 Bomba activada: ¡alejate!',
   bombExploded: '💥 ¡BUM!',
   bootsPicked: '👟 {name}: doble paso en el próximo turno',
+  rpsCaption: '¡Piedra, papel o tijera por el ítem!',
+  rpsWaitingOpp: 'Esperando al rival…',
+  rpsOppReady: 'El rival ya eligió',
+  rpsAutoPicked: '✊ Se eligió solo por tiempo',
+  rpsWinnerLine: '{name} se lo lleva',
+  rpsTieLine: '¡Empate! Lo decide la suerte…',
   infoChaos: '<b>Modo Caos</b> (beta): cofres sorpresa 🎁, portales 🌀, bombas con mecha 💣, terreno alto ⛰️ y botas de doble paso 👟. En el menú offline o con el toggle 🌀 online (no en torneo x4).',
   toastLabAdminsOnly: 'El laboratorio es solo para admins.',
   toastCodeLength: 'El código tiene 4 caracteres.',
@@ -1178,6 +1184,12 @@ const TEXTS_EN = {
   bombArmed: '💣 Bomb armed: get away!',
   bombExploded: '💥 BOOM!',
   bootsPicked: '👟 {name}: double step next turn',
+  rpsCaption: 'Rock, paper, scissors for the item!',
+  rpsWaitingOpp: 'Waiting for your rival…',
+  rpsOppReady: 'Your rival already chose',
+  rpsAutoPicked: '✊ Time ran out — picked for you',
+  rpsWinnerLine: '{name} takes it',
+  rpsTieLine: 'Tie! Luck decides…',
   infoChaos: '<b>Chaos Mode</b> (beta): surprise chests 🎁, portals 🌀, timed bombs 💣, high ground ⛰️ and double-step boots 👟. In the offline menu or with the 🌀 online toggle (not in the 4-player tournament).',
   toastLabAdminsOnly: 'The lab is admins-only.',
   toastCodeLength: 'The code is 4 characters.',
@@ -1992,7 +2004,7 @@ function startGame(){
                : Tourney.active  ? TOURNEY_YOU_HP : CFG.maxHp;
   G.you = {x:n-1,y:n-1,hp:youHp,maxHp:youMax,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   G.opp = {x:0,y:0,hp:oppHp,maxHp:oppHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[];
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null;
   HudFx.you=null; HudFx.opp=null;   // feedback de daño del HUD: sin previo al arrancar
   resolveSkins();   // easter egg Messi (offline: solo aplica tu propia skin)
   updateHud(); renderBoard(); startChoosePhase();
@@ -2015,7 +2027,7 @@ function startOnlineGame(boardStr, role){
     G.you = {x:0,  y:0,  hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:0,prevY:0,buffs:{dmg:0,def:0}};
     G.opp = {x:n-1,y:n-1,hp:CFG.maxHp,maxHp:CFG.maxHp,prevX:n-1,prevY:n-1,buffs:{dmg:0,def:0}};
   }
-  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[];
+  G.turnCount = 0; G.justDueled = false; G.running = true; G.ringSpawned=false; G.you.ringDrip=0; G.opp.ringDrip=0; G.bombs=[]; G.rps=null;
   HudFx.you=null; HudFx.opp=null;   // feedback de daño del HUD: sin previo al arrancar
   resolveSkins();   // easter egg Messi: define skins/nombre según ambos jugadores
   show('game');
@@ -2062,6 +2074,7 @@ function onOpponentLeft(){
   G.running=false; G.phase='gameover'; G.online=false;
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
   setDuelOverlayShown(false);
+  hideRpsOverlay();   // el rival pudo irse en pleno piedra-papel-tijera/ruleta
   if(OT.active && OT.inMatch){
     toast(TEXTS.toastTourneyOppLeft);
     OT.onMyMatchEnd(Math.max(1, G.you.hp), 0);
@@ -2227,6 +2240,7 @@ function forfeitByIdle(){
   G.running=false; G.phase='idle'; G.online=false;
   Chat.unmount();
   if(G.duel.raf){ cancelAnimationFrame(G.duel.raf); G.duel.raf=null; }
+  hideRpsOverlay();
   show('home');
   toast(TEXTS.toastIdleForfeit);
 }
@@ -2620,10 +2634,10 @@ function resolveMoves(){
         startChoosePhase();
       }
     };
-    // Ambos cayeron en la MISMA casilla con un ítem: ruleta rápida que muestra
-    // quién se lo llevó (el sorteo ya está decidido), y recién después sigue el
-    // flujo normal (duelo si no había tregua; nada más si la había).
-    if(sharedBuff){ showBuffRoulette(sharedBuff, proceed); }
+    // Ambos cayeron en la MISMA casilla con un ítem: se lo disputan a piedra-
+    // papel-tijera (empate → ruleta), y recién después sigue el flujo normal
+    // (duelo si no había tregua; nada más si la había).
+    if(sharedBuff){ startBuffContest(sharedBuff, proceed); }
     else proceed();
   // Con aviso de duelo, dar tiempo a que la onda (arranca a los 400ms, dura
   // .7s) se vea completa antes del countdown. Determinista: ambos clientes
@@ -2648,13 +2662,17 @@ function showBuffRoulette(info, done){
   const delays=[90,90,110,130,160,200,250];
   let i=0;
   const step=()=>{
+    // La partida pudo terminar en el medio (abandono del rival): cortar la cadena
+    // de timeouts acá — sin esto la ruleta seguía girando sobre la pantalla de
+    // victoria y el done() final relanzaba la fase de juego post-gameover.
+    if(!G.running){ ov.style.display='none'; return; }
     if(i>=delays.length){
       const win = info.youWins ? nYou : nOpp;
       const lose = info.youWins ? nOpp : nYou;
       lose.classList.remove('is-on');
       win.classList.add('is-winner');
       haptic(12);
-      setTimeout(()=>{ ov.style.display='none'; done(); }, 450);
+      setTimeout(()=>{ ov.style.display='none'; if(G.running) done(); }, 450);
       return;
     }
     const onYou = info.youWins ? (i%2===0) : (i%2===1);
@@ -2666,9 +2684,172 @@ function showBuffRoulette(info, done){
   };
   step();
 }
+
+// ===== 🪨📄✂️ Piedra-papel-tijera por el buff compartido =====
+// Ambos cayeron en la misma casilla con un ítem: cada uno elige piedra/papel/
+// tijera (0/1/2). Picks distintos → gana el clásico; empate → la ruleta de
+// siempre, con ganador rol-absoluto (mismo resultado en las dos pantallas).
+// Online copia el modelo del duelo: cada cliente sube SOLO su pick a
+// game/rps/{rN}/{rol} y ambos resuelven idéntico cuando están los dos.
+const RPS_EMOJI = ['🪨','📄','✂️'];
+const RPS_TIMEOUT_MS = 5000;   // online: auto-elección al vencer (constante de feel, no CFG)
+
+function startBuffContest(info, done){
+  const ov=$('rps-overlay');
+  if(!ov){
+    // Defensivo (sin overlay): otorgar directo por el sorteo sincronizado y seguir
+    const youWins = (myAbsRole()==='host') ? info.hostWins : !info.hostWins;
+    G.rps={ info };
+    grantContestedItem(youWins);
+    G.rps=null;
+    done(); return;
+  }
+  G.rps = { info, done, myPick:null, oppPick:null, resolved:false, timers:[] };
+  $('rps-item').textContent=info.itemEmoji;
+  $('rps-caption').textContent=TEXTS.rpsCaption;
+  $('rps-status').textContent='';
+  $('rps-reveal').hidden=true;
+  $('rps-choices').style.display='flex';
+  ov.querySelectorAll('.rps-btn').forEach(b=>{ b.disabled=false; b.classList.remove('is-picked','is-dimmed'); });
+  ov.style.display='flex';
+  if(G.online){
+    Net.onRpsPicks = onRpsPicksReady;
+    Net.onOppRpsPicked = ()=>{
+      if(G.rps && !G.rps.resolved && G.rps.myPick==null) $('rps-status').textContent=TEXTS.rpsOppReady;
+    };
+    Net.listenRpsPicks('r'+info.turn);
+    // Si no elegís a tiempo, se elige solo — así el intercambio siempre converge
+    // (misma filosofía que el score 0 del duelo por inactividad).
+    G.rps.timers.push(setTimeout(()=>{
+      if(!G.running || !G.rps || G.rps.resolved || G.rps.myPick!=null) return;
+      toast(TEXTS.rpsAutoPicked);
+      rpsPickLocal(Math.floor(Math.random()*3));
+    }, RPS_TIMEOUT_MS));
+  } else {
+    // CPU: elige al azar tras una pausa corta (random local: no hay otro cliente)
+    G.rps.timers.push(setTimeout(()=>{
+      if(!G.running || !G.rps || G.rps.resolved) return;
+      G.rps.oppPick = Math.floor(Math.random()*3);
+      maybeResolveRpsOffline();
+    }, 400+Math.random()*500));
+  }
+}
+
+function rpsPickLocal(pick){
+  if(!G.rps || G.rps.resolved || G.rps.myPick!=null) return;
+  G.rps.myPick = pick;
+  document.querySelectorAll('#rps-choices .rps-btn').forEach(b=>{
+    b.disabled=true;
+    b.classList.toggle('is-picked', +b.dataset.pick===pick);
+    b.classList.toggle('is-dimmed', +b.dataset.pick!==pick);
+  });
+  Sound.step && Sound.step(); haptic(10);
+  if(G.online){
+    $('rps-status').textContent=TEXTS.rpsWaitingOpp;
+    // La resolución SIEMPRE llega por el listener con ambos picks (nunca desde
+    // el push propio) — misma disciplina que commitMyDuelScore.
+    Net.pushRpsPick('r'+G.rps.info.turn, pick).catch(e=>console.error('[rps] push', e));
+  } else {
+    maybeResolveRpsOffline();
+  }
+}
+
+function maybeResolveRpsOffline(){
+  if(!G.rps || G.rps.resolved) return;
+  if(G.rps.myPick!=null && G.rps.oppPick!=null) resolveRps(G.rps.myPick, G.rps.oppPick);
+}
+
+// Online: llegaron ambos picks desde Firebase. Mapear por rol (espejo de
+// onDuelScoresReady) y resolver — cada cliente compara desde su perspectiva,
+// la comparación es simétrica, así que ambos coinciden en el único ganador.
+function onRpsPicksReady(picks){
+  if(!G.rps) return;
+  const mine  = (Net.role==='host') ? picks.host  : picks.guest;
+  const other = (Net.role==='host') ? picks.guest : picks.host;
+  if(G.rps.myPick==null) G.rps.myPick = mine;   // por si mi push rebotó antes que el timeout local
+  resolveRps(mine, other);
+}
+
+function resolveRps(myPick, oppPick){
+  if(!G.rps || G.rps.resolved || !G.running) return;
+  G.rps.resolved = true;
+  G.rps.timers.forEach(clearTimeout); G.rps.timers=[];
+  // Revelado: fuera los botones, ambos picks a la vista (textContent siempre —
+  // el nick del rival es input remoto, lección XSS v0.3.27).
+  $('rps-choices').style.display='none';
+  $('rps-status').textContent='';
+  const chipYou=$('rps-chip-you'), chipOpp=$('rps-chip-opp');
+  chipYou.textContent = App.playerName+' '+RPS_EMOJI[myPick];
+  chipOpp.textContent = RPS_EMOJI[oppPick]+' '+App.oppName;
+  chipYou.classList.remove('is-winner'); chipOpp.classList.remove('is-winner');
+  $('rps-reveal').hidden=false;
+  Sound.step && Sound.step(); haptic(8);
+  const tie = (myPick===oppPick);
+  G.rps.timers.push(setTimeout(()=>{
+    if(!G.running || !G.rps) return;
+    if(tie){
+      // Empate: beat corto y cae a la ruleta de siempre, ya sincronizada
+      $('rps-caption').textContent=TEXTS.rpsTieLine;
+      G.rps.timers.push(setTimeout(()=>{
+        if(!G.running || !G.rps) return;
+        const st=G.rps;
+        const youWins = (myAbsRole()==='host') ? st.info.hostWins : !st.info.hostWins;
+        grantContestedItem(youWins);   // contrato de showBuffRoulette: sorteo ya aplicado
+        hideRpsOverlay();
+        showBuffRoulette({ youWins, itemEmoji: st.info.itemEmoji }, st.done);
+      }, 900));
+      return;
+    }
+    // beats: (a-b+3)%3===1 → papel>piedra, tijera>papel, piedra>tijera
+    const youWin = ((myPick - oppPick + 3) % 3) === 1;
+    (youWin ? chipYou : chipOpp).classList.add('is-winner');
+    $('rps-caption').textContent = fillText('rpsWinnerLine', { name: youWin?App.playerName:App.oppName });
+    grantContestedItem(youWin);
+    Sound.seq([[youWin?740:392,0.08,0.05,'triangle',0],[youWin?988:294,0.11,0.05,'triangle',90]]);
+    haptic(12);
+    G.rps.timers.push(setTimeout(()=>{
+      const st=G.rps; if(!st) return;
+      hideRpsOverlay();
+      if(G.running) st.done();
+    }, 1400));
+  }, 1200));
+}
+
+// Otorga el ítem disputado al ganador: restaura la casilla y reusa
+// applyCellEffect tal cual (única fuente de la lógica ring/cofre/botas —
+// re-vacía la casilla y dispara los toasts/sonidos de siempre). Un cofre con
+// teleport reubica al ganador acá; proceed() recalcula la adyacencia del duelo
+// con las posiciones vivas, idéntico en ambos clientes (todo determinista).
+function grantContestedItem(youWins){
+  const info = G.rps && G.rps.info;
+  if(!info) return;
+  const winner = youWins ? G.you : G.opp;
+  const cell = cellAt(info.x, info.y);
+  cell.type = info.cellType;
+  applyCellEffect(winner);
+  renderBoard(); updateHud();
+}
+
+// Cierre en seco del contest (abandono del rival, salida propia, sala caída):
+// overlays ocultos, timers muertos, listener suelto. El done() pendiente NO se
+// llama — quien cierra la partida ya decidió qué pantalla sigue.
+function hideRpsOverlay(){
+  const ov=$('rps-overlay'); if(ov) ov.style.display='none';
+  const ro=$('roulette-overlay'); if(ro) ro.style.display='none';
+  if(G.rps){ G.rps.timers.forEach(clearTimeout); G.rps=null; }
+  if(Net.stopRpsListen) Net.stopRpsListen();
+}
+// Rol absoluto para decisiones compartidas: online cada cliente mira su Net.role;
+// offline no hay roles y el jugador local ocupa la perspectiva del host. Clave para
+// que un mismo dato determinista (ej. hostWins) se traduzca a you/opp sin desync.
+function myAbsRole(){ return (G.online && Net.role) ? Net.role : 'host'; }
+
 // Aplica los efectos de casilla de ambos jugadores. Si los dos caen en la MISMA
-// casilla con un buff, lo gana solo uno (sorteo determinista por turno, para que
-// online ambos clientes coincidan). El otro no recibe nada de esa casilla.
+// casilla con un buff, el ítem se DISPUTA a piedra-papel-tijera (startBuffContest);
+// acá solo se describe la disputa — la casilla se consume ya (así el render inmediato
+// la pinta vacía en ambos clientes) y el ganador la recibe en grantContestedItem.
+// hostWins (fallback de empate) va en rol ABSOLUTO: el viejo sorteo mapeaba el seed
+// a G.you/G.opp, que son relativos a cada pantalla — online ambos se veían ganar.
 function applySharedCellEffects(){
   const sameCell = (G.you.x===G.opp.x && G.you.y===G.opp.y);
   if(sameCell){
@@ -2676,13 +2857,14 @@ function applySharedCellEffects(){
     if(cell.type==='power_dmg' || cell.type==='power_def' || cell.type==='ring' || cell.type==='chest' || cell.type==='boots'){
       // Sorteo determinista: depende del turno y la posición (igual en ambos clientes)
       const seed = (G.turnCount*31 + G.you.x*7 + G.you.y*13) % 2;
-      const youWins = (seed===0);
-      const winner = youWins ? G.you : G.opp;
-      const itemEmoji = { power_dmg:'🗡️', power_def:'◈', chest:'🎁', boots:'👟', ring:'💍' }[cell.type];
-      applyCellEffect(winner);                 // solo uno recibe el ítem/anillo
-      cell.type='empty';                       // la casilla queda vacía para el otro
-      // Devuelve la info para la ruleta visual (el sorteo ya está aplicado)
-      return { youWins, itemEmoji };
+      const info = {
+        cellType: cell.type, x: G.you.x, y: G.you.y,
+        turn: G.turnCount,          // PRE-incremento (resolveMoves lo sube después)
+        hostWins: (seed===0),
+        itemEmoji: { power_dmg:'🗡️', power_def:'◈', chest:'🎁', boots:'👟', ring:'💍' }[cell.type],
+      };
+      cell.type='empty';            // grantContestedItem la restaura al otorgar
+      return info;
     }
     if(cell.type==='down'){
       // Trampa compartida: ambos la pisan (ambos reciben el daño)
@@ -4272,6 +4454,37 @@ const Net = {
     });
   },
 
+  // ---- 🪨📄✂️ Piedra-papel-tijera por buff compartido ----
+  // Mismo modelo que los scores del duelo: cada cliente sube SOLO su pick
+  // (número 0-2) a game/rps/{rpsId}/{rol}; con ambos presentes, las dos
+  // pantallas resuelven idéntico. rpsId = 'r'+turno (pre-incremento).
+  onRpsPicks: null,      // callback(picksObj) cuando están los dos picks
+  onOppRpsPicked: null,  // callback apenas aparece el pick del rival (aviso parcial)
+  _rpsRef: null,
+  async pushRpsPick(rpsId, pick){
+    if(!this.ref) return;
+    await this.ref.child('game/rps/'+rpsId+'/'+this.role).set(pick);
+  },
+  listenRpsPicks(rpsId){
+    if(!this.ref) return;
+    if(this._rpsRef) this._rpsRef.off();
+    this._rpsRef = this.ref.child('game/rps/'+rpsId);
+    const oppKey = this.role==='host' ? 'guest' : 'host';
+    this._rpsRef.on('value', s=>{
+      const p = s.val();
+      if(!p) return;
+      // 0 es falsy: comparar contra null, nunca truthiness
+      if(p[oppKey]!=null && this.onOppRpsPicked) this.onOppRpsPicked();
+      if(p.host!=null && p.guest!=null && this.onRpsPicks){
+        this._rpsRef.off(); this._rpsRef=null;
+        this.onRpsPicks(p);
+      }
+    });
+  },
+  stopRpsListen(){
+    if(this._rpsRef){ this._rpsRef.off(); this._rpsRef=null; }
+  },
+
   // ---- Chat en vivo (solo online) ----
   // Vive en rooms/{code}/chat (nivel sala: persiste entre revanchas; se borra con
   // la sala en leave()). Cada mensaje usa push-id → orden cronológico gratis.
@@ -4372,11 +4585,13 @@ const Net = {
       this.stopChat();
       if(this._movesRef){ this._movesRef.off(); this._movesRef=null; }
       if(this._duelRef){ this._duelRef.off(); this._duelRef=null; }
+      this.stopRpsListen();
       if(this.ref){ this.ref.child('game/board').off(); this.ref.off(); }
     } catch(e){}
     this.ref=null; this.role=null; this._startCb=null; this._boardCb=null; this._lastBoardStr=null;
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
+    this.onRpsPicks=null; this.onOppRpsPicked=null;
     this.onOpponentWaiting=null; this.onOpponentBack=null;
   },
 
@@ -4389,6 +4604,7 @@ const Net = {
       this.stopChat();
       if(this._movesRef){ this._movesRef.off(); this._movesRef=null; }
       if(this._duelRef){ this._duelRef.off(); this._duelRef=null; }
+      this.stopRpsListen();
       if(this.ref){
         this.ref.child('game/board').off();
         this.ref.child('guest').off();
@@ -4403,6 +4619,7 @@ const Net = {
     this.onGuestLeft=null; this._sawGuest=false;
     this.onOpponentLeft=null; this.onMovesReady=null; this.onDuelScores=null;
     this.onBoardUpdate=null; this.onStart=null; this.onEject=null;
+    this.onRpsPicks=null; this.onOppRpsPicked=null;
   },
 };
 
@@ -4474,7 +4691,7 @@ const OT = {
     ref.child('players').on('value', s=>{
       const v=s.val();
       if(v===null){
-        if(this.active && !this._leaving){ toast(TEXTS.toastRoomClosed); this.cleanupLocal(); G.running=false; show('home'); }
+        if(this.active && !this._leaving){ toast(TEXTS.toastRoomClosed); this.cleanupLocal(); G.running=false; hideRpsOverlay(); show('home'); }
         return;
       }
       this.players=v;
@@ -5415,7 +5632,12 @@ $('btn-join-go').addEventListener('click', async ()=>{
 $('btn-lobby-back').addEventListener('click', ()=>{ if(OT.active){ OT.leaveTournament(); return; } Net.leave(); show('home'); });
 $('btn-join-back').addEventListener('click', ()=>show('home'));
 $('code-in').addEventListener('input', e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); });
-$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent=TEXTS.btnRematch; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+$('btn-leave').addEventListener('click', ()=>{ G.running=false; G.phase='idle'; Chat.unmount(); if(G.duel.raf) cancelAnimationFrame(G.duel.raf); if(G.duel.cpuTimer){ clearTimeout(G.duel.cpuTimer); G.duel.cpuTimer=null; } hideRpsOverlay(); if(OT.active){ OT.leaveTournament(); return; } Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent=TEXTS.btnRematch; $('btn-again').style.display='block'; Net.leave(); show('home'); });
+// Piedra-papel-tijera: un solo listener delegado para los 3 botones
+$('rps-choices').addEventListener('click', e=>{
+  const b = e.target.closest('.rps-btn');
+  if(b) rpsPickLocal(+b.dataset.pick);
+});
 $('btn-mute').addEventListener('click', ()=>{ App.muted=!App.muted; $('btn-mute').textContent=App.muted?'♪ off':'♪ on'; });
 $('btn-again').addEventListener('click', ()=>{ show('game'); startGame(); });
 $('btn-home').addEventListener('click', ()=>{ Chat.unmount(); Tourney.active=false; Campaign.exitToMenu(); applyOppCosmetic(); $('btn-again').textContent=TEXTS.btnRematch; $('btn-again').style.display='block'; Net.leave(); show('home'); });
