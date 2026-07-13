@@ -1181,6 +1181,53 @@
   }
   @keyframes rouletteWin{ 0%{ transform: scale(1); } 45%{ transform: scale(1.14); } 100%{ transform: scale(1); } }
 
+  /* ===== Piedra-papel-tijera por el buff compartido ===== */
+  /* Mismo backdrop/caja que la ruleta (.roulette-overlay/.roulette-box). Solo
+     one-shots de transform/opacity — regla de perf del duelo; el contest termina
+     antes del countdown, nunca convive con duel-play. */
+  .rps-choices{ display:flex; gap:12px; }
+  .rps-btn{
+    font-size: 30px; line-height: 1;
+    padding: 12px 16px; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--paper);
+    cursor: pointer;
+    transition: transform .08s ease-out;
+  }
+  .rps-btn:active{ transform: scale(.92); }
+  .rps-btn:disabled{ pointer-events: none; }
+  .rps-btn.is-picked{
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .rps-btn.is-dimmed{ opacity: .35; }
+  .rps-status{
+    min-height: 14px;
+    font-family: var(--font-body); font-size: 11px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+  .rps-reveal{ display:flex; align-items:center; gap:10px; }
+  .rps-reveal[hidden]{ display:none; }   /* [hidden] pierde contra display:flex sin esto */
+  .rps-vs{
+    font-family: var(--font-body); font-size: 11px; font-weight: 600;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .rps-chip{
+    font-family: var(--font-display); font-size: 15px; font-weight: 700;
+    padding: 6px 14px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted);
+    max-width: 140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .rps-chip.is-winner{
+    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+    animation: rouletteWin .35s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .rps-chip.is-winner, .roulette-name.is-winner{ animation: none; }
+    .rps-btn{ transition: none; }
+  }
+
   .screen--result{ justify-content:center; gap:32px; text-align:center; }
   .result-verdict{ display:flex; flex-direction:column; align-items:center; gap:12px; }
   .result-eyebrow{ font-size:11px; font-weight:600; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
