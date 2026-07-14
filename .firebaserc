@@ -5,9 +5,7 @@
   "targets": {
     "rallye-online": {
       "hosting": {
-        "rally": [
-          "rallyyy-test"
-        ]
+        "rally": ["rallyyy"]
       }
     }
   },
