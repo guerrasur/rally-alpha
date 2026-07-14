@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.41';
+const VERSION = 'v0.3.43';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -644,6 +644,7 @@ function show(screen){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('is-active'));
   $('screen-'+screen).classList.add('is-active');
   App.screen = screen;
+  if(screen==='home') GolBg.start(); else GolBg.stop();
   // El botón de tema se ve en cualquier pestaña SALVO en la partida (ahí pisa
   // el HUD de vida; el pie de partida tiene su propio toggle ☾/☀). Info y
   // usuario solo en el inicio.
@@ -798,6 +799,122 @@ function shakeBoard(){
   popClass(b,'is-shake');
   b.addEventListener('animationend', ()=>b.classList.remove('is-shake'), {once:true});
 }
+
+// ===== 🧬 Fondo Game of Life del menú (v0.3.43) =====
+// Puramente estético, detrás del contenido de #screen-home. Corre SOLO con el
+// home activo (show() lo prende/apaga); rAF se congela en pestaña oculta =
+// pausa gratis. Tablero toroidal (bordes envueltos) para que los gliders
+// recirculen en vez de morir en los márgenes. La opacidad vive en el CSS
+// (.gol-bg) — acá se dibuja a alpha pleno.
+// ⚠️ Debe declararse ANTES de autoJoinFromURL: ese IIFE llama show('home')
+//    sincrónico a nivel top y un const tardío sería TDZ ReferenceError.
+const GolBg = {
+  on:false, raf:0, last:0,
+  stepMs:280,             // ~3.6 generaciones/seg — calmo
+  cell:14, gap:2,         // px CSS por celda / separación (célula dibujada 12px)
+  density:0.14,           // fracción viva del sembrado
+  cols:0, rows:0, grid:null, next:null,
+  cv:null, ctx:null,
+  stag:0, pop1:-2, pop2:-1,   // poblaciones de hace 1 y 2 generaciones
+
+  init(){
+    this.cv = $('gol-bg'); if(!this.cv) return;
+    this.ctx = this.cv.getContext('2d');
+    this.resize();
+    // Mismo criterio que el speedo-track: ResizeObserver, no window.resize.
+    if(typeof ResizeObserver !== 'undefined'){
+      let t=0;
+      new ResizeObserver(()=>{ clearTimeout(t); t=setTimeout(()=>this.resize(),250); })
+        .observe($('screen-home'));
+    }
+  },
+
+  resize(){
+    const w=this.cv.clientWidth, h=this.cv.clientHeight;
+    if(!w || !h) return;
+    const cols=Math.ceil(w/this.cell), rows=Math.ceil(h/this.cell);
+    // El jiggle de dvh de iOS (barra de URL) dispara resizes sin cambiar la
+    // grilla — no resembrar por eso.
+    if(cols===this.cols && rows===this.rows) return;
+    // Fondo difuso-ok a esta opacidad: tope 1.5 de dpr (mitad de fill-cost).
+    const dpr=Math.min(window.devicePixelRatio||1, 1.5);
+    this.cv.width=Math.round(w*dpr); this.cv.height=Math.round(h*dpr);
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);   // dibujar en px CSS
+    this.cols=cols; this.rows=rows;
+    this.grid=new Uint8Array(cols*rows); this.next=new Uint8Array(cols*rows);
+    this.seed();
+    this.draw(true);
+  },
+
+  seed(){
+    for(let i=0;i<this.grid.length;i++) this.grid[i] = Math.random()<this.density ? 1 : 0;
+    this.stag=0; this.pop1=-2; this.pop2=-1;
+  },
+
+  step(){
+    const cols=this.cols, rows=this.rows, grid=this.grid, next=this.next;
+    let pop=0;
+    for(let y=0;y<rows;y++){
+      const yu=((y-1+rows)%rows)*cols, yc=y*cols, yd=((y+1)%rows)*cols;
+      for(let x=0;x<cols;x++){
+        const xl=(x-1+cols)%cols, xr=(x+1)%cols;
+        const n = grid[yu+xl]+grid[yu+x]+grid[yu+xr]
+                + grid[yc+xl]           +grid[yc+xr]
+                + grid[yd+xl]+grid[yd+x]+grid[yd+xr];
+        const v = (n===3 || (grid[yc+x] && n===2)) ? 1 : 0;
+        next[yc+x]=v; pop+=v;
+      }
+    }
+    this.grid=next; this.next=grid;
+    // Anti-estancamiento: población igual a la de hace 2 gens cubre naturalezas
+    // muertas (p1) y osciladores p2 (el final típico); también colapso (<2%).
+    if(pop===this.pop2 || pop < this.grid.length*0.02) this.stag++; else this.stag=0;
+    this.pop2=this.pop1; this.pop1=pop;
+    if(this.stag>90 || pop===0) this.seed();   // ~25s quieto → resembrar
+  },
+
+  draw(hard){
+    const c=this.ctx, w=this.cv.clientWidth, h=this.cv.clientHeight;
+    if(hard){ c.clearRect(0,0,w,h); }
+    else{
+      // Estela suave: desvanecer el frame previo en vez de borrado duro — las
+      // células muertas se apagan en ~4-5 gens y el 4Hz se ve calmo.
+      c.globalCompositeOperation='destination-out';
+      c.fillStyle='rgba(0,0,0,0.45)';
+      c.fillRect(0,0,w,h);
+      c.globalCompositeOperation='source-over';
+    }
+    // Color releído por generación (~4/s, barato): sigue el tema sin
+    // acoplarse a applyTheme().
+    c.fillStyle=(getComputedStyle(document.documentElement).getPropertyValue('--ink')||'#888').trim();
+    const s=this.cell-this.gap;
+    for(let y=0;y<this.rows;y++){
+      const off=y*this.cols, py=y*this.cell;
+      for(let x=0;x<this.cols;x++)
+        if(this.grid[off+x]) c.fillRect(x*this.cell, py, s, s);
+    }
+  },
+
+  tick(ts){
+    if(!this.on) return;
+    if(ts-this.last>=this.stepMs){ this.last=ts; this.step(); this.draw(false); }
+    this.raf=requestAnimationFrame(this._tick);
+  },
+
+  start(){
+    if(!this.cv || this.on) return;
+    // Movimiento reducido: un frame sembrado estático (2 gens de "cocción"
+    // para que no parezca ruido puro) y nada de animación.
+    if(prefersReduced()){ this.step(); this.step(); this.draw(true); return; }
+    this.on=true; this.last=0;
+    this._tick=this._tick||(ts=>this.tick(ts));
+    this.raf=requestAnimationFrame(this._tick);
+  },
+
+  stop(){ this.on=false; if(this.raf){ cancelAnimationFrame(this.raf); this.raf=0; } },
+};
+GolBg.init();
+if(App.screen==='home') GolBg.start();   // el home viene pre-activo en el HTML
 
 const CFG = {
   boardSize: 7,
