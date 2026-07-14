@@ -73,6 +73,23 @@
   .table-scroll table{ min-width:560px; }
   .ach-soon{ color:var(--muted); opacity:.7; }
 
+  /* ===== 🔽 Secciones desplegables ===== */
+  .sect{ margin-top:14px; }
+  .sect > summary{ list-style:none; cursor:pointer; user-select:none;
+    display:flex; align-items:center; gap:10px; padding:14px 16px;
+    background:var(--field); border:1px solid var(--line); border-radius:12px; }
+  .sect > summary::-webkit-details-marker{ display:none; }
+  .sect > summary h2{ margin:0; flex:1; }
+  .sect > summary::after{ content:'▸'; color:var(--muted); font-size:14px; line-height:1;
+    transition:transform .18s ease; }
+  .sect[open] > summary{ border-radius:12px 12px 0 0; border-bottom:none; }
+  .sect[open] > summary::after{ transform:rotate(90deg); }
+  .sect > summary:hover{ background:var(--accent-soft); }
+  .sect > summary:hover::after{ color:var(--accent); }
+  .sect__body{ padding:14px 16px 16px; border:1px solid var(--line); border-top:none;
+    border-radius:0 0 12px 12px; }
+  .sect__body > h2:first-child{ margin-top:0; }
+
   /* ===== 🗺️ Editor de mapas ===== */
   .m-row{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
   .m-row:last-child{ border-bottom:none; }
@@ -172,14 +189,16 @@
 
     <!-- Contenido solo para admins -->
     <div id="admin-content" style="display:none;">
-      <h2>📈 Visitas</h2>
+      <details class="sect" open><summary><h2>📈 Visitas</h2></summary><div class="sect__body">
       <div class="card">
         <div class="stat"><span class="stat__label">Visitas totales</span><b id="ss-pageviews">…</b></div>
         <div class="stat"><span class="stat__label">Visitantes únicos</span><b id="ss-unique">…</b></div>
         <div class="row-actions"><button class="btn btn--ghost btn--small" id="ss-refresh">Refrescar</button></div>
       </div>
 
-      <h2>👥 Usuarios creados <span class="count" id="u-count"></span></h2>
+      </div></details>
+
+      <details class="sect" open><summary><h2>👥 Usuarios creados <span class="count" id="u-count"></span></h2></summary><div class="sect__body">
       <div class="card">
         <table>
           <thead><tr><th>Usuario</th><th>UID</th></tr></thead>
@@ -188,7 +207,9 @@
         <div class="row-actions"><button class="btn btn--ghost btn--small" id="u-refresh">Refrescar</button></div>
       </div>
 
-      <h2>📊 Estadísticas de jugadores</h2>
+      </div></details>
+
+      <details class="sect"><summary><h2>📊 Estadísticas de jugadores</h2></summary><div class="sect__body">
       <p class="hint">Solo cuentan partidas <b>online</b> (salas 1v1 y torneo x4) — la práctica offline no suma. PJ = partidas jugadas, PG = partidas ganadas.</p>
       <div class="card">
         <div class="table-scroll">
@@ -200,7 +221,9 @@
         <div class="row-actions"><button class="btn btn--ghost btn--small" id="ps-refresh">Refrescar</button></div>
       </div>
 
-      <h2>⚙️ Stats del juego</h2>
+      </div></details>
+
+      <details class="sect"><summary><h2>⚙️ Stats del juego</h2></summary><div class="sect__body">
       <p class="hint">Los valores en <b>azul</b> difieren del default del juego. Los cambios se guardan en la nube y aplican a <b>todos los jugadores</b> en la próxima carga del juego (no hace falta deploy). Las partidas en curso no se tocan.</p>
       <div class="card" id="stats-card">Cargando…</div>
       <p class="err" id="st-err"></p>
@@ -210,7 +233,9 @@
         <button class="btn btn--ghost" id="st-reset">Restaurar defaults</button>
       </div>
 
-      <h2>📝 Textos del juego</h2>
+      </div></details>
+
+      <details class="sect"><summary><h2>📝 Textos del juego</h2></summary><div class="sect__body">
       <p class="hint">Mensajes de desconexión, info del juego, toasts, nombres, etc. Los que tengan <code>{llave}</code> son valores que el juego completa solo (nombre, HP, puntaje…) — no los borres. Los cambios aplican a <b>todos los jugadores</b> en la próxima carga del juego.</p>
       <div class="card" id="texts-card">Cargando…</div>
       <p class="err" id="tx-err"></p>
@@ -220,7 +245,9 @@
         <button class="btn btn--ghost" id="tx-reset">Restaurar defaults</button>
       </div>
 
-      <h2>🗺️ Editor de mapas</h2>
+      </div></details>
+
+      <details class="sect"><summary><h2>🗺️ Editor de mapas</h2></summary><div class="sect__body">
       <p class="hint">Mapas pintados a mano para usar en la campaña. <b>7x7 clásico</b> juega con las reglas normales; <b>9x9 con paredes</b> juega con las reglas del Modo Paredes. Las esquinas (V = vos, R = rival) son las posiciones de arranque y no se pintan. En 9x9, tocá los <b>bordes</b> entre casillas para poner/sacar paredes.</p>
       <div class="card">
         <div id="m-list"><span class="hint">Cargando…</span></div>
@@ -244,7 +271,9 @@
         </div>
       </div>
 
-      <h2>📖 Editor de campaña</h2>
+      </div></details>
+
+      <details class="sect"><summary><h2>📖 Editor de campaña</h2></summary><div class="sect__body">
       <p class="hint">La cinta de nodos que juega el jugador en orden. <b>Escena</b> = líneas de historia que aparecen de a una. <b>Partida</b> = combate contra un rival configurable, con mapa fijo (de los guardados arriba) o aleatorio. Si editás un mapa después, volvé a <b>guardar la campaña</b> para que tome la versión nueva. Los cambios aplican a todos en la próxima carga del juego.</p>
       <div class="card">
         <div id="c-nodes"><span class="hint">Cargando…</span></div>
@@ -268,7 +297,9 @@
         </details>
       </div>
 
-      <h2>🎭 Editor de personajes</h2>
+      </div></details>
+
+      <details class="sect"><summary><h2>🎭 Editor de personajes</h2></summary><div class="sect__body">
       <p class="hint">Los 8 rivales del torneo offline, en orden de aparición. HP y skill vacíos = usar la curva default (mostrada como referencia). El rival de práctica ("Cachito") y los nombres también se pueden tocar desde 📝 Textos — si un nombre está editado en los dos lados, gana el de Textos.</p>
       <div class="card">
         <div id="ch-rows"><span class="hint">Cargando…</span></div>
@@ -280,7 +311,9 @@
         </div>
       </div>
 
-      <h2>🔑 Administradores</h2>
+      </div></details>
+
+      <details class="sect"><summary><h2>🔑 Administradores</h2></summary><div class="sect__body">
       <p class="hint">Quienes pueden entrar a este panel. No se pueden quitar desde acá (por seguridad) — eso es solo desde la consola de Firebase.</p>
       <div class="card">
         <table>
@@ -291,7 +324,7 @@
         <p class="err" id="a-err"></p>
         <p class="okmsg" id="a-ok"></p>
         <div class="row-actions"><button class="btn btn--primary" id="a-add">Agregar como admin</button></div>
-      </div>
+      </div></div></details>
     </div>
   </div>
 </div>
