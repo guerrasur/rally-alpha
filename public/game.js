@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.45';
+const VERSION = 'v0.3.46';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -800,7 +800,7 @@ function shakeBoard(){
   b.addEventListener('animationend', ()=>b.classList.remove('is-shake'), {once:true});
 }
 
-// ===== 🧬 Fondo Game of Life del menú (v0.3.43, ajustes v0.3.44, velocidad admin v0.3.45) =====
+// ===== 🧬 Fondo Game of Life del menú (v0.3.43, ajustes v0.3.44, velocidad admin v0.3.45/46) =====
 // Puramente estético, detrás del contenido de #screen-home. Corre SOLO con el
 // home activo (show() lo prende/apaga); rAF se congela en pestaña oculta =
 // pausa gratis. Tablero toroidal (bordes envueltos) para que los gliders
@@ -878,10 +878,13 @@ const GolBg = {
     const c=this.ctx, w=this.cv.clientWidth, h=this.cv.clientHeight;
     if(hard){ c.clearRect(0,0,w,h); }
     else{
-      // Estela suave: desvanecer el frame previo en vez de borrado duro — las
-      // células muertas se apagan en ~4-5 gens y el 4Hz se ve calmo.
+      // Estela suave: desvanecer el frame previo en vez de borrado duro. Alpha
+      // ajustable desde /admin (CFG.golBgFadeAlpha) — mayor = las células
+      // muertas se apagan más rápido (se ve más nítido/fluido), menor = más
+      // rastro/estela. Independiente de golBgStepMs (velocidad de generación).
+      const fadeA = (typeof CFG!=='undefined' && typeof CFG.golBgFadeAlpha==='number') ? CFG.golBgFadeAlpha : 0.45;
       c.globalCompositeOperation='destination-out';
-      c.fillStyle='rgba(0,0,0,0.45)';
+      c.fillStyle=`rgba(0,0,0,${fadeA})`;
       c.fillRect(0,0,w,h);
       c.globalCompositeOperation='source-over';
     }
@@ -929,6 +932,7 @@ if(App.screen==='home') GolBg.start();   // el home viene pre-activo en el HTML
 
 const CFG = {
   golBgStepMs: 140,     // fondo Game of Life del menú: ms por generación (menor = más rápido)
+  golBgFadeAlpha: 0.45, // fondo Game of Life del menú: alpha de estela por frame (mayor = más fluido/nítido)
   boardSize: 7,
   boardSizeDefault: 7,   // tamaño normal (para restaurar al salir de modos especiales)
   wallsBoardSize: 9,     // tamaño del mapa en Modo Paredes
@@ -6326,6 +6330,7 @@ $('btn-info-back').addEventListener('click', ()=> show('home'));
 // Parámetros editables: [clave, etiqueta, min, max, step, grupo]
 const LAB_PARAMS = [
   ['golBgStepMs','Fondo Game of Life del menú: ms/generación (↓ = más rápido)',40,1000,10,'General'],
+  ['golBgFadeAlpha','Fondo Game of Life del menú: alpha de estela (↑ = más fluido/nítido)',0.05,1,0.05,'General'],
   ['maxHp','Vida máxima',10,300,5,'General'],
   ['regenInterval','Turnos para regenerar ítems',1,10,1,'General'],
   ['powerDmgValue','Valor buff daño (🗡️)',1,10,1,'Ítems'],

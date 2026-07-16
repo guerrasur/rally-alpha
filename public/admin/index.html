@@ -351,6 +351,7 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 // Misma lista que LAB_PARAMS de game.js (defaults espejo de CFG) — mantener sincronizada.
 const PARAMS = [
   ['golBgStepMs','Fondo Game of Life del menú: ms/generación (↓ = más rápido)',140,'General'],
+  ['golBgFadeAlpha','Fondo Game of Life del menú: alpha de estela (↑ = más fluido/nítido)',0.45,'General'],
   ['maxHp','Vida máxima',35,'General'],
   ['regenInterval','Turnos para regenerar ítems',4,'General'],
   ['powerDmgValue','Valor buff daño (🗡️)',3,'Ítems'],
