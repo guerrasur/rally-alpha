@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.44';
+const VERSION = 'v0.3.45';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -800,7 +800,7 @@ function shakeBoard(){
   b.addEventListener('animationend', ()=>b.classList.remove('is-shake'), {once:true});
 }
 
-// ===== 🧬 Fondo Game of Life del menú (v0.3.43, ajustes v0.3.44) =====
+// ===== 🧬 Fondo Game of Life del menú (v0.3.43, ajustes v0.3.44, velocidad admin v0.3.45) =====
 // Puramente estético, detrás del contenido de #screen-home. Corre SOLO con el
 // home activo (show() lo prende/apaga); rAF se congela en pestaña oculta =
 // pausa gratis. Tablero toroidal (bordes envueltos) para que los gliders
@@ -898,7 +898,11 @@ const GolBg = {
 
   tick(ts){
     if(!this.on) return;
-    if(ts-this.last>=this.stepMs){ this.last=ts; this.step(); this.draw(false); }
+    // v0.3.45: velocidad ajustable desde /admin (CFG.golBgStepMs); this.stepMs
+    // queda solo como default antes de que CFG exista (no debería pasar, pero
+    // por las dudas si algún día se reordena el archivo).
+    const stepMs = (typeof CFG!=='undefined' && typeof CFG.golBgStepMs==='number') ? CFG.golBgStepMs : this.stepMs;
+    if(ts-this.last>=stepMs){ this.last=ts; this.step(); this.draw(false); }
     this.raf=requestAnimationFrame(this._tick);
   },
 
@@ -924,6 +928,7 @@ GolBg.init();
 if(App.screen==='home') GolBg.start();   // el home viene pre-activo en el HTML
 
 const CFG = {
+  golBgStepMs: 140,     // fondo Game of Life del menú: ms por generación (menor = más rápido)
   boardSize: 7,
   boardSizeDefault: 7,   // tamaño normal (para restaurar al salir de modos especiales)
   wallsBoardSize: 9,     // tamaño del mapa en Modo Paredes
@@ -6320,6 +6325,7 @@ $('btn-info-back').addEventListener('click', ()=> show('home'));
 // ===== 🧪 Laboratorio (panel de balance) =====
 // Parámetros editables: [clave, etiqueta, min, max, step, grupo]
 const LAB_PARAMS = [
+  ['golBgStepMs','Fondo Game of Life del menú: ms/generación (↓ = más rápido)',40,1000,10,'General'],
   ['maxHp','Vida máxima',10,300,5,'General'],
   ['regenInterval','Turnos para regenerar ítems',1,10,1,'General'],
   ['powerDmgValue','Valor buff daño (🗡️)',1,10,1,'Ítems'],
