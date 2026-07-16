@@ -1,4 +1,4 @@
-const VERSION = 'v0.3.43';
+const VERSION = 'v0.3.44';
 const firebaseConfig = {
   apiKey: "AIzaSyCQIqu3L7EAClpM1T-yOWkf0AST6GiT278",
   authDomain: "rallye-online.firebaseapp.com",
@@ -800,7 +800,7 @@ function shakeBoard(){
   b.addEventListener('animationend', ()=>b.classList.remove('is-shake'), {once:true});
 }
 
-// ===== 🧬 Fondo Game of Life del menú (v0.3.43) =====
+// ===== 🧬 Fondo Game of Life del menú (v0.3.43, ajustes v0.3.44) =====
 // Puramente estético, detrás del contenido de #screen-home. Corre SOLO con el
 // home activo (show() lo prende/apaga); rAF se congela en pestaña oculta =
 // pausa gratis. Tablero toroidal (bordes envueltos) para que los gliders
@@ -810,8 +810,8 @@ function shakeBoard(){
 //    sincrónico a nivel top y un const tardío sería TDZ ReferenceError.
 const GolBg = {
   on:false, raf:0, last:0,
-  stepMs:280,             // ~3.6 generaciones/seg — calmo
-  cell:14, gap:2,         // px CSS por celda / separación (célula dibujada 12px)
+  stepMs:140,             // ~7.2 generaciones/seg (v0.3.44: el doble de rápido)
+  cell:9, gap:1.5,        // px CSS por celda / separación (célula dibujada 7.5px, v0.3.44: más chica)
   density:0.14,           // fracción viva del sembrado
   cols:0, rows:0, grid:null, next:null,
   cv:null, ctx:null,
@@ -821,11 +821,12 @@ const GolBg = {
     this.cv = $('gol-bg'); if(!this.cv) return;
     this.ctx = this.cv.getContext('2d');
     this.resize();
-    // Mismo criterio que el speedo-track: ResizeObserver, no window.resize.
+    // v0.3.44: el canvas es fixed a todo el viewport (vive fuera de #app,
+    // que tiene max-width:520px) — mide contra <body>, no contra screen-home.
     if(typeof ResizeObserver !== 'undefined'){
       let t=0;
       new ResizeObserver(()=>{ clearTimeout(t); t=setTimeout(()=>this.resize(),250); })
-        .observe($('screen-home'));
+        .observe(document.body);
     }
   },
 
@@ -870,7 +871,7 @@ const GolBg = {
     // muertas (p1) y osciladores p2 (el final típico); también colapso (<2%).
     if(pop===this.pop2 || pop < this.grid.length*0.02) this.stag++; else this.stag=0;
     this.pop2=this.pop1; this.pop1=pop;
-    if(this.stag>90 || pop===0) this.seed();   // ~25s quieto → resembrar
+    if(this.stag>180 || pop===0) this.seed();   // ~25s quieto → resembrar (stepMs se acortó, umbral se ajustó)
   },
 
   draw(hard){
@@ -902,7 +903,9 @@ const GolBg = {
   },
 
   start(){
-    if(!this.cv || this.on) return;
+    if(!this.cv) return;
+    this.cv.classList.add('is-shown');
+    if(this.on) return;
     // Movimiento reducido: un frame sembrado estático (2 gens de "cocción"
     // para que no parezca ruido puro) y nada de animación.
     if(prefersReduced()){ this.step(); this.step(); this.draw(true); return; }
@@ -911,7 +914,11 @@ const GolBg = {
     this.raf=requestAnimationFrame(this._tick);
   },
 
-  stop(){ this.on=false; if(this.raf){ cancelAnimationFrame(this.raf); this.raf=0; } },
+  stop(){
+    this.on=false;
+    if(this.raf){ cancelAnimationFrame(this.raf); this.raf=0; }
+    if(this.cv) this.cv.classList.remove('is-shown');
+  },
 };
 GolBg.init();
 if(App.screen==='home') GolBg.start();   // el home viene pre-activo en el HTML
